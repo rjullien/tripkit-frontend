@@ -37,7 +37,9 @@ var TripSelector = (() => {
                   phases: extra.phases || [],
                 },
                 days: [],
-                hotels: extra.hotels || {},
+                hotels: Array.isArray(extra.hotels)
+                  ? extra.hotels.reduce((d, h) => { if (h.id) d[h.id] = h; return d; }, {})
+                  : (extra.hotels || {}),
               });
             }
           });
@@ -130,7 +132,15 @@ var TripSelector = (() => {
             };
             if (extra.restaurants) tripData.restaurants = extra.restaurants;
             if (extra.culture) tripData.culture = extra.culture;
-            if (extra.hotels) tripData.hotels = extra.hotels;
+            if (extra.hotels) {
+              if (Array.isArray(extra.hotels)) {
+                const dict = {};
+                extra.hotels.forEach(h => { if (h.id) dict[h.id] = h; });
+                tripData.hotels = dict;
+              } else {
+                tripData.hotels = extra.hotels;
+              }
+            }
             if (extra.locations) tripData.locations = extra.locations;
           }
           if (seed.hotels && seed.hotels.length) {
