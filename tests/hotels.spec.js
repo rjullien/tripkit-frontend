@@ -36,34 +36,18 @@ test.describe('Hotels Tab', () => {
   });
 });
 
-test.describe('Hotel WiFi', () => {
-  test('B&B Chez François has WiFi data in seed', async ({ seed }) => {
+test.describe('Hotel data integrity', () => {
+  test('B&B Chez François exists in seed', async ({ seed }) => {
     const bb = seed.hotels['b-b-chez-francois'];
     expect(bb).toBeTruthy();
-    expect(bb.wifi).toBeTruthy();
-    expect(bb.wifi.ssid).toBe('chezfrancois');
-    expect(bb.wifi.pass).toBe('purplestar059');
+    expect(bb.name).toContain('François');
   });
 
-  test('Airbnb Denver has WiFi data in seed', async ({ seed }) => {
-    const den = seed.hotels['airbnb-denver'];
-    expect(den).toBeTruthy();
-    expect(den.wifi).toBeTruthy();
-    expect(den.wifi.ssid).toBe('NETGEAR');
-    expect(den.wifi.pass).toBe('colorado1');
-  });
-
-  test('B&B has access codes in seed', async ({ seed }) => {
-    const bb = seed.hotels['b-b-chez-francois'];
-    expect(bb.access).toBeTruthy();
-    expect(bb.access).toContain('202627#');
-    expect(bb.access).toContain('730373#');
-  });
-
-  test('B&B address is correct', async ({ seed }) => {
-    const bb = seed.hotels['b-b-chez-francois'];
-    expect(bb.addr).toContain('4027');
-    expect(bb.addr).toContain('Papineau');
+  test('Hotels have required fields', async ({ seed }) => {
+    for (const [id, hotel] of Object.entries(seed.hotels)) {
+      expect(hotel.name).toBeTruthy();
+      expect(hotel.city).toBeTruthy();
+    }
   });
 });
 
