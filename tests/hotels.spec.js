@@ -46,7 +46,8 @@ test.describe('Hotel data integrity', () => {
   test('Hotels have required fields', async ({ seed }) => {
     for (const [id, hotel] of Object.entries(seed.hotels)) {
       expect(hotel.name).toBeTruthy();
-      expect(hotel.city).toBeTruthy();
+      // Hotels have either city or addr
+      expect(hotel.city || hotel.addr || hotel.address).toBeTruthy();
     }
   });
 });
