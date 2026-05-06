@@ -1,0 +1,484 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>🧠 Quiz Voyage — USA 2026</title>
+<style>
+:root {
+  --bg: #1a1a2e; --card: #16213e; --border: #2a3a5e; --text: #eee;
+  --muted: #8892b0; --accent: #e94560; --sec: #4ecdc4; --orange: #d29922;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: -apple-system, 'SF Pro', system-ui, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; display: flex; flex-direction: column; }
+button { background: none; border: none; cursor: pointer; color: inherit; font: inherit; }
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+/* Quiz layout */
+#tabQuiz { flex: 1; display: flex; flex-direction: column; }
+.quiz-topbar{display:flex;align-items:center;justify-content:space-between;padding:10px 16px;background:var(--card);border-bottom:1px solid rgba(255,255,255,.06);flex-shrink:0}
+.quiz-topbar .qt-day{display:flex;align-items:center;gap:8px}
+.quiz-topbar .qt-day button{width:32px;height:32px;border-radius:50%;background:rgba(255,255,255,.08);font-size:1em;display:flex;align-items:center;justify-content:center;color:var(--text)}
+.quiz-topbar .qt-day button:disabled{opacity:.2}
+.quiz-topbar .qt-day-label{font-size:.82em;font-weight:700;color:var(--accent);min-width:40px;text-align:center}
+.quiz-topbar .qt-right{display:flex;align-items:center;gap:10px}
+.quiz-topbar .qt-score{font-size:.72em;color:var(--muted)}
+.quiz-topbar .qt-trophy{font-size:1.3em;cursor:pointer}
+.quiz-progress{height:4px;background:rgba(255,255,255,.06);flex-shrink:0;position:relative}
+.quiz-progress .qp-fill{height:100%;background:linear-gradient(90deg,var(--accent),var(--sec));transition:width .4s ease;border-radius:0 2px 2px 0}
+.quiz-progress .qp-label{position:absolute;right:12px;top:8px;font-size:.68em;color:var(--muted)}
+.quiz-stage{flex:1;overflow:hidden;position:relative}
+.quiz-slide{position:absolute;inset:0;display:flex;flex-direction:column;padding:20px 16px 16px;overflow-y:auto;transition:opacity .3s ease,transform .3s ease}
+.quiz-slide.entering-right{opacity:0;transform:translateX(40px)}
+.quiz-slide.entering-left{opacity:0;transform:translateX(-40px)}
+.quiz-slide.leaving-right{opacity:0;transform:translateX(-40px)}
+.quiz-slide.leaving-left{opacity:0;transform:translateX(40px)}
+.quiz-slide.active{opacity:1;transform:translateX(0)}
+.quiz-slide.hidden{display:none}
+.qlevel{display:inline-block;padding:4px 12px;border-radius:20px;font-size:.72em;font-weight:700;margin-bottom:10px}
+.qlevel-easy{background:rgba(78,205,196,.15);color:#4ecdc4}
+.qlevel-medium{background:rgba(247,183,49,.15);color:#f7b731}
+.qlevel-expert{background:rgba(233,69,96,.15);color:#e94560}
+.qlevel-wtaf{background:rgba(165,94,234,.15);color:#a55eea}
+.qlevel-cinema{background:rgba(252,92,101,.15);color:#fc5c65}
+.qtext{font-size:1.05em;line-height:1.6;margin-bottom:18px;font-weight:500}
+.qopts{display:flex;flex-direction:column;gap:8px}
+.qopt{padding:14px 16px;background:rgba(255,255,255,.05);border-radius:12px;font-size:.9em;cursor:pointer;transition:all .2s;border:2px solid transparent;line-height:1.4}
+.qopt:active{transform:scale(.98)}
+.qopt.correct{background:rgba(78,205,196,.18);border-color:var(--sec);color:var(--sec)}
+.qopt.wrong{background:rgba(233,69,96,.15);border-color:var(--accent);color:var(--accent);opacity:.7}
+.qopt.dim{opacity:.4;pointer-events:none}
+.qopt.disabled{pointer-events:none}
+.qexplain{margin-top:14px;padding:12px 16px;background:rgba(78,205,196,.08);border-radius:12px;font-size:.84em;line-height:1.6;color:var(--sec);animation:fadeIn .3s}
+.qexplain .qlink{color:var(--accent);font-style:italic;margin-top:6px;display:block}
+.qplayers{margin-top:16px;animation:fadeIn .3s}
+.qplayers-title{font-size:.78em;color:var(--muted);margin-bottom:8px;font-weight:600}
+.qplayers-grid{display:flex;flex-wrap:wrap;gap:8px}
+.qplayer-btn{padding:8px 14px;border-radius:10px;font-size:.82em;font-weight:600;background:rgba(233,69,96,.12);color:var(--accent);transition:all .2s;position:relative;overflow:hidden}
+.qplayer-btn:active{transform:scale(.95)}
+.qplayer-btn.awarded{background:var(--sec);color:#111}
+.qplayer-btn.awarded::after{content:'✓';margin-left:4px}
+.qplayer-btn.nobody{background:rgba(255,255,255,.06);color:var(--muted)}
+.qnext-row{margin-top:14px;display:flex;justify-content:flex-end}
+.qnext-btn{padding:10px 20px;border-radius:10px;font-size:.85em;font-weight:700;background:var(--accent);color:#fff;transition:.2s}
+.qnext-btn:active{transform:scale(.95)}
+.quiz-scoreboard-overlay{position:fixed;inset:0;background:rgba(26,26,46,.95);backdrop-filter:blur(8px);z-index:200;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;padding:24px;padding-top:max(70px,calc(env(safe-area-inset-top) + 16px));overflow-y:auto;animation:fadeIn .25s}
+.qsb-title{font-size:1.4em;font-weight:800;margin-bottom:20px}
+.qsb-list{width:100%;max-width:340px}
+.qsb-row{display:flex;justify-content:space-between;align-items:center;padding:12px 16px;background:var(--card);border-radius:12px;margin-bottom:8px}
+.qsb-row:first-child{background:linear-gradient(135deg,rgba(233,69,96,.2),rgba(78,205,196,.15));border:1px solid rgba(233,69,96,.3)}
+.qsb-name{font-size:1em;font-weight:600}
+.qsb-pts{font-weight:800;color:var(--sec);font-size:1.1em}
+.qsb-row:first-child .qsb-pts{color:var(--accent);font-size:1.25em}
+.qsb-close{margin-top:20px;padding:10px 30px;border-radius:10px;background:var(--card);color:var(--text);font-weight:600;font-size:.9em}
+.quiz-complete{display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:30px 24px;height:100%;animation:fadeIn .4s}
+.quiz-complete .qc-emoji{font-size:3.5em;margin-bottom:16px}
+.quiz-complete .qc-title{font-size:1.3em;font-weight:800;color:var(--accent);margin-bottom:8px}
+.quiz-complete .qc-sub{color:var(--muted);font-size:.9em;margin-bottom:24px;line-height:1.5}
+a { color: var(--sec); }
+
+/* Back bar */
+.back-bar { padding: 10px 16px; background: var(--card); border-bottom: 1px solid var(--border); }
+.back-bar a { color: var(--muted); text-decoration: none; font-size: .85em; }
+.back-bar a:active { color: var(--accent); }
+</style>
+</head>
+<body>
+
+<div class="back-bar"><a href="/">← Retour à l'app</a></div>
+
+<div id="tabQuiz">
+  <div class="quiz-topbar">
+    <div class="qt-day">
+      <button id="qPrevDay" onclick="quizChangeDay(-1)">‹</button>
+      <span class="qt-day-label" id="qDayLabel" onclick="quizShowDayPicker()" style="cursor:pointer">J1</span>
+      <button id="qNextDay" onclick="quizChangeDay(1)">›</button>
+    </div>
+    <div class="qt-right">
+      <span class="qt-score" id="qScoreSmall"></span>
+      <span class="qt-trophy" onclick="quizShowScoreboard()">🏆</span>
+    </div>
+  </div>
+  <div class="quiz-progress">
+    <div class="qp-fill" id="qProgressFill" style="width:0%"></div>
+    <div class="qp-label" id="qProgressLabel"></div>
+  </div>
+  <div class="quiz-stage" id="quizStage"></div>
+</div>
+
+<script>
+const PLAYERS = ['René','Nicole','Alexandre','Dinah','Laurine'];
+const QUIZ_PTS = {easy:1,medium:2,expert:3,wtaf:5,cinema:2};
+const QUIZ_LEVEL_LABEL = {easy:'⭐ Facile',medium:'⭐⭐ Moyen',expert:'🔥 Expert',wtaf:'🤯 WTAF',cinema:'🎬 Ciné'};
+
+let QUIZ_DATA = null;
+let scores = {};
+let dayScores = {};
+let quizAnswered = {};
+let quizStreaks = {};
+let quizDay = 1;
+let quizIdx = 0;
+
+// Load persisted scores
+try { scores = JSON.parse(localStorage.getItem('quizScores2026')||'{}'); } catch(e){ scores={}; }
+try { dayScores = JSON.parse(localStorage.getItem('quizDayScores2026')||'{}'); } catch(e){ dayScores={}; }
+PLAYERS.forEach(p=>{ if(!scores[p]) scores[p]=0; });
+
+// Boot
+loadQuiz();
+
+function loadQuiz() {
+  fetch('questions.json').then(r=>r.ok?r.json():null).then(data=>{
+    if(data){QUIZ_DATA=data;setupQuiz();}
+  }).catch(()=>{ QUIZ_DATA=null; });
+  setTimeout(()=>{ if(!QUIZ_DATA) quizFallback(); },1200);
+}
+
+function setupQuiz(){
+  try { quizAnswered = JSON.parse(localStorage.getItem('quizAnswered2026')||'{}'); } catch(e){ quizAnswered={}; }
+  try { quizStreaks = JSON.parse(localStorage.getItem('quizStreaks2026')||'{}'); } catch(e){ quizStreaks={}; }
+  PLAYERS.forEach(p=>{ if(!quizStreaks[p]) quizStreaks[p]=0; });
+  const saved = JSON.parse(localStorage.getItem('quizPos2026')||'null');
+  if(saved){ quizDay=saved.day; quizIdx=saved.idx; }
+  if(!QUIZ_DATA.days.find(d=>d.day===quizDay)) quizDay=1;
+  quizRender();
+
+  // Swipe
+  const el=document.getElementById('quizStage');
+  let sx=0,dx=0,moving=false;
+  el.addEventListener('touchstart',e=>{sx=e.touches[0].clientX;dx=0;moving=false},{passive:true});
+  el.addEventListener('touchmove',e=>{
+    const mx=e.touches[0].clientX-sx,my=e.touches[0].clientY-(e.touches[0].clientY||0);
+    if(!moving&&Math.abs(mx)>10) moving=true;
+    if(moving){dx=mx;e.preventDefault();}
+  },{passive:false});
+  el.addEventListener('touchend',()=>{
+    if(!moving) return;
+    if(dx<-60) quizNext();
+    else if(dx>60) quizPrev();
+  },{passive:true});
+}
+
+function quizFallback(){
+  document.getElementById('quizStage').innerHTML='<div style="padding:40px 20px;text-align:center;color:var(--muted)">📱 Fichier questions.json non trouvé.</div>';
+}
+function quizSavePos(){ localStorage.setItem('quizPos2026',JSON.stringify({day:quizDay,idx:quizIdx})); }
+
+function quizChangeDay(delta){
+  const days = QUIZ_DATA.days.map(d=>d.day).sort((a,b)=>a-b);
+  const ci = days.indexOf(quizDay);
+  const ni = ci+delta;
+  if(ni<0||ni>=days.length) return;
+  quizDay = days[ni]; quizIdx = 0; quizSavePos(); quizRender();
+}
+
+function quizShowDayPicker(){
+  if(!QUIZ_DATA) return;
+  const days = QUIZ_DATA.days.map(d=>d.day).sort((a,b)=>a-b);
+  const overlay = document.createElement('div');
+  overlay.className = 'quiz-scoreboard-overlay';
+  overlay.onclick = e => { if(e.target===overlay) overlay.remove(); };
+  let html = '<div style="max-width:340px;width:100%;text-align:center;position:relative">';
+  html += '<button onclick="this.closest(\'.quiz-scoreboard-overlay\').remove()" style="position:absolute;top:-8px;right:-8px;width:36px;height:36px;border-radius:50%;background:rgba(255,255,255,.12);font-size:1.1em;color:var(--text);display:flex;align-items:center;justify-content:center">✕</button>';
+  html += '<div style="font-size:1.3em;font-weight:800;color:var(--accent);margin-bottom:16px">Choisir un jour</div>';
+  html += '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px">';
+  days.forEach(d => {
+    const dayData = QUIZ_DATA.days.find(dd=>dd.day===d);
+    const answered = dayData ? dayData.questions.filter((_,qi)=>quizAnswered[`d${d}q${qi}`]!==undefined).length : 0;
+    const total = dayData ? dayData.questions.length : 10;
+    const done = answered === total;
+    const active = d === quizDay;
+    const bg = active ? 'var(--accent)' : done ? 'rgba(0,200,100,.25)' : 'rgba(255,255,255,.08)';
+    const border = active ? 'none' : done ? '1px solid rgba(0,200,100,.4)' : '1px solid rgba(255,255,255,.1)';
+    html += `<button onclick="quizJumpDay(${d});this.closest('.quiz-scoreboard-overlay').remove()" style="padding:12px 8px;border-radius:12px;background:${bg};border:${border};color:var(--text);font-weight:700;font-size:1em;cursor:pointer">`;
+    html += `J${d}`;
+    if(done) html += ' ✅';
+    else if(answered>0) html += `<br><span style="font-size:.65em;color:var(--muted)">${answered}/${total}</span>`;
+    html += '</button>';
+  });
+  html += '</div></div>';
+  overlay.innerHTML = html;
+  document.getElementById('tabQuiz').appendChild(overlay);
+}
+
+function quizJumpDay(day){ quizDay=day; quizIdx=0; quizSavePos(); quizRender(); }
+
+function quizRender(){
+  if(!QUIZ_DATA) return;
+  const dayData = QUIZ_DATA.days.find(d=>d.day===quizDay);
+  if(!dayData) return;
+  const total = dayData.questions.length;
+  const allDays = QUIZ_DATA.days.map(d=>d.day).sort((a,b)=>a-b);
+  const dayIdx = allDays.indexOf(quizDay);
+
+  document.getElementById('qDayLabel').textContent = `J${quizDay}`;
+  document.getElementById('qPrevDay').disabled = dayIdx<=0;
+  document.getElementById('qNextDay').disabled = dayIdx>=allDays.length-1;
+
+  const sorted = Object.entries(scores).sort((a,b)=>b[1]-a[1]);
+  document.getElementById('qScoreSmall').textContent = sorted.map(([n,s])=>`${n} ${s}`).join(' · ');
+
+  const allAnswered = dayData.questions.every((_,qi)=>quizAnswered[`d${quizDay}q${qi}`]!==undefined);
+  const answeredCount = dayData.questions.filter((_,qi)=>quizAnswered[`d${quizDay}q${qi}`]!==undefined).length;
+
+  if(allAnswered && quizIdx >= total){ quizShowComplete(dayData); return; }
+  if(quizIdx<0) quizIdx=0;
+  if(quizIdx>=total) quizIdx=total-1;
+
+  const pct = ((quizIdx+1)/total)*100;
+  document.getElementById('qProgressFill').style.width = pct+'%';
+  document.getElementById('qProgressLabel').textContent = `${quizIdx+1}/${total}`;
+
+  const q = dayData.questions[quizIdx];
+  const qid = `d${quizDay}q${quizIdx}`;
+  const wasAnswered = quizAnswered[qid]!==undefined;
+  const pts = QUIZ_PTS[q.level]||1;
+  const levelLabel = QUIZ_LEVEL_LABEL[q.level]||q.level;
+
+  const stage = document.getElementById('quizStage');
+  const slide = document.createElement('div');
+  slide.className = 'quiz-slide active';
+  slide.id = 'qSlide';
+
+  let html = `<div class="qlevel qlevel-${q.level}">${levelLabel} · ${pts} pt${pts>1?'s':''}</div>`;
+  html += `<div class="qtext">${q.text}</div>`;
+  html += `<div class="qopts">`;
+  q.options.forEach((opt,oi)=>{
+    let cls = '';
+    if(wasAnswered){
+      cls = 'disabled ';
+      if(oi===q.correct) cls += 'correct';
+      else if(oi===quizAnswered[qid]) cls += 'wrong';
+      else cls += 'dim';
+    }
+    html += `<div class="qopt ${cls}" onclick="quizAnswer(${oi})">${opt}</div>`;
+  });
+  html += `</div>`;
+  if(wasAnswered){
+    html += `<div class="qexplain">${q.explanation}${q.link?'<span class="qlink">'+q.link+'</span>':''}</div>`;
+    if(quizAnswered[qid] === q.correct) html += quizPlayersHTML(qid, q);
+    html += quizNextBtnHTML();
+  }
+  slide.innerHTML = html;
+  const oldSlide = stage.querySelector('.quiz-slide');
+  if(oldSlide) oldSlide.remove();
+  stage.appendChild(slide);
+}
+
+function quizPlayersHTML(qid, q){
+  const pts = QUIZ_PTS[q.level]||1;
+  let html = `<div class="qplayers"><div class="qplayers-title">Qui a trouvé ?</div><div class="qplayers-grid">`;
+  PLAYERS.forEach(p=>{
+    if(p==='Laurine' && quizDay>10) return;
+    const awardKey = qid+'_'+p;
+    const awarded = localStorage.getItem(awardKey);
+    html += `<button class="qplayer-btn ${awarded?'awarded':''}" onclick="quizAward('${qid}','${p}',this)">${p}</button>`;
+  });
+  html += `<button class="qplayer-btn nobody" onclick="quizNext()">Personne</button></div></div>`;
+  return html;
+}
+function quizNextBtnHTML(){ return `<div class="qnext-row"><button class="qnext-btn" onclick="quizNext()">Suivant →</button></div>`; }
+
+function quizAnswer(chosen){
+  if(!QUIZ_DATA) return;
+  const dayData = QUIZ_DATA.days.find(d=>d.day===quizDay);
+  const q = dayData.questions[quizIdx];
+  const qid = `d${quizDay}q${quizIdx}`;
+  if(quizAnswered[qid]!==undefined) return;
+  quizAnswered[qid] = chosen;
+  localStorage.setItem('quizAnswered2026',JSON.stringify(quizAnswered));
+  const slide = document.getElementById('qSlide');
+  const opts = slide.querySelectorAll('.qopt');
+  opts.forEach((o,i)=>{
+    o.classList.add('disabled');
+    if(i===q.correct) o.classList.add('correct');
+    else if(i===chosen) o.classList.add('wrong');
+    else o.classList.add('dim');
+  });
+  let extra = `<div class="qexplain">${q.explanation}${q.link?'<span class="qlink">'+q.link+'</span>':''}</div>`;
+  if(chosen === q.correct) extra += quizPlayersHTML(qid, q);
+  extra += quizNextBtnHTML();
+  slide.insertAdjacentHTML('beforeend', extra);
+}
+
+function quizAward(qid, player, btn){
+  if(!QUIZ_DATA) return;
+  const parts = qid.match(/d(\d+)q(\d+)/);
+  const dayNum = +parts[1], qi = +parts[2];
+  const dayData = QUIZ_DATA.days.find(d=>d.day===dayNum);
+  const q = dayData.questions[qi];
+  const pts = QUIZ_PTS[q.level]||1;
+  const awardKey = qid+'_'+player;
+  if(!dayScores[dayNum]) dayScores[dayNum] = {};
+  PLAYERS.forEach(p=>{ if(!dayScores[dayNum][p]) dayScores[dayNum][p] = 0; });
+  if(localStorage.getItem(awardKey)){
+    localStorage.removeItem(awardKey);
+    scores[player] = Math.max(0,(scores[player]||0) - pts);
+    dayScores[dayNum][player] = Math.max(0,(dayScores[dayNum][player]||0) - pts);
+    btn.classList.remove('awarded');
+    quizStreaks[player] = 0;
+  } else {
+    localStorage.setItem(awardKey, '1');
+    scores[player] = (scores[player]||0) + pts;
+    dayScores[dayNum][player] = (dayScores[dayNum][player]||0) + pts;
+    btn.classList.add('awarded');
+    quizStreaks[player] = (quizStreaks[player]||0) + 1;
+    if(quizStreaks[player] >= 3 && quizStreaks[player] % 3 === 0){
+      scores[player] += 2;
+      dayScores[dayNum][player] += 2;
+      quizShowStreakBonus(player);
+    }
+  }
+  localStorage.setItem('quizScores2026', JSON.stringify(scores));
+  localStorage.setItem('quizDayScores2026', JSON.stringify(dayScores));
+  localStorage.setItem('quizStreaks2026', JSON.stringify(quizStreaks));
+  // Update small score
+  const sorted = Object.entries(scores).sort((a,b)=>b[1]-a[1]);
+  document.getElementById('qScoreSmall').textContent = sorted.map(([n,s])=>`${n} ${s}`).join(' · ');
+}
+
+function quizShowStreakBonus(player){
+  const toast = document.createElement('div');
+  toast.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:var(--accent);color:#fff;padding:14px 28px;border-radius:16px;font-weight:800;font-size:1.1em;z-index:200;animation:fadeIn .3s;pointer-events:none;text-align:center';
+  toast.innerHTML = `🔥 STREAK! ${player}<br>+2 pts bonus!`;
+  document.body.appendChild(toast);
+  setTimeout(()=>toast.remove(), 1800);
+}
+
+function quizPrev(){
+  if(!QUIZ_DATA||quizIdx<=0) return;
+  quizIdx--; quizSavePos();
+  const stage=document.getElementById('quizStage');
+  const old=stage.querySelector('.quiz-slide');
+  if(old){old.classList.add('leaving-left');setTimeout(()=>old.remove(),300);}
+  quizRender();
+}
+
+function quizNext(){
+  if(!QUIZ_DATA) return;
+  const dayData = QUIZ_DATA.days.find(d=>d.day===quizDay);
+  const total = dayData.questions.length;
+  const qid = `d${quizDay}q${quizIdx}`;
+  PLAYERS.forEach(p=>{ if(!localStorage.getItem(qid+'_'+p)) quizStreaks[p] = 0; });
+  localStorage.setItem('quizStreaks2026', JSON.stringify(quizStreaks));
+  quizIdx++; quizSavePos();
+  if(quizIdx >= total){ quizShowComplete(dayData); return; }
+  const stage = document.getElementById('quizStage');
+  const old = stage.querySelector('.quiz-slide');
+  if(old){ old.classList.add('leaving-right'); setTimeout(()=>old.remove(), 300); }
+  setTimeout(()=>quizRender(), 50);
+}
+
+function quizShowComplete(dayData){
+  const total = dayData.questions.length;
+  document.getElementById('qProgressFill').style.width = '100%';
+  document.getElementById('qProgressLabel').textContent = `${total}/${total}`;
+  const stage = document.getElementById('quizStage');
+  const medals = ['🥇','🥈','🥉','4️⃣','5️⃣'];
+  const ds = dayScores[quizDay] || {};
+  const daySorted = Object.entries(ds).filter(([,s])=>s>0).sort((a,b)=>b[1]-a[1]);
+  const cumSorted = Object.entries(scores).sort((a,b)=>b[1]-a[1]);
+  let html = `<div class="quiz-complete">
+    <div class="qc-emoji">🏆</div>
+    <div class="qc-title">Jour ${quizDay} terminé !</div>
+    <div class="qc-sub">${dayData.label}</div>`;
+  html += `<div style="width:100%;max-width:300px;text-align:left;margin-top:16px">`;
+  html += `<div style="font-weight:700;margin-bottom:8px;color:var(--sec)">📊 Scores du jour</div>`;
+  if(daySorted.length){ daySorted.forEach(([name,score],i)=>{ html += `<div class="qsb-row"><span class="qsb-name">${medals[i]||''} ${name}</span><span class="qsb-pts">${score} pts</span></div>`; }); }
+  else { html += `<div style="color:var(--muted);font-size:.85em">Aucun point attribué</div>`; }
+  html += `</div>`;
+  html += `<div style="width:100%;max-width:300px;text-align:left;margin-top:16px">`;
+  html += `<div style="font-weight:700;margin-bottom:8px;color:var(--accent)">🏆 Classement cumulé</div>`;
+  cumSorted.forEach(([name,score],i)=>{ html += `<div class="qsb-row"><span class="qsb-name">${medals[i]||''} ${name}</span><span class="qsb-pts">${score} pts</span></div>`; });
+  html += `</div>`;
+  html += `<div style="display:flex;gap:10px;margin-top:20px;flex-wrap:wrap;justify-content:center">`;
+  html += `<button class="qnext-btn" style="background:var(--card)" onclick="quizIdx=0;quizSavePos();quizRender()">↺ Revoir J${quizDay}</button>`;
+  const allDays = QUIZ_DATA.days.map(d=>d.day).sort((a,b)=>a-b);
+  const dayIdx = allDays.indexOf(quizDay);
+  if(dayIdx < allDays.length-1){ html += `<button class="qnext-btn" onclick="quizDay=${allDays[dayIdx+1]};quizIdx=0;quizSavePos();quizRender()">J${allDays[dayIdx+1]} →</button>`; }
+  html += `</div></div>`;
+  const old = stage.querySelector('.quiz-slide,.quiz-complete');
+  if(old) old.remove();
+  const sbOv = stage.querySelector('.quiz-scoreboard-overlay');
+  if(sbOv) sbOv.remove();
+  stage.innerHTML = html;
+}
+
+function quizShowScoreboard(){
+  const stage = document.getElementById('tabQuiz');
+  const existing = stage.querySelector('.quiz-scoreboard-overlay');
+  if(existing){ existing.remove(); return; }
+  const sorted = Object.entries(scores).sort((a,b)=>b[1]-a[1]);
+  const medals = ['🥇','🥈','🥉','4️⃣','5️⃣'];
+  let html = `<div class="quiz-scoreboard-overlay" style="overflow-y:auto" onclick="if(event.target===this)this.remove()">
+    <button onclick="this.parentElement.remove()" style="position:fixed;top:max(16px,calc(env(safe-area-inset-top) + 8px));right:16px;width:44px;height:44px;border-radius:50%;background:rgba(255,255,255,.15);font-size:1.3em;color:var(--text);z-index:210;display:flex;align-items:center;justify-content:center;border:1px solid rgba(255,255,255,.2)">✕</button>
+    <div class="qsb-title">🏆 Classement Cumulé</div><div class="qsb-list">`;
+  sorted.forEach(([name,score],i)=>{
+    const streak = quizStreaks[name]||0;
+    html += `<div class="qsb-row"><span class="qsb-name">${medals[i]||''} ${name}${streak>=2?' 🔥'+streak:''}</span><span class="qsb-pts">${score} pts</span></div>`;
+  });
+  html += `</div>`;
+  const allDays = Object.keys(dayScores).map(Number).sort((a,b)=>a-b);
+  if(allDays.length){
+    html += `<div style="width:100%;margin-top:20px"><div class="qsb-title" style="font-size:.9em">📊 Par jour</div>`;
+    allDays.forEach(d=>{
+      const ds = dayScores[d];
+      const dSorted = Object.entries(ds).filter(([,s])=>s>0).sort((a,b)=>b[1]-a[1]);
+      if(dSorted.length){
+        html += `<div style="margin-top:10px;font-weight:600;font-size:.85em;color:var(--sec)">J${d}</div>`;
+        dSorted.forEach(([name,score])=>{ html += `<div class="qsb-row" style="font-size:.85em"><span class="qsb-name">${name}</span><span class="qsb-pts">${score}</span></div>`; });
+      }
+    });
+    html += `</div>`;
+  }
+  html += `<div style="display:flex;gap:8px;margin-top:20px;flex-wrap:wrap;justify-content:center">`;
+  html += `<button onclick="quizExport()" style="background:var(--card);color:var(--text);padding:8px 16px;border-radius:8px;font-size:.8em;border:1px solid rgba(255,255,255,.15)">📤 Exporter</button>`;
+  html += `<button onclick="document.getElementById('quizImportFile').click()" style="background:var(--card);color:var(--text);padding:8px 16px;border-radius:8px;font-size:.8em;border:1px solid rgba(255,255,255,.15)">📥 Importer</button></div>`;
+  html += `<input type="file" id="quizImportFile" accept=".json" style="display:none" onchange="quizImport(event)">`;
+  html += `<button class="qsb-close" onclick="this.parentElement.remove()">Fermer</button></div>`;
+  stage.insertAdjacentHTML('beforeend', html);
+}
+
+function quizExport(){
+  const data = { scores, dayScores, answered: quizAnswered, streaks: quizStreaks, awards: {}, exportDate: new Date().toISOString() };
+  for(let i=0;i<localStorage.length;i++){ const k = localStorage.key(i); if(k && k.match(/^d\d+q\d+_/)) data.awards[k] = '1'; }
+  const json = JSON.stringify(data,null,2);
+  const fname = `quiz-scores-${new Date().toISOString().slice(0,10)}.json`;
+  if(navigator.share){
+    const file = new File([json], fname, {type:'application/json'});
+    const shareData = (navigator.canShare && navigator.canShare({files:[file]})) ? {files:[file], title:'Quiz Scores'} : {title:'Quiz Scores', text:json};
+    navigator.share(shareData).catch(()=>{});
+  } else {
+    const blob = new Blob([json], {type:'application/json'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url; a.download = fname; a.click();
+    URL.revokeObjectURL(url);
+  }
+}
+
+function quizImport(event){
+  const file = event.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = function(e){
+    try {
+      const data = JSON.parse(e.target.result);
+      if(!data.scores) throw new Error('Format invalide');
+      if(!confirm(`Importer les scores du ${data.exportDate?.slice(0,10)||'?'} ?\nCela remplacera les scores actuels.`)) return;
+      scores = data.scores; dayScores = data.dayScores || {};
+      quizAnswered = data.answered || {}; quizStreaks = data.streaks || {};
+      localStorage.setItem('quizScores2026', JSON.stringify(scores));
+      localStorage.setItem('quizDayScores2026', JSON.stringify(dayScores));
+      localStorage.setItem('quizAnswered2026', JSON.stringify(quizAnswered));
+      localStorage.setItem('quizStreaks2026', JSON.stringify(quizStreaks));
+      if(data.awards) Object.keys(data.awards).forEach(k=>localStorage.setItem(k,'1'));
+      PLAYERS.forEach(p=>{ if(!scores[p]) scores[p]=0; });
+      alert('Scores importés !'); quizRender();
+    } catch(err){ alert('Erreur: '+err.message); }
+  };
+  reader.readAsText(file);
+  event.target.value = '';
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,7 @@
+// Runtime configuration — injected by Docker entrypoint (envsubst)
+// Do NOT import this file directly in dev; it will be generated at container start.
+var TRIPKIT_CONFIG = {
+  apiUrl: "${API_URL}",
+  apiPrefix: "${API_PREFIX}",
+  defaultTripId: "${DEFAULT_TRIP_ID}"
+};

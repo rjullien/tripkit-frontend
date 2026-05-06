@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Juju's Adventures">
+  <meta name="theme-color" content="#0d1117">
+  <title>Juju's Adventures 🌍</title>
+  <link rel="manifest" href="manifest.json?v=3">
+  <link rel="stylesheet" href="css/theme.css">
+  <link rel="apple-touch-icon" href="icons/icon-192-v3.png">
+</head>
+<body>
+
+  <!-- ── Tab Views ──────────────────────────────────────────────────── -->
+  <div id="tab-programme" class="tab-view active">
+    <div class="page" id="programme-content"></div>
+  </div>
+  <div id="tab-route" class="tab-view">
+    <div class="page" id="route-content"></div>
+  </div>
+  <div id="tab-culture" class="tab-view">
+    <div class="page" id="culture-content"></div>
+  </div>
+  <div id="tab-hotels" class="tab-view">
+    <div class="page" id="hotels-content"></div>
+  </div>
+  <div id="tab-plus" class="tab-view">
+    <div class="page" id="plus-content"></div>
+  </div>
+
+  <!-- ── Bottom Navigation (5 tabs) ─────────────────────────────────── -->
+  <nav class="bottom-nav" id="bottom-nav">
+    <button data-tab="programme" class="active" onclick="App.switchTab('programme')">
+      <span class="nav-icon">📅</span>
+      Jour
+    </button>
+    <button data-tab="route" onclick="App.switchTab('route')">
+      <span class="nav-icon">🗺️</span>
+      Route
+    </button>
+    <button data-tab="culture" onclick="App.switchTab('culture')">
+      <span class="nav-icon">📚</span>
+      Culture
+    </button>
+    <button data-tab="hotels" onclick="App.switchTab('hotels')">
+      <span class="nav-icon">🏨</span>
+      Hôtels
+    </button>
+    <button data-tab="plus" onclick="App.switchTab('plus')">
+      <span class="nav-icon">⚙️</span>
+      Plus
+    </button>
+  </nav>
+
+  <!-- ── Toast container ───────────────────────────────────────────── -->
+  <div class="toast-wrap" id="toast-wrap"></div>
+
+  <!-- ── Scripts ────────────────────────────────────────────────────── -->
+  <script src="config.js"></script>
+  <script src="js/store.js"></script>
+  <script src="js/api.js"></script>
+  <script src="js/day-helpers.js"></script>
+  <script src="js/day-resolver.js"></script>
+  <script src="js/components/timeline.js"></script>
+  <script src="js/components/weather.js"></script>
+  <script src="js/components/hotel-card.js"></script>
+  <script src="js/components/day-cards.js"></script>
+  <script src="js/components/conference.js"></script>
+  <script src="js/components/daily-view.js"></script>
+  <script src="js/components/list.js"></script>
+  <script src="js/components/route-view.js"></script>
+  <script src="js/components/culture-view.js"></script>
+  <script src="js/components/trip-selector.js"></script>
+  <script src="js/lib/qrcode-svg.min.js"></script>
+  <script src="js/app.js"></script>
+
+</body>
+</html>
