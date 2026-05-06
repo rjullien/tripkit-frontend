@@ -232,7 +232,7 @@ node seed-import.cjs --api https://tripkit.bapttf.com --token "User:Pass"
 # Mettre à jour un hôtel spécifique
 curl -b COOKIES -X PUT "https://tripkit.bapttf.com/api/trips/usa-2026/hotels/16" \
   -H "Content-Type: application/json" \
-  -d '{"name": "B&B Chez François", "access": "🔑 Code: 202627#", ...}'
+  -d '{"name": "B&B Chez François", "access": "🔑 Code: [REDACTED]", ...}'
 ```
 
 **⚠️ IMPORTANT :** Lors d'un PUT hôtel, **toujours inclure `hotelId` et `dayNums`** dans le body — sinon l'app perd le lien entre jours et hôtels.

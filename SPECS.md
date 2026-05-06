@@ -507,8 +507,8 @@ function dayDate(dayNum, tripStartDate) {
 // Dans hotels[id]
 {
   wifi?: {
-    ssid: string,     // "chezfrancois"
-    pass: string,     // "purplestar059"
+    ssid: string,     // "my-network"
+    pass: string,     // "my-password"
     auth?: string,    // "WPA" (défaut) | "WEP" | "nopass"
   }
 }

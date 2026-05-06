@@ -3797,7 +3797,7 @@ var SEED_USA_2026 = {
       note: "Plateau-Mont-Royal — Chambre 3, 2e étage",
       checkin: "Self check-in (code)",
       checkout: "11:00",
-      access: "🔑 Code entrée: 202627# → Chambre 3 → code: 730373# | Parking: derrière (panneau BB). Entrée porte 4027 ou 4037, escalier ext. droit → 2e étage. ☎️ +1 514-239-4638"
+      access: "🔑 Codes d'accès : voir dans l'app | Parking: derrière (panneau BB). Entrée porte 4027 ou 4037, escalier ext. droit → 2e étage. ☎️ +1 514-239-4638"
     }
   },
   locations: {
