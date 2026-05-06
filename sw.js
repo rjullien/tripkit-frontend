@@ -4,7 +4,7 @@
  * Bump CACHE_NAME when deploying new versions.
  */
 
-const CACHE_NAME = 'tripkit-v47';
+const CACHE_NAME = 'tripkit-v48';
 
 const ASSETS = [
   '/',
