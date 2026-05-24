@@ -45,7 +45,7 @@ var SEED_LANGON_2026 = {
       from: "Eyguians",
       to: "Langon",
       dist: "~700 km",
-      dur: "~7h45 (VE, via Nyons + Montpellier)",
+      dur: "~9h (VE, via Nyons + Montpellier + 2 recharges)",
       label: "Trajet Eyguians → Nyons → Montpellier → Langon 🔋",
       mapUrl: "https://www.google.com/maps/dir/Eyguians,+05300/Nyons,+26110/Montpellier+Odysseum,+34000/16+Rue+du+Gaz,+33210+Langon",
       timeline: [
@@ -54,8 +54,12 @@ var SEED_LANGON_2026 = {
         { t: "11:03", d: "🚗 Reprise Nyons → Montpellier (1h43)" },
         { t: "12:46", d: "🔌 Recharge Tesla Supercharger Odysseum — Parking de la Mer (30 bornes, 250kW)" },
         { t: "12:46", d: "🍽️ Déjeuner au choix (à pied du Supercharger) : 1) Brasserie Gusto (italien/français, 2 Place de Lisbonne, lun-sam 10h-19h, plats 15-23€) · 2) Black & White Burger (burgers gourmet, Place de Lisbonne, menus 12-18€) · 3) Under the Sea by Ephemera (immersif, entrées 8-13€, plats 15-23€)" },
-        { t: "14:01", d: "🚗 Reprise Montpellier → Langon (A9 → A61 → A62, ~290 km, 2h45)" },
-        { t: "16:46", d: "🏡 Arrivée Langon — 16 Rue du Gaz" }
+        { t: "14:01", d: "🚗 Reprise Montpellier → Langon (A9 → A61 → A62)" },
+        { t: "15:31", d: "🔌 Recharge rapide Castelnaudary (~30 min)" },
+        { t: "16:01", d: "🚗 Reprise" },
+        { t: "17:21", d: "🔌 Recharge flash Agen (~5 min)" },
+        { t: "17:26", d: "🚗 Reprise" },
+        { t: "17:56", d: "🏡 Arrivée Langon — 16 Rue du Gaz" }
       ],
       highlights: [
         "☕ Petit déj : Café de la Bourse, Nyons — terrasse provençale sous les arcades (45 min)",
