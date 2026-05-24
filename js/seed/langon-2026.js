@@ -4,8 +4,8 @@ var SEED_LANGON_2026 = {
     name: "Langon — Chez Camille",
     emoji: "🏡",
     startDate: "2026-05-25",
-    endDate: "2026-06-03",
-    routeUrl: "https://www.google.com/maps/dir/Eyguians,+05300/16+Rue+du+Gaz,+33210+Langon/70+Chemin+du+P%C3%A8re+Goiran,+06330+Roquefort-les-Pins",
+    endDate: "2026-06-01",
+    routeUrl: "https://www.google.com/maps/dir/Eyguians,+05300/Nyons,+26110/Montpellier,+34000/16+Rue+du+Gaz,+33210+Langon/70+Chemin+du+P%C3%A8re+Goiran,+06330+Roquefort-les-Pins",
     mapImage: "map-overview-v2.jpg",
     travelers: [
       {
@@ -23,11 +23,11 @@ var SEED_LANGON_2026 = {
       },
       {
         name: "Séjour Langon",
-        days: [1, 8]
+        days: [1, 6]
       },
       {
         name: "Trajet retour",
-        days: [9, 9]
+        days: [7, 7]
       }
     ],
     users: {
@@ -44,218 +44,54 @@ var SEED_LANGON_2026 = {
       emoji: "🚗",
       from: "Eyguians",
       to: "Langon",
-      dist: "653 km",
-      dur: "~8h30 (VE)",
-      label: "Trajet Eyguians → Langon 🔋",
-      mapUrl: "https://www.google.com/maps/dir/Eyguians,+05300/16+Rue+du+Gaz,+33210+Langon",
+      dist: "~700 km",
+      dur: "~8h30 (VE, via Nyons + Montpellier)",
+      label: "Trajet Eyguians → Nyons → Montpellier → Langon 🔋",
+      mapUrl: "https://www.google.com/maps/dir/Eyguians,+05300/Nyons,+26110/Montpellier+Odysseum,+34000/16+Rue+du+Gaz,+33210+Langon",
       timeline: [
-        {
-          t: "08:00",
-          d: "🚗 Départ Eyguians (3 Hameaux de Colombes)"
-        },
-        {
-          t: "10:00",
-          d: "🔌 Recharge #1 — Montélimar/Orange (~180 km)"
-        },
-        {
-          t: "10:25",
-          d: "🚗 Reprise route"
-        },
-        {
-          t: "12:30",
-          d: "🔌 Recharge #2 + déjeuner — Montpellier/Narbonne (~380 km)"
-        },
-        {
-          t: "13:15",
-          d: "🚗 Reprise route"
-        },
-        {
-          t: "15:00",
-          d: "🔌 Recharge #3 si besoin — Toulouse/Agen (~530 km)"
-        },
-        {
-          t: "16:30",
-          d: "🏡 Arrivée Langon — 16 Rue du Gaz"
-        }
+        { t: "09:00", d: "🚗 Départ Eyguians (3 Hameaux de Colombes)" },
+        { t: "09:20", d: "🚗 Passage Serres" },
+        { t: "10:15", d: "☕ Petit déjeuner Nyons — Café de la Bourse, Place des Arcades (ouvert dès 8h sauf mardi)" },
+        { t: "11:00", d: "🚗 Reprise Nyons → Montpellier (~250 km, 2h30)" },
+        { t: "13:30", d: "🔌 Recharge Tesla Supercharger Odysseum (30 bornes, 250kW) + 🍽️ Déjeuner Odysseum" },
+        { t: "14:30", d: "🚗 Reprise Montpellier → Langon (~290 km, 2h45)" },
+        { t: "17:15", d: "🏡 Arrivée Langon — 16 Rue du Gaz" }
       ],
       highlights: [
-        "🔋 VE — 2-3 recharges rapides sur autoroute",
-        "📱 Utiliser ABRP pour planifier les arrêts",
-        "⚡ Tesla Supercharger V3 (Montélimar → Nîmes → Narbonne)"
+        "☕ Petit déj à Nyons — charme provençal sous les arcades",
+        "⚡ Tesla Supercharger Odysseum Montpellier (Parking de la Mer, 250kW)",
+        "🍽️ Déjeuner Odysseum : Brasserie Gusto (italien, lun-sam 10h-19h) | Black & White Burger (menus 12-18€) | Under the Sea by Ephemera (immersif poissons, entrées 8-13€, plats 15-23€)",
+        "📱 Utiliser ABRP pour planifier les arrêts"
       ],
       hotelId: "camille-langon",
       locationId: "langon"
     },
     {
       day: 1,
-      emoji: "🏡",
+      emoji: "🔨",
       from: "Langon",
       to: "Langon",
       dist: "0 km",
       dur: "-",
-      label: "Balade Saint-Macaire + Garonne",
-      mapUrl: "https://www.google.com/maps/dir/Langon/Saint-Macaire,+33490/Langon,+33210",
+      label: "Bricolage maison Camille",
+      mapUrl: "https://www.google.com/maps/search/16+Rue+du+Gaz,+33210+Langon",
       timeline: [
-        { t: "10:00", d: "☕ Petit-déj tranquille chez Camille" },
-        { t: "11:00", d: "🏰 Balade Saint-Macaire — village médiéval fortifié (3 km)" },
-        { t: "12:30", d: "🍽️ Déjeuner terrasse bords de Garonne" },
-        { t: "14:30", d: "🚶 Promenade le long de la Garonne" },
-        { t: "17:00", d: "🏡 Retour chez Camille" }
+        { t: "09:00", d: "☕ Petit-déj tranquille chez Camille" },
+        { t: "10:00", d: "🔨 Bricolage maison — travaux avec Camille" },
+        { t: "12:30", d: "🍽️ Déjeuner chez Camille" },
+        { t: "14:00", d: "🔨 Suite bricolage" },
+        { t: "17:00", d: "🏡 Fin de journée tranquille" }
       ],
       highlights: [
-        "🏰 Saint-Macaire : ruelles médiévales, église romane avec fresques",
-        "🌊 Bords de Garonne — balade facile et agréable",
-        "📍 À 3 km de Langon seulement"
+        "🔨 Journée bricolage et travaux chez Camille",
+        "🛒 Possible passage en magasin bricolage si besoin",
+        "🏡 Installation tranquille"
       ],
       hotelId: "camille-langon",
       locationId: "langon"
     },
     {
       day: 2,
-      emoji: "🏰",
-      from: "Langon",
-      to: "Langon",
-      dist: "~30 km",
-      dur: "-",
-      label: "Château Roquetaillade + Vignoble Sauternes",
-      mapUrl: "https://www.google.com/maps/dir/Langon/Ch%C3%A2teau+de+Roquetaillade,+Mazères/Sauternes,+33210/Langon,+33210",
-      timeline: [
-        { t: "10:00", d: "🏰 Visite Château de Roquetaillade (XIIe-XIVe siècle)" },
-        { t: "12:00", d: "🍷 Dégustation vignoble de Sauternes" },
-        { t: "13:30", d: "🍽️ Déjeuner dans le Sauternais" },
-        { t: "15:30", d: "🚶 Balade dans les vignes" },
-        { t: "17:30", d: "🏡 Retour chez Camille" }
-      ],
-      highlights: [
-        "🏰 Roquetaillade : 2 châteaux forts, même famille depuis 700 ans",
-        "🍷 Sauternes : vins liquoreux d'exception (Guiraud, Filhot)",
-        "📍 8-12 km de Langon"
-      ],
-      hotelId: "camille-langon",
-      locationId: "langon"
-    },
-    {
-      day: 3,
-      emoji: "🚣",
-      from: "Langon",
-      to: "Langon",
-      dist: "~15 km",
-      dur: "-",
-      label: "Canoë sur le Ciron",
-      mapUrl: "https://www.google.com/maps/dir/Langon/Ciron,+Pr%C3%A9chac,+33730/Langon,+33210",
-      timeline: [
-        { t: "09:30", d: "🚣 Descente du Ciron en canoë (2-3h, eaux calmes)" },
-        { t: "12:30", d: "🍽️ Pique-nique en bord de rivière" },
-        { t: "14:30", d: "🏊 Baignade lac de Brouqueyran (si beau temps)" },
-        { t: "17:00", d: "🏡 Retour chez Camille" }
-      ],
-      highlights: [
-        "🚣 Ciron : eaux calmes, forêt galerie mystérieuse",
-        "🏊 Lac de Brouqueyran : baignade + sentier autour du lac",
-        "🌿 Nature préservée, ambiance enchantée"
-      ],
-      hotelId: "camille-langon",
-      locationId: "langon"
-    },
-    {
-      day: 4,
-      emoji: "⛪",
-      from: "Langon",
-      to: "Langon",
-      dist: "~25 km",
-      dur: "-",
-      label: "Cité médiévale de Bazas",
-      mapUrl: "https://www.google.com/maps/dir/Langon/Bazas,+33430/Langon,+33210",
-      timeline: [
-        { t: "10:00", d: "⛪ Visite Bazas — cathédrale gothique UNESCO" },
-        { t: "11:30", d: "🚶 Place à arcades, ruelles médiévales" },
-        { t: "12:30", d: "🥩 Déjeuner — bœuf de Bazas (spécialité locale !)" },
-        { t: "14:30", d: "🛒 Boucheries artisanales, produits locaux" },
-        { t: "16:00", d: "🏡 Retour chez Camille" }
-      ],
-      highlights: [
-        "⛪ Cathédrale de Bazas — gothique, classée UNESCO",
-        "🥩 Bœuf de Bazas — race locale d'exception",
-        "🏛️ Place à arcades, ambiance médiévale"
-      ],
-      hotelId: "camille-langon",
-      locationId: "langon"
-    },
-    {
-      day: 5,
-      emoji: "🛒",
-      from: "Langon",
-      to: "Langon",
-      dist: "0 km",
-      dur: "-",
-      label: "Marché de Langon + Lac",
-      mapUrl: "https://www.google.com/maps/dir/Langon/Lac+de+Langon,+33210/Langon,+33210",
-      timeline: [
-        { t: "08:30", d: "🛒 Marché de Langon (vendredi matin !)" },
-        { t: "11:00", d: "☕ Café en terrasse, centre-ville" },
-        { t: "12:30", d: "🍽️ Déjeuner produits du marché chez Camille" },
-        { t: "15:00", d: "🏊 Lac de Brouqueyran — détente, balade" },
-        { t: "17:30", d: "🏡 Retour" }
-      ],
-      highlights: [
-        "🛒 Marché vendredi matin : canard, fromage, fruits",
-        "🏊 Lac de Brouqueyran pour l'après-midi",
-        "🍳 Cuisiner les produits du marché"
-      ],
-      hotelId: "camille-langon",
-      locationId: "langon"
-    },
-    {
-      day: 6,
-      emoji: "🚴",
-      from: "Langon",
-      to: "Langon",
-      dist: "~40 km",
-      dur: "-",
-      label: "Vélo piste Roger Lapébie ou Verdelais",
-      mapUrl: "https://www.google.com/maps/dir/Langon/Piste+Roger+Lap%C3%A9bie,+Cr%C3%A9on/Verdelais,+33490/Langon,+33210",
-      timeline: [
-        { t: "09:30", d: "🚴 Piste cyclable Roger Lapébie (ancienne voie ferrée, ombragée)" },
-        { t: "12:00", d: "🍽️ Déjeuner en route" },
-        { t: "14:00", d: "⛪ Verdelais — basilique + panorama vallée" },
-        { t: "16:00", d: "🍷 Petit domaine viticole sur le retour" },
-        { t: "17:30", d: "🏡 Retour chez Camille" }
-      ],
-      highlights: [
-        "🚴 Piste Lapébie : facile, ombragée, ancienne voie ferrée",
-        "⛪ Verdelais : basilique, chemin de croix, vue magnifique",
-        "🍷 Dégustation sur le retour"
-      ],
-      hotelId: "camille-langon",
-      locationId: "langon"
-    },
-    {
-      day: 7,
-      emoji: "🌊",
-      from: "Langon",
-      to: "Langon",
-      dist: "~150 km AR",
-      dur: "-",
-      label: "Journée Bordeaux ou Arcachon/Dune du Pilat",
-      mapUrl: "https://www.google.com/maps/dir/Langon/Bordeaux/Dune+du+Pilat,+La+Teste-de-Buch/Langon,+33210",
-      timeline: [
-        { t: "09:00", d: "🚗 Départ pour Bordeaux (45 min) ou Arcachon (1h15)" },
-        { t: "10:30", d: "🏛️ Option A : Bordeaux — miroir d'eau, Cité du Vin, centre historique" },
-        { t: "10:30", d: "🏖️ Option B : Arcachon — Dune du Pilat, huîtres, plage" },
-        { t: "12:30", d: "🍽️ Déjeuner sur place" },
-        { t: "15:00", d: "🚶 Suite de la visite" },
-        { t: "18:00", d: "🏡 Retour chez Camille" }
-      ],
-      highlights: [
-        "🏛️ Bordeaux : 45 min, miroir d'eau, Cité du Vin",
-        "🏖️ Arcachon : Dune du Pilat (107 m !), huîtres fraîches",
-        "💡 Choisir selon la météo (plage si soleil !)"
-      ],
-      hotelId: "camille-langon",
-      locationId: "langon"
-    },
-    {
-      day: 8,
       emoji: "🍫",
       from: "Langon",
       to: "Langon",
@@ -265,25 +101,125 @@ var SEED_LANGON_2026 = {
       mapUrl: "https://www.google.com/maps/dir/16+Rue+du+Gaz,+33210+Langon/163+Rue+des+Cavales,+47120+Duras/Saint-%C3%89milion,+33330/16+Rue+du+Gaz,+33210+Langon",
       timeline: [
         { t: "09:00", d: "🚗 Départ Langon → Duras (50 min, direction nord-est)" },
-        { t: "09:50", d: "🍫 Maison Guinguet — chocolaterie artisanale (pruneaux, chocolats maison). 163 Rue des Cavales, Duras. Ouvert lun-ven 9h-12h30/14h-18h30. Tél: 05 53 83 72 47" },
+        { t: "09:50", d: "🍫 Maison Guinguet — chocolaterie artisanale (pruneaux, chocolats maison). 163 Rue des Cavales, Duras. Ouvert lun-sam 9h-12h30/14h-18h30. Tél: 05 53 83 72 47" },
         { t: "10:45", d: "🚗 Duras → Saint-Émilion (25 min)" },
         { t: "11:15", d: "🍷 Saint-Émilion — village UNESCO, ruelles pavées, tour du Roy, église monolithe souterraine" },
         { t: "12:30", d: "🍽️ Déjeuner à Saint-Émilion (terrasse place de l'Église)" },
         { t: "14:00", d: "🍷 Dégustation dans un domaine viticole (Saint-Émilion Grand Cru)" },
         { t: "15:30", d: "🚗 Retour Saint-Émilion → Langon (40 min)" },
-        { t: "16:30", d: "🧳 Début des valises (retour demain !)" },
-        { t: "19:00", d: "🍽️ Dernier dîner avec Camille" }
+        { t: "16:30", d: "🏡 Retour chez Camille" }
       ],
       highlights: [
         "🍫 Maison Guinguet : chocolaterie artisanale + pruneaux d'Agen (spécialité depuis 1991)",
         "🍷 Saint-Émilion : village viticole UNESCO, souterrains, dégustations Grand Cru",
+        "📍 Fermé dimanche — mercredi parfait !"
+      ],
+      hotelId: "camille-langon",
+      locationId: "langon"
+    },
+    {
+      day: 3,
+      emoji: "🏰",
+      from: "Langon",
+      to: "Langon",
+      dist: "~35 km",
+      dur: "-",
+      label: "Saint-Macaire + Roquetaillade + Sauternes",
+      mapUrl: "https://www.google.com/maps/dir/Langon/Saint-Macaire,+33490/Ch%C3%A2teau+de+Roquetaillade,+Mazères/Sauternes,+33210/Langon,+33210",
+      timeline: [
+        { t: "09:30", d: "🏰 Balade Saint-Macaire — village médiéval fortifié (3 km de Langon)" },
+        { t: "11:00", d: "🏰 Visite Château de Roquetaillade (XIIe-XIVe siècle)" },
+        { t: "12:30", d: "🍽️ Déjeuner dans le Sauternais" },
+        { t: "14:00", d: "🍷 Dégustation vignoble de Sauternes (Guiraud, Filhot)" },
+        { t: "15:30", d: "🚶 Balade dans les vignes" },
+        { t: "17:00", d: "🏡 Retour chez Camille" }
+      ],
+      highlights: [
+        "🏰 Saint-Macaire : ruelles médiévales, église romane avec fresques (3 km)",
+        "🏰 Roquetaillade : 2 châteaux forts, même famille depuis 700 ans",
+        "🍷 Sauternes : vins liquoreux d'exception"
+      ],
+      hotelId: "camille-langon",
+      locationId: "langon"
+    },
+    {
+      day: 4,
+      emoji: "🛒",
+      from: "Langon",
+      to: "Langon",
+      dist: "~40 km",
+      dur: "-",
+      label: "Marché de Langon + Vélo piste Lapébie",
+      mapUrl: "https://www.google.com/maps/dir/Langon/Piste+Roger+Lap%C3%A9bie,+Cr%C3%A9on/Verdelais,+33490/Langon,+33210",
+      timeline: [
+        { t: "08:30", d: "🛒 Marché de Langon (vendredi matin !)" },
+        { t: "11:00", d: "☕ Café en terrasse, centre-ville" },
+        { t: "12:00", d: "🍽️ Déjeuner produits du marché chez Camille" },
+        { t: "14:00", d: "🚴 Piste cyclable Roger Lapébie (ancienne voie ferrée, ombragée)" },
+        { t: "16:00", d: "⛪ Verdelais — basilique + panorama vallée" },
+        { t: "17:30", d: "🏡 Retour chez Camille" }
+      ],
+      highlights: [
+        "🛒 Marché vendredi matin : canard, fromage, fruits",
+        "🚴 Piste Lapébie : facile, ombragée, ancienne voie ferrée",
+        "⛪ Verdelais : basilique, chemin de croix, vue magnifique"
+      ],
+      hotelId: "camille-langon",
+      locationId: "langon"
+    },
+    {
+      day: 5,
+      emoji: "🏊",
+      from: "Langon",
+      to: "Langon",
+      dist: "~10 km",
+      dur: "-",
+      label: "Jour tranquille — Garonne + Lac",
+      mapUrl: "https://www.google.com/maps/dir/Langon/Lac+de+Brouqueyran,+33210/Langon,+33210",
+      timeline: [
+        { t: "09:30", d: "☕ Grasse matinée + petit-déj tranquille" },
+        { t: "10:30", d: "🚶 Promenade le long de la Garonne" },
+        { t: "12:30", d: "🍽️ Déjeuner terrasse bords de Garonne" },
+        { t: "14:30", d: "🏊 Lac de Brouqueyran — baignade, détente, sentier" },
+        { t: "17:00", d: "🏡 Retour chez Camille" },
+        { t: "19:00", d: "🍽️ Dîner tranquille" }
+      ],
+      highlights: [
+        "🏊 Lac de Brouqueyran : baignade + sentier autour du lac",
+        "🌊 Bords de Garonne — balade facile et agréable",
+        "😌 Journée repos avant Bordeaux demain"
+      ],
+      hotelId: "camille-langon",
+      locationId: "langon"
+    },
+    {
+      day: 6,
+      emoji: "🏛️",
+      from: "Langon",
+      to: "Langon",
+      dist: "~90 km AR",
+      dur: "-",
+      label: "Bordeaux — voir Babeth",
+      mapUrl: "https://www.google.com/maps/dir/Langon/Bordeaux/Langon,+33210",
+      timeline: [
+        { t: "09:30", d: "🚗 Départ Langon → Bordeaux (45 min)" },
+        { t: "10:15", d: "🏛️ Bordeaux — miroir d'eau, centre historique, quais" },
+        { t: "12:30", d: "🍽️ Déjeuner avec Babeth" },
+        { t: "14:30", d: "🚶 Balade Bordeaux (Cité du Vin, Darwin, Chartrons…)" },
+        { t: "17:00", d: "🚗 Retour Langon" },
+        { t: "17:45", d: "🧳 Début des valises (retour demain !)" },
+        { t: "19:00", d: "🍽️ Dernier dîner avec Camille" }
+      ],
+      highlights: [
+        "👩 Voir Babeth !",
+        "🏛️ Bordeaux : miroir d'eau, quais, centre UNESCO",
         "🧳 Préparer le retour (747 km demain !)"
       ],
       hotelId: "camille-langon",
       locationId: "langon"
     },
     {
-      day: 9,
+      day: 7,
       emoji: "🚗",
       from: "Langon",
       to: "Roquefort-les-Pins",
@@ -292,38 +228,14 @@ var SEED_LANGON_2026 = {
       label: "Retour Langon → Roquefort-les-Pins 🔋",
       mapUrl: "https://www.google.com/maps/dir/16+Rue+du+Gaz,+33210+Langon/70+Chemin+du+P%C3%A8re+Goiran,+06330+Roquefort-les-Pins",
       timeline: [
-        {
-          t: "07:30",
-          d: "🚗 Départ Langon"
-        },
-        {
-          t: "09:30",
-          d: "🔌 Recharge #1 — Narbonne/Béziers (~200 km)"
-        },
-        {
-          t: "10:00",
-          d: "🚗 Reprise"
-        },
-        {
-          t: "12:00",
-          d: "🔌 Recharge #2 + déjeuner — Montpellier/Nîmes (~380 km)"
-        },
-        {
-          t: "12:45",
-          d: "🚗 Reprise"
-        },
-        {
-          t: "14:30",
-          d: "🔌 Recharge #3 — Aix-en-Provence (~580 km)"
-        },
-        {
-          t: "15:00",
-          d: "🚗 Reprise"
-        },
-        {
-          t: "17:00",
-          d: "🏠 Arrivée Roquefort — 70 Ch. du Père Goiran"
-        }
+        { t: "07:30", d: "🚗 Départ Langon" },
+        { t: "09:30", d: "🔌 Recharge #1 — Narbonne/Béziers (~200 km)" },
+        { t: "10:00", d: "🚗 Reprise" },
+        { t: "12:00", d: "🔌 Recharge #2 + déjeuner — Montpellier/Nîmes (~380 km)" },
+        { t: "12:45", d: "🚗 Reprise" },
+        { t: "14:30", d: "🔌 Recharge #3 — Aix-en-Provence (~580 km)" },
+        { t: "15:00", d: "🚗 Reprise" },
+        { t: "17:00", d: "🏠 Arrivée Roquefort — 70 Ch. du Père Goiran" }
       ],
       highlights: [
         "🔋 VE — 2-3 recharges rapides sur autoroute",
