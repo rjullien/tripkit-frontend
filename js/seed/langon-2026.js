@@ -68,7 +68,7 @@ var SEED_LANGON_2026 = {
         "📱 Utiliser ABRP pour planifier les arrêts",
         "━━━ OPTION B : Stop Béziers au lieu de Montpellier ━━━",
         "⚡ Tesla Supercharger Béziers — Avenue Jean Monnet, Villeneuve-lès-Béziers (Decathlon, 24 bornes, 250kW)",
-        "🚗 Nyons → Béziers : ~2h | Béziers → Langon : ~4h30 (+ Castelnaudary 30min + Agen 5min)",
+        "🚗 Nyons → Béziers : 2h17 | Béziers → Langon : 3h26 (+ Castelnaudary 30min + Agen 5min)",
         "🍽️ Restaurants Béziers (à pied du Supercharger) : 1) La Fermette (traditionnel, 8 Rue Roque Ségui, plats 10-20€, excellent rapport qualité/prix ⭐4.2) · 2) Brasserie La Méridienne (dans concession Jeep !, Avenue de la Méridienne, cuisine trad, ⭐4.6) · 3) La Pause Méridienne (dans Decathlon, snacking/bagels/quiches, rapide)"
       ],
       hotelId: "camille-langon",
