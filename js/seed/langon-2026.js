@@ -65,7 +65,11 @@ var SEED_LANGON_2026 = {
         "☕ Petit déj : Café de la Bourse, Nyons — terrasse provençale sous les arcades (45 min)",
         "⚡ Tesla Supercharger Odysseum Montpellier (Parking de la Mer, 30 bornes, 250kW)",
         "🍽️ Déjeuner 1h15 pendant la recharge : Brasserie Gusto | Black & White Burger | Under the Sea by Ephemera",
-        "📱 Utiliser ABRP pour planifier les arrêts"
+        "📱 Utiliser ABRP pour planifier les arrêts",
+        "━━━ OPTION B : Stop Béziers au lieu de Montpellier ━━━",
+        "⚡ Tesla Supercharger Béziers — Avenue Jean Monnet, Villeneuve-lès-Béziers (Decathlon, 24 bornes, 250kW)",
+        "🚗 Nyons → Béziers : ~2h | Béziers → Langon : ~4h30 (+ Castelnaudary 30min + Agen 5min)",
+        "🍽️ Restaurants Béziers (à pied du Supercharger) : 1) La Fermette (traditionnel, 8 Rue Roque Ségui, plats 10-20€, excellent rapport qualité/prix ⭐4.2) · 2) Brasserie La Méridienne (dans concession Jeep !, Avenue de la Méridienne, cuisine trad, ⭐4.6) · 3) La Pause Méridienne (dans Decathlon, snacking/bagels/quiches, rapide)"
       ],
       hotelId: "camille-langon",
       locationId: "langon"
