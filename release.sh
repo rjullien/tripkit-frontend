@@ -135,8 +135,26 @@ git commit -m "chore(tripkit): bump frontend to sha-$NEW_SHA ($TAG)"
 git push origin main
 log "ArgoCD source bumped to sha-$NEW_SHA"
 
+# 7. Import ALL seeds into backend
+log "Importing seeds into backend..."
+cd "$FRONTEND_DIR"
+BACKEND_URL="http://tripkit-backend.tripkit.svc.cluster.local:3001"
+
+for SEED_FILE in js/seed/*.js; do
+  SEED_NAME=$(basename "$SEED_FILE" .js)
+  echo -n "  → $SEED_NAME... "
+  OUTPUT=$(node seed-import.cjs --api "$BACKEND_URL" --seed "$SEED_FILE" 2>&1)
+  if echo "$OUTPUT" | grep -q "Import complete"; then
+    echo -e "${GREEN}✓${NC}"
+  else
+    echo -e "${YELLOW}⚠ $(echo $OUTPUT | tail -1)${NC}"
+  fi
+done
+log "All seeds imported into backend"
+
 echo ""
 echo -e "${GREEN}═══════════════════════════════════════${NC}"
 echo -e "${GREEN}  🚀 Released $TAG (sha-$NEW_SHA)${NC}"
 echo -e "${GREEN}  ArgoCD will deploy in ~30s${NC}"
+echo -e "${GREEN}  Backend data refreshed ✓${NC}"
 echo -e "${GREEN}═══════════════════════════════════════${NC}"
