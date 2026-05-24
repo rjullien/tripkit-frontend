@@ -45,18 +45,17 @@ var SEED_LANGON_2026 = {
       from: "Eyguians",
       to: "Langon",
       dist: "~700 km",
-      dur: "~8h30 (VE, via Nyons + Montpellier)",
+      dur: "~7h45 (VE, via Nyons + Montpellier)",
       label: "Trajet Eyguians → Nyons → Montpellier → Langon 🔋",
       mapUrl: "https://www.google.com/maps/dir/Eyguians,+05300/Nyons,+26110/Montpellier+Odysseum,+34000/16+Rue+du+Gaz,+33210+Langon",
       timeline: [
         { t: "09:00", d: "🚗 Départ Eyguians (3 Hameaux de Colombes)" },
-        { t: "09:20", d: "🚗 Passage Serres (D1075)" },
-        { t: "10:00", d: "☕ Petit déjeuner — Café de la Bourse, 5 Place du Dr Bourdongle, Nyons (terrasse sous les arcades)" },
-        { t: "10:45", d: "🚗 Reprise Nyons → Montpellier (D94 → A7 → A9, ~250 km, 2h30)" },
-        { t: "13:15", d: "🔌 Recharge Tesla Supercharger Odysseum — Parking de la Mer (30 bornes, 250kW)" },
-        { t: "13:15", d: "🍽️ Déjeuner au choix (à pied du Supercharger) : 1) Brasserie Gusto (italien/français, 2 Place de Lisbonne, lun-sam 10h-19h, plats 15-23€) · 2) Black & White Burger (burgers gourmet, Place de Lisbonne, menus 12-18€) · 3) Under the Sea by Ephemera (immersif, entrées 8-13€, plats 15-23€)" },
-        { t: "14:30", d: "🚗 Reprise Montpellier → Langon (A9 → A61 → A62, ~290 km, 2h45)" },
-        { t: "17:15", d: "🏡 Arrivée Langon — 16 Rue du Gaz" }
+        { t: "10:18", d: "☕ Petit déjeuner — Café de la Bourse, 5 Place du Dr Bourdongle, Nyons (terrasse sous les arcades)" },
+        { t: "11:03", d: "🚗 Reprise Nyons → Montpellier (1h43)" },
+        { t: "12:46", d: "🔌 Recharge Tesla Supercharger Odysseum — Parking de la Mer (30 bornes, 250kW)" },
+        { t: "12:46", d: "🍽️ Déjeuner au choix (à pied du Supercharger) : 1) Brasserie Gusto (italien/français, 2 Place de Lisbonne, lun-sam 10h-19h, plats 15-23€) · 2) Black & White Burger (burgers gourmet, Place de Lisbonne, menus 12-18€) · 3) Under the Sea by Ephemera (immersif, entrées 8-13€, plats 15-23€)" },
+        { t: "14:01", d: "🚗 Reprise Montpellier → Langon (A9 → A61 → A62, ~290 km, 2h45)" },
+        { t: "16:46", d: "🏡 Arrivée Langon — 16 Rue du Gaz" }
       ],
       highlights: [
         "☕ Petit déj : Café de la Bourse, Nyons — terrasse provençale sous les arcades (45 min)",
