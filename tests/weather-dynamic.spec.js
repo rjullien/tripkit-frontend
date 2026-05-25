@@ -1,6 +1,6 @@
 /**
  * tests/weather-dynamic.spec.js — Verify weather.js uses dynamic TRIP_START from Store
- * Regression test: weather should NOT have any hardcoded "new Date(2026, 3, 16)"
+ * Regression test: weather should NOT have any hardcoded "hardcoded dates"
  */
 import { test, expect } from './fixtures.js';
 import { readFileSync } from 'fs';
@@ -83,9 +83,9 @@ test.describe('Weather — Dynamic dates (no hardcoded TRIP_START)', () => {
     await page.waitForTimeout(3000);
 
     // Verify that Open-Meteo was called with the correct date (April 18, 2026 = Day 2)
-    // startDate is 2026-04-16, so day 2 = 2026-04-18
+    // startDate is 2026-06-15, so day 2 = 2026-06-16
     if (requestedUrls.length > 0) {
-      const hasCorrectDate = requestedUrls.some(u => u.includes('2026-04-18'));
+      const hasCorrectDate = requestedUrls.some(u => u.includes('2026-06-16'));
       expect(hasCorrectDate).toBe(true);
     }
   });
