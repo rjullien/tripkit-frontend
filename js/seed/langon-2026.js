@@ -194,20 +194,20 @@ var SEED_LANGON_2026 = {
       to: "Langon",
       dist: "~10 km",
       dur: "-",
-      label: "Jour tranquille — repos & Garonne",
-      mapUrl: "https://www.google.com/maps/dir/16+Rue+du+Gaz,+33210+Langon/Garonne+Langon",
+      label: "Jour tranquille — Lac & Garonne",
+      mapUrl: "https://www.google.com/maps/dir/16+Rue+du+Gaz,+33210+Langon/Lac+de+Brouqueyran,+33210/Langon,+33210",
       timeline: [
         { t: "09:30", d: "☕ Grasse matinée + petit-déj tranquille" },
         { t: "10:30", d: "🚶 Promenade le long de la Garonne" },
         { t: "12:30", d: "🍽️ Déjeuner terrasse bords de Garonne" },
-        { t: "14:30", d: "🏊 Baignade / détente au choix" },
+        { t: "14:30", d: "🏊 Lac de Brouqueyran — baignade, détente, sentier" },
         { t: "17:00", d: "🏡 Retour chez Camille" },
         { t: "19:00", d: "🍽️ Dîner tranquille — dernière soirée avant Bordeaux" }
       ],
       highlights: [
-        "😌 Journée repos avant Bordeaux demain",
+        "🏊 Lac de Brouqueyran : baignade + sentier autour du lac",
         "🌊 Bords de Garonne — balade facile",
-        "🍽️ Déjeuner terrasse au soleil"
+        "😌 Journée repos avant Bordeaux demain"
       ],
       hotelId: "camille-langon",
       locationId: "langon"
