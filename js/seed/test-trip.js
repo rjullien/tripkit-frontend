@@ -10,6 +10,7 @@ var SEED_TEST_TRIP = {
     startDate: "2026-06-15",
     endDate: "2026-06-18",
     mapImage: "map-overview.png",
+    routeUrl: "https://www.google.com/maps/d/viewer?mid=test-route",
     travelers: [
       { name: "Alice", emoji: "👩", role: "owner" },
       { name: "Bob", emoji: "👨", role: "traveler" }
