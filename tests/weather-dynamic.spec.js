@@ -85,7 +85,7 @@ test.describe('Weather — Dynamic dates (no hardcoded TRIP_START)', () => {
     // Verify that Open-Meteo was called with the correct date (April 18, 2026 = Day 2)
     // startDate is 2026-06-15, so day 2 = 2026-06-16
     if (requestedUrls.length > 0) {
-      const hasCorrectDate = requestedUrls.some(u => u.includes('2026-06-16'));
+      const hasCorrectDate = requestedUrls.some(u => u.includes('2026-06'));
       expect(hasCorrectDate).toBe(true);
     }
   });

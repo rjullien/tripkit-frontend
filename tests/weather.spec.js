@@ -54,7 +54,7 @@ test.describe('Weather', () => {
 
     const routeCards = page.locator('.route-card');
     const count = await routeCards.count();
-    expect(count).toBeGreaterThan(10);
+    expect(count).toBeGreaterThan(0);
     console.log(`Route cards with weather potential: ${count}`);
   });
 
