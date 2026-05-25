@@ -208,7 +208,8 @@ var App = (() => {
         tripData.days = seed.days.map(d => {
           const raw = d.data;
           return typeof raw === 'string' ? JSON.parse(raw) : (raw || d);
-        }).sort((a, b) => (a.day || 0) - (b.day || 0));
+        }).filter(d => d.label && d.label !== '_deleted')
+          .sort((a, b) => (a.day || 0) - (b.day || 0));
       }
 
       // Trip metadata
