@@ -86,7 +86,8 @@ var DayResolver = (() => {
     if (!trip || !trip.startDate) return null;
     const now = nowOverride || new Date();
     const start = new Date(trip.startDate + 'T00:00:00');
-    const diff = start - now;
+    const day0Start = new Date(start.getTime() - 86400000); // Day 0 = startDate - 1
+    const diff = day0Start - now;
     if (diff <= 0) return { days: 0, hours: 0, active: false };
     return {
       days: Math.floor(diff / 86400000),
@@ -105,8 +106,9 @@ var DayResolver = (() => {
     const now = nowOverride || new Date();
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const start = new Date(trip.startDate + 'T00:00:00');
+    const day0Start = new Date(start.getTime() - 86400000); // Day 0 = startDate - 1
     const end = new Date(trip.endDate + 'T00:00:00');
-    if (today < start) return 'before';
+    if (today < day0Start) return 'before';
     if (today > end) return 'after';
     return 'during';
   }
