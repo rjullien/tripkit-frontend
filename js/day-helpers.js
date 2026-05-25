@@ -30,9 +30,11 @@ var DayHelpers = (() => {
     const trip = tripData.trip || {};
 
     // ── Compute date + dow from trip.startDate ──
+    // startDate = Day 1 (first travel day). Day 0 = startDate - 1 (veille).
+    // Formula: date = startDate + (day - 1)
     if (!enriched.date && trip.startDate) {
       const start = new Date(trip.startDate + 'T12:00:00Z');
-      const d = new Date(start.getTime() + (day.day || 0) * 86400000);
+      const d = new Date(start.getTime() + ((day.day || 0) - 1) * 86400000);
       enriched.dow = DOWS[d.getUTCDay()];
       enriched.date = d.getUTCDate() + ' ' + MONTHS[d.getUTCMonth()];
       enriched._isoDate = d.toISOString().split('T')[0];
@@ -55,7 +57,7 @@ var DayHelpers = (() => {
   function isoDate(day, trip) {
     if (!trip || !trip.startDate) return '';
     const start = new Date(trip.startDate + 'T12:00:00Z');
-    const d = new Date(start.getTime() + (day.day || 0) * 86400000);
+    const d = new Date(start.getTime() + ((day.day || 0) - 1) * 86400000);
     return d.toISOString().split('T')[0];
   }
 
