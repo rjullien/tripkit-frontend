@@ -65,7 +65,7 @@ const test = base.extend({
               },
             },
             days: SEED.days.map(d => ({ day_num: d.day, data: d })),
-            hotels: (SEED.hotels || []).map((h, i) => ({ ...h, day_num: i })),
+            hotels: Object.entries(SEED.hotels || {}).map(([id, h]) => ({ ...h, hotelId: id, day_num: SEED.days.find(dd => dd.hotelId === id)?.day || 0 })),
             lists: [],
           }),
         });
