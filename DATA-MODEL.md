@@ -67,8 +67,8 @@ These rules MUST be followed when creating or editing seed data:
   id:           string,      // URL-safe slug (e.g. "usa-2026", "japan-2027")
   name:         string,      // Display name "USA Road Trip 2026"
   emoji:        string,      // "🇺🇸"
-  startDate:    string,      // ISO date of day 0 (e.g. "2026-04-16")
-  endDate:      string,      // ISO date of last day (e.g. "2026-05-06")
+  startDate:    string,      // ISO date of Day 1 (first real travel day). Day 0 = startDate - 1.
+  endDate:      string,      // ISO date of last day
   travelers:    Traveler[],
   phases:       Phase[],
   routeUrl?:    string,      // Google Maps full route URL
@@ -110,6 +110,20 @@ These rules MUST be followed when creating or editing seed data:
 ## Day
 
 Days contain **content + refs only**. No inline hotel, geo, date, or culture data.
+
+### ⚠️ MANDATORY: Day 0 = Veille de départ
+
+**Every trip MUST include a `day: 0` entry** = the day before departure (prep/valises).
+
+- `startDate` = Date of **Day 1** (first real travel day)
+- Day 0 = `startDate - 1` = veille (computed by the frontend DayResolver)
+- Day 0 content: checklist, valises, confirmations, météo
+- The app displays: `Jour N` = `day.day + 1` (so day 0 → "Jour 1" in nav but dated at startDate-1)
+
+**Date formula:**
+```
+displayed_date(day_num) = startDate + (day_num - 1)
+```
 
 ```typescript
 {
