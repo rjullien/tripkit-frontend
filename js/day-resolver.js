@@ -43,7 +43,7 @@ var DayResolver = (() => {
     const now = opts.nowOverride || new Date();
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const start = new Date(trip.startDate + 'T00:00:00');
-    const tripDay = Math.floor((today - start) / 86400000) + 1; // +1: startDate = Day 1, not Day 0
+    const tripDay = Math.floor((today - start) / 86400000) + 1; // +1: startDate = Day 1, Day 0 = startDate-1
 
     // Before trip
     if (tripDay < 0) {
