@@ -9,7 +9,7 @@ var SEED_TEST_TRIP = {
     emoji: "🌍",
     startDate: "2026-06-15",
     endDate: "2026-06-18",
-    mapImage: "map-overview.jpg",
+    mapImage: "map-overview.png",
     travelers: [
       { name: "Alice", emoji: "👩", role: "owner" },
       { name: "Bob", emoji: "👨", role: "traveler" }
