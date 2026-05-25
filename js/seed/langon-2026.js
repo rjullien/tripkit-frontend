@@ -135,25 +135,29 @@ var SEED_LANGON_2026 = {
     },
     {
       day: 3,
-      emoji: "🏰",
+      emoji: "🏖️",
       from: "Langon",
-      to: "Langon",
-      dist: "~35 km",
+      to: "Mimizan Plage",
+      dist: "~200 km AR",
       dur: "-",
-      label: "Saint-Macaire + Roquetaillade + Sauternes",
-      mapUrl: "https://www.google.com/maps/dir/Langon/Saint-Macaire,+33490/Ch%C3%A2teau+de+Roquetaillade,+Mazères/Sauternes,+33210/Langon,+33210",
+      label: "Roquetaillade + Sauternes + Mimizan Plage 🌊",
+      mapUrl: "https://www.google.com/maps/dir/16+Rue+du+Gaz,+33210+Langon/Ch%C3%A2teau+de+Roquetaillade,+Maz%C3%A8res/Sauternes,+33210/Mimizan+Plage,+40200/16+Rue+du+Gaz,+33210+Langon",
       timeline: [
-        { t: "09:30", d: "🏰 Balade Saint-Macaire — village médiéval fortifié (3 km de Langon)" },
-        { t: "11:00", d: "🏰 Visite Château de Roquetaillade (XIIe-XIVe siècle)" },
-        { t: "12:30", d: "🍽️ Déjeuner dans le Sauternais" },
-        { t: "14:00", d: "🍷 Dégustation vignoble de Sauternes (Guiraud, Filhot)" },
-        { t: "15:30", d: "🚶 Balade dans les vignes" },
-        { t: "17:00", d: "🏡 Retour chez Camille" }
+        { t: "08:30", d: "☕ Petit-déj" },
+        { t: "09:00", d: "🏰 Visite Château de Roquetaillade (XIIe-XIVe siècle, 15 min de Langon)" },
+        { t: "10:30", d: "🍷 Dégustation Sauternes (Château Guiraud ou Filhot)" },
+        { t: "11:30", d: "🚗 Route vers Mimizan Plage (1h30)" },
+        { t: "13:00", d: "🍽️ Déjeuner — A Noste (bar-restaurant sur la dune, vue panoramique océan)" },
+        { t: "14:30", d: "🏖️ Plage ! Baignade, farniente, surf, paddle" },
+        { t: "17:30", d: "🚗 Retour Mimizan → Langon (1h30)" },
+        { t: "19:00", d: "🏡 Retour chez Camille" }
       ],
       highlights: [
-        "🏰 Saint-Macaire : ruelles médiévales, église romane avec fresques (3 km)",
-        "🏰 Roquetaillade : 2 châteaux forts, même famille depuis 700 ans",
-        "🍷 Sauternes : vins liquoreux d'exception"
+        "🏰 Roquetaillade : 2 châteaux forts, même famille depuis 700 ans (15 min de Langon)",
+        "🍷 Sauternes : dégustation matin — vins liquoreux d’exception",
+        "🏖️ Mimizan Plage — 7 plages de sable fin, océan Atlantique",
+        "🍽️ A Noste — restaurant panoramique sur la dune",
+        "🚗 1h30 Sauternes → Mimizan"
       ],
       hotelId: "camille-langon",
       locationId: "langon"
@@ -185,30 +189,25 @@ var SEED_LANGON_2026 = {
     },
     {
       day: 5,
-      emoji: "🌊",
+      emoji: "😌",
       from: "Langon",
-      to: "Mimizan Plage",
-      dist: "~150 km AR",
-      dur: "1h30 aller",
-      label: "Journée Océan — Mimizan Plage 🏖️",
-      mapUrl: "https://www.google.com/maps/dir/16+Rue+du+Gaz,+33210+Langon/Mimizan+Plage,+40200/16+Rue+du+Gaz,+33210+Langon",
+      to: "Langon",
+      dist: "~10 km",
+      dur: "-",
+      label: "Jour tranquille — repos & Garonne",
+      mapUrl: "https://www.google.com/maps/dir/16+Rue+du+Gaz,+33210+Langon/Garonne+Langon",
       timeline: [
-        { t: "09:00", d: "☕ Petit-déj chez Camille" },
-        { t: "09:30", d: "🚗 Départ Langon → Mimizan Plage (1h30, A62 → D932)" },
-        { t: "11:00", d: "🏖️ Arrivée Mimizan Plage — installation" },
-        { t: "11:00", d: "🌊 Baignade, farniente, balade sur la plage" },
-        { t: "12:30", d: "🍽️ Déjeuner — A Noste (bar-restaurant sur la dune, vue panoramique océan)" },
-        { t: "14:00", d: "🏄 Activités au choix : surf / bodyboard / paddle / balade forêt de pins" },
-        { t: "17:00", d: "🚗 Retour Mimizan → Langon (1h30)" },
-        { t: "18:30", d: "🏡 Retour chez Camille" },
-        { t: "19:30", d: "🍽️ Dîner tranquille" }
+        { t: "09:30", d: "☕ Grasse matinée + petit-déj tranquille" },
+        { t: "10:30", d: "🚶 Promenade le long de la Garonne" },
+        { t: "12:30", d: "🍽️ Déjeuner terrasse bords de Garonne" },
+        { t: "14:30", d: "🏊 Baignade / détente au choix" },
+        { t: "17:00", d: "🏡 Retour chez Camille" },
+        { t: "19:00", d: "🍽️ Dîner tranquille — dernière soirée avant Bordeaux" }
       ],
       highlights: [
-        "🏖️ Mimizan Plage — 7 plages de sable fin, océan Atlantique",
-        "🌊 Surf, bodyboard, paddle, baignade",
-        "🍽️ A Noste — restaurant panoramique sur la dune (vue coucher de soleil)",
-        "🌲 Forêt de pins des Landes — balades vélo ou à pied",
-        "🚗 1h30 depuis Langon (A62 → D932)"
+        "😌 Journée repos avant Bordeaux demain",
+        "🌊 Bords de Garonne — balade facile",
+        "🍽️ Déjeuner terrasse au soleil"
       ],
       hotelId: "camille-langon",
       locationId: "langon"
