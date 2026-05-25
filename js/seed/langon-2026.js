@@ -185,25 +185,30 @@ var SEED_LANGON_2026 = {
     },
     {
       day: 5,
-      emoji: "🏊",
+      emoji: "🌊",
       from: "Langon",
-      to: "Langon",
-      dist: "~10 km",
-      dur: "-",
-      label: "Jour tranquille — Garonne + Lac",
-      mapUrl: "https://www.google.com/maps/dir/Langon/Lac+de+Brouqueyran,+33210/Langon,+33210",
+      to: "Mimizan Plage",
+      dist: "~150 km AR",
+      dur: "1h30 aller",
+      label: "Journée Océan — Mimizan Plage 🏖️",
+      mapUrl: "https://www.google.com/maps/dir/16+Rue+du+Gaz,+33210+Langon/Mimizan+Plage,+40200/16+Rue+du+Gaz,+33210+Langon",
       timeline: [
-        { t: "09:30", d: "☕ Grasse matinée + petit-déj tranquille" },
-        { t: "10:30", d: "🚶 Promenade le long de la Garonne" },
-        { t: "12:30", d: "🍽️ Déjeuner terrasse bords de Garonne" },
-        { t: "14:30", d: "🏊 Lac de Brouqueyran — baignade, détente, sentier" },
-        { t: "17:00", d: "🏡 Retour chez Camille" },
-        { t: "19:00", d: "🍽️ Dîner tranquille" }
+        { t: "09:00", d: "☕ Petit-déj chez Camille" },
+        { t: "09:30", d: "🚗 Départ Langon → Mimizan Plage (1h30, A62 → D932)" },
+        { t: "11:00", d: "🏖️ Arrivée Mimizan Plage — installation" },
+        { t: "11:00", d: "🌊 Baignade, farniente, balade sur la plage" },
+        { t: "12:30", d: "🍽️ Déjeuner — A Noste (bar-restaurant sur la dune, vue panoramique océan)" },
+        { t: "14:00", d: "🏄 Activités au choix : surf / bodyboard / paddle / balade forêt de pins" },
+        { t: "17:00", d: "🚗 Retour Mimizan → Langon (1h30)" },
+        { t: "18:30", d: "🏡 Retour chez Camille" },
+        { t: "19:30", d: "🍽️ Dîner tranquille" }
       ],
       highlights: [
-        "🏊 Lac de Brouqueyran : baignade + sentier autour du lac",
-        "🌊 Bords de Garonne — balade facile et agréable",
-        "😌 Journée repos avant Bordeaux demain"
+        "🏖️ Mimizan Plage — 7 plages de sable fin, océan Atlantique",
+        "🌊 Surf, bodyboard, paddle, baignade",
+        "🍽️ A Noste — restaurant panoramique sur la dune (vue coucher de soleil)",
+        "🌲 Forêt de pins des Landes — balades vélo ou à pied",
+        "🚗 1h30 depuis Langon (A62 → D932)"
       ],
       hotelId: "camille-langon",
       locationId: "langon"
