@@ -3700,6 +3700,7 @@ var SEED_USA_2026 = {
   hotels: {
     maison: {
       name: "🏠 Maison",
+      city: "Roquefort-les-Pins",
       note: "Dernière nuit avant l'aventure !"
     },
     "shep-s-miners-inn": {
