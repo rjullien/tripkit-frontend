@@ -8,17 +8,18 @@ import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 
 const __dirname_local = dirname(fileURLToPath(import.meta.url));
+const storeCode = readFileSync(join(__dirname_local, '..', 'js', 'store.js'), 'utf8');
 const helperCode = readFileSync(join(__dirname_local, '..', 'js', 'day-helpers.js'), 'utf8');
 const resolverCode = readFileSync(join(__dirname_local, '..', 'js', 'day-resolver.js'), 'utf8');
 
 // Execute in a sandboxed context that mimics browser globals
 function loadModules() {
   const glob = {};
+  const fakeStorage = { getItem: () => null, setItem: () => {}, removeItem: () => {} };
   const fn = new Function('window', 'localStorage',
-    helperCode + '\n' + resolverCode +
+    storeCode + '\n' + helperCode + '\n' + resolverCode +
     '\nreturn { DayResolver: typeof DayResolver !== "undefined" ? DayResolver : window.DayResolver, DayHelpers: typeof DayHelpers !== "undefined" ? DayHelpers : window.DayHelpers };'
   );
-  const fakeStorage = { getItem: () => null, setItem: () => {} };
   return fn(glob, fakeStorage);
 }
 
