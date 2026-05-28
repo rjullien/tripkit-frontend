@@ -4,13 +4,14 @@
  * Bump CACHE_NAME when deploying new versions.
  */
 
-const CACHE_NAME = 'tripkit-v48';
+const CACHE_NAME = 'tripkit-v54';
 
 const ASSETS = [
   '/',
   '/index.html',
   '/manifest.json',
   '/version.json',
+  '/config.js',
   '/css/theme.css',
   '/js/store.js',
   '/js/api.js',
@@ -28,9 +29,6 @@ const ASSETS = [
   '/js/components/route-view.js',
   '/js/components/culture-view.js',
   '/js/lib/qrcode-svg.min.js',
-  '/checklist.html',
-  '/quiz.html',
-  '/questions.json',
 ];
 
 // ── Install: precache all assets ──────────────────────────────────────────────
