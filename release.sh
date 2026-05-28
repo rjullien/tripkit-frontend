@@ -79,11 +79,8 @@ gh release create "$TAG" --title "$TAG — $DESCRIPTION" --notes "## $DESCRIPTIO
 - SHA: $NEW_SHA"
 log "Release created: $TAG"
 
-# 5. Build: public → build → private
-warn "Passing repo PUBLIC for build..."
-gh api repos/rjullien/tripkit-frontend -X PATCH -f visibility=public > /dev/null 2>&1
-
-# Wait for build to start
+# 5. Wait for CI build to complete
+log "Waiting for CI build..."
 sleep 5
 
 # Get the run ID
@@ -115,10 +112,6 @@ done
 if [ $ELAPSED -ge 120 ]; then
   err "Build timed out after 120s!"
 fi
-
-# Re-private
-gh api repos/rjullien/tripkit-frontend -X PATCH -f visibility=private > /dev/null 2>&1
-log "Repo back to PRIVATE"
 
 # 6. Bump ArgoCD source
 cd "$INFRA_DIR"
