@@ -159,10 +159,16 @@ var DailyView = (() => {
       html += `<div class="section-title">⭐ Points forts</div>`;
       html += `<div class="card"><ul class="highlights-list">`;
       day.highlights.forEach(h => {
-        // Allow safe links through
+        // Allow safe links through. Validate the URL scheme (block javascript:,
+        // data:, etc.) and escape the href so it cannot break out of the
+        // attribute. Then strip any other tags.
         const safe = h.replace(
           /<a\s+href="([^"]*)"[^>]*>([^<]*)<\/a>/g,
-          (m, href, label) => `<a href="${href}" target="_blank">${esc(label)}</a>`
+          (m, href, label) => {
+            const trimmed = String(href).trim();
+            const safeHref = /^(https?:|mailto:|\/)/i.test(trimmed) ? trimmed : '#';
+            return `<a href="${escAttr(safeHref)}" target="_blank" rel="noopener noreferrer">${esc(label)}</a>`;
+          }
         ).replace(/<(?!\/a>)[^>]+>/g, '');
         html += `<li>${safe}</li>`;
       });
@@ -236,7 +242,10 @@ var DailyView = (() => {
     }
 
     // ── Shopping list shortcut ─────────────────────────────────────────────
-    const shoppingListId = `courses-day${displayNum}-usa2026`;
+    // Key the list by the CURRENT trip id (not a hardcoded one) so the shortcut
+    // works for every trip. Falls back to "usa2026" to preserve legacy keys.
+    const currentTripId = (window.Store && Store.getCurrentTripId()) || 'usa2026';
+    const shoppingListId = `courses-day${displayNum}-${currentTripId}`;
     if (tripData.lists && tripData.lists[shoppingListId]) {
       html += `<div style="margin:12px 0">
         <button class="btn btn-accent" style="width:100%" onclick="App.openList('${shoppingListId}');App.switchTab('listes')">
