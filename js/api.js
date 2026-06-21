@@ -117,12 +117,7 @@ var API = (() => {
     const deviceId = Store.getDeviceId();
     const lastSyncAt = Store.getLastSyncAt(listId);
     const checks = Store.getChecks(listId);
-    const allCustom = Store.getCustomItems(listId);
-    // Only sync shared items (shared: true or received from another device)
-    const custom = {};
-    Object.entries(allCustom).forEach(([id, item]) => {
-      if (item.shared !== false) custom[id] = item;
-    });
+    const custom = Store.getCustomItems(listId);
     const hidden = [...Store.getHidden(listId)];
 
     const result = await safeFetch(`/trips/${tripId}/lists/${listId}/sync`, {
