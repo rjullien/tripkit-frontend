@@ -165,7 +165,7 @@ var DailyView = (() => {
           (m, href, label) => href.startsWith('#')
             ? `<a href="${href}">${esc(label)}</a>`
             : `<a href="${href}" target="_blank">${esc(label)}</a>`
-        ).replace(/<(?!\/a>)[^>]+>/g, '');
+        ).replace(/<(?!\/a>)(?!a\s)[^>]+>/g, '');
         html += `<li>${safe}</li>`;
       });
       html += `</ul></div>`;
