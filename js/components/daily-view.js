@@ -159,10 +159,12 @@ var DailyView = (() => {
       html += `<div class="section-title">⭐ Points forts</div>`;
       html += `<div class="card"><ul class="highlights-list">`;
       day.highlights.forEach(h => {
-        // Allow safe links through
+        // Allow safe links through (internal #hash links stay same-page, external get target=_blank)
         const safe = h.replace(
           /<a\s+href="([^"]*)"[^>]*>([^<]*)<\/a>/g,
-          (m, href, label) => `<a href="${href}" target="_blank">${esc(label)}</a>`
+          (m, href, label) => href.startsWith('#')
+            ? `<a href="${href}">${esc(label)}</a>`
+            : `<a href="${href}" target="_blank">${esc(label)}</a>`
         ).replace(/<(?!\/a>)[^>]+>/g, '');
         html += `<li>${safe}</li>`;
       });
