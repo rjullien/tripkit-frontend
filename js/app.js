@@ -78,6 +78,12 @@ var App = (() => {
   // ── Init ──────────────────────────────────────────────────────────────────
   async function init() {
     window.addEventListener('hashchange', handleHash);
+    window.addEventListener('tripkit-sync-done', () => {
+      // Re-render if currently viewing a list (shows items from other devices)
+      if (currentTab === 'plus' && currentListId) {
+        renderCurrentTab();
+      }
+    });
 
     // Magic link: intercept ?token=xxx in URL → exchange for JWT
     await handleMagicLink();
