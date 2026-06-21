@@ -1,0 +1,1183 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>🧳 Checklist Valise — USA 2026</title>
+<style>
+:root {
+  --bg: #1a1a2e; --card: #16213e; --border: #2a3a5e; --text: #eee;
+  --muted: #8892b0; --accent: #e94560; --green: #4ecdc4; --orange: #d29922;
+  --red: #f85149; --purple: #bc8cff;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: -apple-system, 'SF Pro', system-ui, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; padding-bottom: 70px; }
+.header { text-align: center; padding: 20px 16px 12px; position: relative; }
+.header h1 { font-size: 1.5em; margin-bottom: 4px; }
+.header .sub { color: var(--muted); font-size: .85em; }
+.back-btn { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); background: none; border: none; color: var(--accent); font-size: 1.5em; cursor: pointer; padding: 8px; line-height: 1; }
+.progress-wrap { padding: 8px 16px; position: sticky; top: 0; background: var(--bg); z-index: 10; border-bottom: 1px solid var(--border); }
+.progress-bar { height: 8px; background: var(--border); border-radius: 4px; overflow: hidden; }
+.progress-fill { height: 100%; background: linear-gradient(90deg, var(--green), var(--accent)); border-radius: 4px; transition: width .3s ease; }
+.progress-text { text-align: center; font-size: .75em; color: var(--muted); margin-top: 4px; }
+.section { margin: 12px 12px 0; }
+.section-head { display: flex; align-items: center; gap: 8px; padding: 10px 12px; background: var(--card); border: 1px solid var(--border); border-radius: 10px 10px 0 0; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.section-head.collapsed { border-radius: 10px; }
+.section-head .emoji { font-size: 1.2em; }
+.section-head .title { flex: 1; font-weight: 600; font-size: .95em; }
+.section-head .count { font-size: .75em; color: var(--muted); background: var(--border); padding: 2px 8px; border-radius: 10px; }
+.section-head .chevron { color: var(--muted); transition: transform .2s; font-size: .8em; }
+.section-head.collapsed .chevron { transform: rotate(-90deg); }
+.section-body { background: var(--card); border: 1px solid var(--border); border-top: none; border-radius: 0 0 10px 10px; overflow: hidden; }
+.section-body.hidden { display: none; }
+.item { display: flex; align-items: flex-start; gap: 10px; padding: 10px 12px; border-bottom: 1px solid var(--border); cursor: pointer; -webkit-tap-highlight-color: transparent; transition: background .15s; }
+.item:last-child { border-bottom: none; }
+.item:active { background: rgba(233,69,96,.08); }
+.item.checked .label { text-decoration: line-through; color: var(--muted); }
+.item .check { width: 22px; height: 22px; border: 2px solid var(--border); border-radius: 6px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; transition: all .2s; margin-top: 1px; }
+.item.checked .check { background: var(--green); border-color: var(--green); }
+.item.checked .check::after { content: '✓'; color: #fff; font-size: 14px; font-weight: 700; }
+.item .label { font-size: .9em; line-height: 1.4; }
+.item .label small { display: block; color: var(--muted); font-size: .82em; margin-top: 2px; }
+.item.highlight .label { font-weight: 600; }
+.tag { font-size: .65em; padding: 1px 5px; border-radius: 4px; color: #fff; vertical-align: middle; margin-left: 4px; }
+.tag-conf { background: var(--purple); }
+.tag-critical { background: var(--red); }
+.tag-dinah { background: #e040a0; }
+.tag-alex { background: #2979ff; }
+.user-select { text-align: center; padding: 40px 20px; }
+.user-select h2 { margin-bottom: 20px; }
+.user-btn { display: block; width: 100%; max-width: 300px; margin: 10px auto; padding: 16px; background: var(--card); border: 2px solid var(--border); border-radius: 12px; color: var(--text); font-size: 1.1em; cursor: pointer; transition: all .2s; }
+.user-btn:hover, .user-btn:active { border-color: var(--accent); background: rgba(233,69,96,.1); }
+.reset-btn { display: block; margin: 20px auto; padding: 10px 20px; background: none; border: 1px solid var(--border); border-radius: 8px; color: var(--muted); font-size: .8em; cursor: pointer; }
+.reset-btn:hover { border-color: var(--red); color: var(--red); }
+.print-btn { display: block; margin: 12px auto; padding: 10px 20px; background: var(--card); border: 1px solid var(--accent); border-radius: 8px; color: var(--accent); font-size: .85em; cursor: pointer; text-decoration: none; text-align: center; max-width: 200px; }
+.btn-row { display: flex; gap: 8px; padding: 16px 12px; flex-wrap: wrap; justify-content: center; }
+.btn { padding: 12px 16px; border: 2px solid var(--border); border-radius: 10px; font-size: .9em; cursor: pointer; text-decoration: none; text-align: center; flex: 1; min-width: 140px; color: var(--text); background: var(--card); }
+.btn:active { opacity: .8; }
+.btn-green { border-color: var(--green); color: var(--green); }
+.btn-red { border-color: var(--red); color: var(--red); }
+.btn-accent { border-color: var(--accent); color: var(--accent); }
+.sticky-back { position: fixed; bottom: 0; left: 0; right: 0; padding: 10px 16px env(safe-area-inset-bottom, 10px) 16px; background: var(--bg); border-top: 1px solid var(--border); z-index: 50; display: flex; gap: 8px; -webkit-transform: translateZ(0); transform: translateZ(0); }
+.sticky-back a { flex: 1; padding: 12px 16px; border: 2px solid var(--muted); border-radius: 10px; font-size: .9em; text-decoration: none; text-align: center; color: var(--muted); background: var(--card); }
+.sticky-back a:active { opacity: .8; }
+/* Custom items */
+.add-item-btn { display: flex; align-items: center; gap: 8px; width: 100%; padding: 10px 12px; background: none; border: none; border-top: 1px dashed var(--border); color: var(--muted); font-size: .85em; cursor: pointer; transition: all .15s; text-align: left; }
+.add-item-btn:hover, .add-item-btn:active { color: var(--accent); background: rgba(233,69,96,.05); }
+.add-item-btn .plus-icon { width: 22px; height: 22px; border: 2px dashed var(--border); border-radius: 6px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 14px; color: var(--muted); }
+.add-item-btn:hover .plus-icon { border-color: var(--accent); color: var(--accent); }
+.item.custom .label { font-style: italic; }
+.item.custom .delete-btn { margin-left: auto; flex-shrink: 0; background: none; border: none; color: var(--muted); cursor: pointer; font-size: 1em; padding: 2px 4px; border-radius: 4px; line-height: 1; min-width: 44px; min-height: 44px; display: flex; align-items: center; justify-content: center; }
+.item.custom .delete-btn:hover { color: var(--red); }
+/* Hide/show items */
+.item .hide-btn { margin-left: auto; flex-shrink: 0; background: none; border: none; color: var(--muted); cursor: pointer; font-size: 1.1em; padding: 4px 8px; border-radius: 4px; line-height: 1; opacity: 0; transition: opacity .15s, color .15s; min-width: 44px; min-height: 44px; display: flex; align-items: center; justify-content: center; }
+.item:hover .hide-btn, .item:active .hide-btn { opacity: 1; }
+.item .hide-btn:hover { color: var(--red); }
+.hidden-toggle { display: flex; align-items: center; gap: 6px; width: 100%; padding: 8px 12px; background: none; border: none; border-top: 1px dotted var(--border); color: var(--muted); font-size: .78em; cursor: pointer; transition: color .15s; min-height: 44px; }
+.hidden-toggle:hover { color: var(--accent); }
+.item.is-hidden { opacity: .4; }
+.item.is-hidden .label { text-decoration: line-through; }
+#app.hide-done .item.checked { display: none; }
+.filter-btn { background: none; border: 1px solid var(--border); border-radius: 8px; color: var(--muted); font-size: .75em; padding: 5px 12px; cursor: pointer; transition: all .2s; min-height: 32px; }
+.filter-btn:active { opacity: .7; }
+.filter-btn.active { border-color: var(--accent); color: var(--accent); background: rgba(233,69,96,.1); }
+.item .restore-btn { margin-left: auto; flex-shrink: 0; background: none; border: none; color: var(--accent); cursor: pointer; font-size: .78em; padding: 4px 8px; border-radius: 4px; line-height: 1; min-width: 44px; min-height: 44px; display: flex; align-items: center; justify-content: center; }
+.item .restore-btn:hover { color: var(--green); }
+.add-input-row { display: flex; gap: 8px; padding: 8px 12px; border-top: 1px dashed var(--border); background: rgba(233,69,96,.04); }
+.add-input-row input { flex: 1; background: var(--border); border-radius: 6px; padding: 7px 10px; color: var(--text); font-size: .88em; border: 1px solid var(--border); }
+.add-input-row input:focus { border-color: var(--accent); outline: none; }
+.add-input-row .confirm-btn { background: var(--accent); color: #fff; border: none; border-radius: 6px; padding: 7px 14px; font-size: .88em; cursor: pointer; white-space: nowrap; }
+.add-input-row .cancel-btn { background: none; color: var(--muted); border: 1px solid var(--border); border-radius: 6px; padding: 7px 10px; font-size: .88em; cursor: pointer; }
+@media print {
+  body { background: #fff; color: #000; }
+  .progress-wrap, .reset-btn, .print-btn { display: none; }
+  .section-body.hidden { display: block !important; }
+  .section-head .chevron { display: none; }
+  .item .check { border-color: #999; }
+  .item.checked .check { background: #4caf50; }
+}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <button class="back-btn" onclick="location.href='/'" title="Retour">←</button>
+  <h1>🧳 Checklist Valise</h1>
+  <div class="sub" id="userInfo">USA 2026</div>
+</div>
+
+<div class="progress-wrap">
+  <div class="progress-bar"><div class="progress-fill" id="progressFill" style="width:0%"></div></div>
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-top:4px">
+    <div class="progress-text" id="progressText" style="margin:0">0 / 0 cochés</div>
+    <button class="filter-btn" id="filterDoneBtn" onclick="toggleHideDone()">👁️ Masquer cochés</button>
+  </div>
+</div>
+
+<div id="app"></div>
+
+<script>
+// Version stamp (for debugging/export only, no auto-reload)
+(function() { localStorage.setItem('checklist-build-version', '76'); })();
+// ═══════════════════════════════════════════════════════════════
+// DATA — Checklists par groupe
+// ═══════════════════════════════════════════════════════════════
+
+const CHECKLISTS = {
+  'rene-nicole': {
+    label: 'René + Nicole',
+    subtitle: '19 jours (17 avril → 5 mai) · Désert → Montagne → Ville → Montréal',
+    meteo: '🔥 7j chauds (25-30°C) · 🌤️ 5j doux (18-24°C) · 🥶 7j froids (2-17°C)',
+    sections: [
+      { emoji:'🛂', title:'Documents — CRITIQUE', color:'red', items:[
+        {t:'Passeports (valides > nov 2026)',h:true,c:true},
+        {t:'ESTA imprimés (2 copies chacun)',h:true,c:true},
+        {t:'Billets avion imprimés',s:'NCE→LHR→LAS + DEN→YUL + YUL→LHR→NCE'},
+        {t:'Permis de conduire Nicole'},
+        {t:'Assurance voyage (n° + tél urgence)'},
+        {t:'Cartes bancaires internationales',s:'BoursoBank 3143 ✅ déclaration faite'},
+        {t:'Alamo Rental Document imprimé',s:'Skip the Counter — conf 1493389705'},
+        {t:'Photocopies passeports (séparées)'},
+        {t:'AVE Canada (imprimé ou screenshot)'},
+      ]},
+      { emoji:'👕', title:'Vêtements — 2 saisons !', color:'blue', items:[
+        {t:'T-shirts × 8-9'},
+        {t:'Shorts × 3'},
+        {t:'Pantalons légers × 3',s:'Randos + Denver + Montréal'},
+        {t:'Jean / chino',s:'Google Next + KÀ + Montréal'},
+        {t:'Chemise / polo soigné',s:'Conf networking'},
+        {t:'Robe / tenue légère Vegas 😎'},
+        {t:'Pulls / sweats × 2'},
+        {t:'Manteau léger',s:'Montréal 4°C le matin !'},
+        {t:'Polaire + veste chaude'},
+        {t:'Écharpe légère',s:'Montréal matin'},
+        {t:'Maillots de bain',s:'Piscines + jacuzzis !'},
+        {t:'Pyjamas'},
+        {t:'Sous-vêtements × 14'},
+        {t:'Chaussettes × 14 (dont rando)'},
+      ]},
+      { emoji:'👟', title:'Chaussures', color:'blue', items:[
+        {t:'Rando RODÉES',s:'Angel\'s Landing, Arches, Bryce !',h:true},
+        {t:'Baskets confort',s:'Conf 3j debout + Denver + Montréal'},
+        {t:'Tongs / sandales'},
+      ]},
+      { emoji:'🌞', title:'Protection', color:'green', items:[
+        {t:'Crème solaire SPF50+',h:true},
+        {t:'Lunettes de soleil'},
+        {t:'Chapeau / casquette'},
+        {t:'Baume à lèvres',s:'Climat très sec'},
+        {t:'Anti-moustiques',s:'Sources chaudes, Moab'},
+      ]},
+      { emoji:'🧼', title:'Trousse de toilette', color:'green', items:[
+        {t:'Brosse à dents + dentifrice'},
+        {t:'Shampoing / gel douche',s:'Format voyage ou acheter sur place'},
+        {t:'Déodorant'},
+        {t:'Rasoir / mousse à raser'},
+        {t:'Brosse / peigne'},
+        {t:'Coton-tiges'},
+        {t:'Maquillage essentiels'},
+        {t:'Crème hydratante visage',s:'Climat très sec !'},
+        {t:'Mouchoirs en papier'},
+      ]},
+      { emoji:'💊', title:'Santé', color:'orange', items:[
+        {t:'Médicaments perso + compléments'},
+        {t:'Doliprane / Advil'},
+        {t:'Pansements + anti-ampoules'},
+        {t:'Anti-diarrhéique (Imodium)'},
+        {t:'Smecta / charbon'},
+        {t:'Collyre',s:'Air sec désert + avion'},
+      ]},
+      { emoji:'📱', title:'Tech', color:'purple', items:[
+        {t:'Chargeurs téléphone + laptop'},
+        {t:'Adaptateur prise US × 2 (Type A/B)',s:'✅ commandé Amazon',h:true},
+        {t:'Batterie externe chargée'},
+        {t:'Appareil photo + chargeur + carte SD'},
+        {t:'Câble USB voiture',s:'Pour CarPlay'},
+        {t:'Écouteurs / casque',s:'Avion'},
+      ]},
+      { emoji:'📱', title:'Applis à installer', color:'purple', items:[
+        {t:'Mobile Passport Control (MPC)',h:true},
+        {t:'Google Maps zones offline',s:'Arizona + Utah + Nevada + Colorado'},
+        {t:'Airbnb',s:'Codes accès, messages hôtes'},
+        {t:'App Cirque du Soleil',s:'Billets KÀ'},
+        {t:'tripkit.bapttf.com',s:'Safari → écran d\'accueil'},
+      ]},
+      { emoji:'🎒', title:'Journée / Rando', color:'green', items:[
+        {t:'Petit sac à dos rando'},
+        {t:'Gourdes × 2',s:'VITAL — désert !',h:true},
+        {t:'Lampe frontale',s:'Angel\'s Landing tôt matin'},
+        {t:'Serviette microfibre',s:'Jacuzzis, sources chaudes'},
+        {t:'Sacs plastique zip',s:'Téléphone si pluie/poussière'},
+      ]},
+      { emoji:'🍽️', title:'Pique-nique / Route', color:'green', items:[
+        {t:'Couteau + couverts + tire-bouchon'},
+        {t:'Assiettes / verres réutilisables'},
+        {t:'Glacière souple pliable'},
+        {t:'Sacs poubelle'},
+        {t:'Essuie-tout / lingettes'},
+      ]},
+      { emoji:'🏠', title:'Avant de partir', color:'orange', items:[
+        {t:'Alarme maison activée'},
+        {t:'Volets fermés / programmés'},
+        {t:'Eau coupée ?'},
+        {t:'Poubelles sorties'},
+        {t:'Frigo vidé (périssables)'},
+        {t:'Plantes arrosées / voisin prévenu'},
+        {t:'Photo du contenu valise',s:'Pour assurance'},
+      ]},
+      { emoji:'✈️', title:'Bagage cabine (si valise perdue)', items:[
+        {t:'1 change complet'},
+        {t:'Trousse toilette mini (<100 ml)'},
+        {t:'Médicaments essentiels'},
+        {t:'Documents + photocopies'},
+        {t:'Chargeur + écouteurs'},
+        {t:'Snacks avion'},
+        {t:'Stylo',s:'Formulaire douane'},
+      ]},
+    ]
+  },
+
+  'alex-dinah': {
+    label: 'Alex + Dinah',
+    subtitle: '14 jours (17 avril → 1er mai) · CDG → Las Vegas → Denver → CDG',
+    meteo: '🔥 7j chauds (25-30°C) · 🌤️ 5j doux (18-24°C) · 🥶 2j froids (2-17°C)',
+    sections: [
+      { emoji:'🛂', title:'Documents — CRITIQUE', color:'red', items:[
+        {t:'Passeport Alexandre (valide > nov 2026)',h:true},
+        {t:'ESTA imprimé × 2 copies',s:'Alexandre',h:true},
+        {t:'Passeport US Dinah',s:'Pas besoin d\'ESTA',h:true},
+        {t:'Billets avion imprimés — réf ZK46PW',s:'AF3581 CDG→MSP → AF2664→LAS / retour DEN→SLC→CDG'},
+        {t:'Assurance voyage'},
+        {t:'Carte(s) bancaire(s) internationales'},
+        {t:'Photocopies passeports'},
+        {t:'Carte Flying Blue : 5154326434'},
+      ]},
+      { emoji:'👕', title:'Vêtements', color:'blue', items:[
+        {t:'T-shirts × 8'},
+        {t:'Shorts × 3'},
+        {t:'Pantalons légers × 2',s:'Randos + Denver'},
+        {t:'Jean / chino',s:'Soirée KÀ + Denver'},
+        {t:'Robe / tenue légère Vegas 😎'},
+        {t:'Pulls / sweats × 2',s:'Bryce + Denver'},
+        {t:'Veste chaude + polaire',s:'Bryce = 2°C le matin !'},
+        {t:'Maillots de bain',s:'Piscines + jacuzzis + sources chaudes'},
+        {t:'Pyjamas'},
+        {t:'Sous-vêtements × 12'},
+        {t:'Chaussettes × 12 (dont rando)'},
+      ]},
+      { emoji:'👟', title:'Chaussures', color:'blue', items:[
+        {t:'Rando RODÉES',s:'Angel\'s Landing, Arches, Bryce !',h:true},
+        {t:'Baskets confort',s:'Denver'},
+        {t:'Tongs / sandales'},
+      ]},
+      { emoji:'🌞', title:'Protection', color:'green', items:[
+        {t:'Crème solaire SPF50+',h:true},
+        {t:'Lunettes de soleil'},
+        {t:'Chapeau / casquette'},
+        {t:'Baume à lèvres'},
+        {t:'Anti-moustiques'},
+      ]},
+      { emoji:'🧼', title:'Trousse de toilette', color:'green', items:[
+        {t:'Brosse à dents + dentifrice'},
+        {t:'Shampoing / gel douche',s:'Format voyage ou acheter sur place'},
+        {t:'Déodorant'},
+        {t:'Rasoir / mousse'},
+        {t:'Brosse / peigne'},
+        {t:'Maquillage essentiels'},
+        {t:'Lentilles de contact + produit',s:'Stock 14 jours'},
+        {t:'Crème hydratante',s:'Climat très sec'},
+        {t:'Mouchoirs en papier'},
+      ]},
+      { emoji:'💊', title:'Santé', color:'orange', items:[
+        {t:'Médicaments perso'},
+        {t:'Doliprane / Advil'},
+        {t:'Pansements + anti-ampoules'},
+        {t:'Anti-diarrhéique (Imodium)'},
+        {t:'Smecta / charbon'},
+        {t:'Collyre',s:'Air sec désert + avion'},
+      ]},
+      { emoji:'📱', title:'Tech', color:'purple', items:[
+        {t:'Chargeurs téléphone(s)'},
+        {t:'Adaptateur prise US × 2',s:'Dinah n\'en a peut-être pas besoin',h:true},
+        {t:'Batterie externe chargée'},
+        {t:'Appareil photo / GoPro + chargeur'},
+        {t:'Écouteurs / casque',s:'Avion 15h !'},
+      ]},
+      { emoji:'📱', title:'Applis à installer', color:'purple', items:[
+        {t:'Mobile Passport Control (MPC)',s:'Alexandre',h:true},
+        {t:'Google Maps zones offline',s:'Arizona + Utah + Nevada + Colorado'},
+        {t:'Airbnb'},
+        {t:'App Cirque du Soleil',s:'Billets KÀ'},
+        {t:'tripkit.bapttf.com'},
+        {t:'App Delta / Air France',s:'Boarding pass'},
+      ]},
+      { emoji:'🎒', title:'Journée / Rando', color:'green', items:[
+        {t:'Petit sac à dos rando'},
+        {t:'Gourdes × 2',s:'VITAL — désert !',h:true},
+        {t:'Lampe frontale',s:'Angel\'s Landing tôt matin'},
+        {t:'Serviette microfibre',s:'Jacuzzis, sources chaudes'},
+        {t:'Sacs plastique zip'},
+      ]},
+      { emoji:'🏠', title:'Avant de partir', color:'orange', items:[
+        {t:'Appartement sécurisé'},
+        {t:'Frigo vidé (périssables)'},
+        {t:'Courrier : prévenir voisin'},
+        {t:'Photo du contenu valise'},
+        {t:'Prévenir banque si nécessaire'},
+      ]},
+      { emoji:'✈️', title:'Bagage cabine', items:[
+        {t:'1 change complet'},
+        {t:'Trousse toilette mini (<100 ml)'},
+        {t:'Médicaments essentiels'},
+        {t:'Documents + photocopies'},
+        {t:'Chargeur + écouteurs'},
+        {t:'Snacks avion'},
+        {t:'Stylo',s:'Formulaire douane'},
+      ]},
+    ]
+  },
+
+  'laurine': {
+    label: 'Laurine',
+    subtitle: '11 jours (17 → 27 avril) · Désert + Vegas + Google Next + Canyons',
+    meteo: '🔥 7j chauds (25-30°C) · 🌤️ 3j doux (18-24°C) · 🥶 1j froid (2-14°C)',
+    sections: [
+      { emoji:'🛂', title:'Documents — CRITIQUE', color:'red', items:[
+        {t:'Passeport (valide > nov 2026)',h:true},
+        {t:'ESTA imprimé × 2 copies',h:true},
+        {t:'Billets avion imprimés',s:'BA339 NCE→LHR→BA271→LAS / retour BA274+BA340'},
+        {t:'Assurance voyage'},
+        {t:'Carte bancaire internationale'},
+        {t:'Photocopie passeport'},
+      ]},
+      { emoji:'👕', title:'Vêtements', color:'blue', items:[
+        {t:'T-shirts × 6-7'},
+        {t:'Shorts × 3'},
+        {t:'Pantalon léger × 1',s:'Rando + soirées'},
+        {t:'Jean / chino',s:'Google Next + KÀ'},
+        {t:'Chemise / blouse soignée',s:'Conf networking'},
+        {t:'Robe / tenue légère Vegas 😎'},
+        {t:'Pull / sweat × 1',s:'Soirées Grand Canyon'},
+        {t:'Veste chaude + polaire',s:'Bryce = 2°C le matin !'},
+        {t:'Maillot de bain',s:'Luxor, Ruby\'s, Mesquite'},
+        {t:'Pyjama'},
+        {t:'Sous-vêtements × 10'},
+        {t:'Chaussettes × 10 (dont rando)'},
+      ]},
+      { emoji:'👟', title:'Chaussures', color:'blue', items:[
+        {t:'Rando RODÉES',s:'Angel\'s Landing, Bryce !',h:true},
+        {t:'Baskets confort',s:'Conf 3j debout au Mandalay Bay !'},
+        {t:'Tongs / sandales'},
+      ]},
+      { emoji:'🌞', title:'Protection', color:'green', items:[
+        {t:'Crème solaire SPF50+',h:true},
+        {t:'Lunettes de soleil'},
+        {t:'Chapeau / casquette'},
+        {t:'Baume à lèvres'},
+        {t:'Anti-moustiques'},
+      ]},
+      { emoji:'🧼', title:'Trousse de toilette', color:'green', items:[
+        {t:'Brosse à dents + dentifrice'},
+        {t:'Shampoing / gel douche',s:'Format voyage ou acheter sur place'},
+        {t:'Déodorant'},
+        {t:'Brosse / peigne'},
+        {t:'Maquillage essentiels'},
+        {t:'Lentilles de contact + produit',s:'Stock 14 jours'},
+        {t:'Crème hydratante',s:'Climat très sec'},
+        {t:'Mouchoirs en papier'},
+      ]},
+      { emoji:'💊', title:'Santé', color:'orange', items:[
+        {t:'Médicaments perso'},
+        {t:'Doliprane / Advil'},
+        {t:'Pansements + anti-ampoules'},
+        {t:'Anti-diarrhéique (Imodium)'},
+        {t:'Collyre',s:'Air sec + avion'},
+      ]},
+      { emoji:'📱', title:'Tech', color:'purple', items:[
+        {t:'Chargeur téléphone + laptop'},
+        {t:'Adaptateur prise US (Type A/B)',h:true},
+        {t:'Batterie externe chargée'},
+        {t:'Écouteurs / casque',s:'Avion 12h'},
+      ]},
+      { emoji:'📱', title:'Applis à installer', color:'purple', items:[
+        {t:'Mobile Passport Control (MPC)',h:true},
+        {t:'Google Maps zones offline',s:'Arizona + Utah + Nevada'},
+        {t:'Airbnb'},
+        {t:'App Cirque du Soleil'},
+        {t:'tripkit.bapttf.com'},
+        {t:'App British Airways',s:'Boarding pass'},
+        {t:'App Google Cloud Next',s:'Badge + agenda conf'},
+      ]},
+      { emoji:'👔', title:'Google Cloud Next (22-24 avril)', color:'purple', items:[
+        {t:'Badge + QR code inscription'},
+        {t:'Laptop chargé + chargeur'},
+        {t:'Cartes de visite',s:'Si réseau pro'},
+        {t:'Tenue business casual × 3j',s:'Jean/chino + polo/chemise + baskets'},
+        {t:'Petit sac ou tote bag',s:'Goodies, docs'},
+        {t:'Bonnes chaussures',s:'3 jours debout !',h:true},
+      ]},
+      { emoji:'🎒', title:'Journée / Rando', color:'green', items:[
+        {t:'Petit sac à dos rando'},
+        {t:'Gourde',s:'VITAL — désert !',h:true},
+        {t:'Lampe frontale',s:'Angel\'s Landing tôt matin'},
+        {t:'Serviette microfibre',s:'Piscines'},
+        {t:'Sacs plastique zip'},
+      ]},
+      { emoji:'🏠', title:'Avant de partir', color:'orange', items:[
+        {t:'Appart sécurisé (Nice)'},
+        {t:'Frigo vidé (périssables)'},
+        {t:'Photo du contenu valise'},
+        {t:'Prévenir banque si nécessaire'},
+      ]},
+      { emoji:'✈️', title:'Bagage cabine', items:[
+        {t:'1 change complet'},
+        {t:'Trousse toilette mini (<100 ml)'},
+        {t:'Médicaments essentiels'},
+        {t:'Documents + photocopie passeport'},
+        {t:'Chargeur + écouteurs + laptop'},
+        {t:'Snacks avion'},
+        {t:'Stylo',s:'Formulaire douane'},
+      ]},
+    ]
+  }
+};
+
+// GitHub user → checklist group
+const USER_GROUP = {
+  // Authelia usernames (prénoms)
+  'Rene': 'rene-nicole',
+  'rene': 'rene-nicole',
+  'Nicole': 'rene-nicole',
+  'nicole': 'rene-nicole',
+  'Alexandre': 'alex-dinah',
+  'alexandre': 'alex-dinah',
+  'Dinah': 'alex-dinah',
+  'dinah': 'alex-dinah',
+  'Laurine': 'laurine',
+  'laurine': 'laurine',
+  'Baptiste': 'baptiste',
+  'baptiste': 'baptiste',
+  'Camille': 'camille',
+  'camille': 'camille',
+  'Emma': 'emma',
+  'emma': 'emma',
+};
+
+// ═══════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════
+// APP
+// ═══════════════════════════════════════════════════════════════
+
+let currentGroup = null;
+let checks = {};       // { [stableKey]: true }  — persisted as 'checklist-usa-2026'
+let customItems = {};  // { [group]: [{id, text}, ...] } — persisted per group
+let hiddenItems = {};  // { [group]: Set<stableKey> } — hidden built-in items per group
+
+// ── Persistence ──────────────────────────────────────────────
+
+function loadChecks() {
+  try { checks = JSON.parse(localStorage.getItem('checklist-usa-2026') || '{}'); } catch(e) { checks = {}; }
+}
+function saveChecks() {
+  localStorage.setItem('checklist-usa-2026', JSON.stringify(checks));
+}
+function loadCustomItems(group) {
+  try { return JSON.parse(localStorage.getItem(`checklist-custom-${group}`) || '[]'); } catch(e) { return []; }
+}
+function saveCustomItems(group) {
+  localStorage.setItem(`checklist-custom-${group}`, JSON.stringify(customItems[group] || []));
+}
+function loadHiddenItems(group) {
+  try { return new Set(JSON.parse(localStorage.getItem(`checklist-hidden-${group}`) || '[]')); } catch(e) { return new Set(); }
+}
+function saveHiddenItems(group) {
+  localStorage.setItem(`checklist-hidden-${group}`, JSON.stringify([...(hiddenItems[group] || [])]));
+}
+
+// ── Slugify (stable item IDs) ─────────────────────────────────
+
+/**
+ * Converts a string to a stable URL-like slug:
+ * lowercase, accents removed, spaces → dashes, max 40 chars.
+ */
+function slugify(str) {
+  return (str || '')
+    .normalize('NFD')                      // decompose accented chars
+    .replace(/[\u0300-\u036f]/g, '')       // strip combining diacritics
+    .toLowerCase()
+    .replace(/[^a-z0-9\s-]/g, '')          // keep alphanumeric + spaces + dashes
+    .trim()
+    .replace(/\s+/g, '-')                  // spaces → dashes
+    .replace(/-+/g, '-')                   // collapse multiple dashes
+    .substring(0, 40);                     // max 40 chars
+}
+
+/**
+ * Stable key for a built-in item (based on text content, not index).
+ * Format: {group}-{slugified-section-title}-{slugified-item-text}
+ */
+function getStableKey(group, sectionTitle, itemText) {
+  return `${group}-${slugify(sectionTitle)}-${slugify(itemText)}`;
+}
+
+/**
+ * Legacy index-based key (v1 format).
+ */
+function getLegacyKey(group, si, ii) { return `${group}-${si}-${ii}`; }
+
+// ── Schema versioning & migrations ─────────────────────────────
+
+const SCHEMA_VERSION = 2;  // ← incrémenter à chaque nouveau format
+const SCHEMA_KEY = 'checklist-schema-version';
+
+/**
+ * Registry of migrations. Each entry: { from, to, run() }.
+ * Migrations run in order from current stored version to SCHEMA_VERSION.
+ * Add new migrations here for future format changes.
+ */
+const MIGRATIONS = [
+  {
+    from: 1, to: 2,
+    name: 'index-keys → slug-keys',
+    run() {
+      let migrated = 0;
+      Object.keys(CHECKLISTS).forEach(group => {
+        const cl = CHECKLISTS[group];
+        cl.sections.forEach((section, si) => {
+          section.items.forEach((item, ii) => {
+            const oldKey = getLegacyKey(group, si, ii);
+            if (checks[oldKey]) {
+              const newKey = getStableKey(group, section.title, item.t);
+              checks[newKey] = true;
+              delete checks[oldKey];
+              migrated++;
+            }
+          });
+        });
+      });
+      return migrated;
+    }
+  },
+  // ── Future migrations go here ──
+  // { from: 2, to: 3, name: 'description', run() { ... return count; } },
+];
+
+/**
+ * Detect current schema version and run all needed migrations in sequence.
+ * - No stored version + legacy flag → version 2 (already migrated)
+ * - No stored version + no flag + has old-format keys → version 1
+ * - No stored version + empty data → current version (fresh install)
+ */
+function runMigrations() {
+  let storedVersion = parseInt(localStorage.getItem(SCHEMA_KEY) || '0', 10);
+
+  // Detect version for existing installs
+  if (storedVersion === 0) {
+    if (localStorage.getItem('checklist-migrated-v2')) {
+      // Already migrated by previous code — set to v2
+      storedVersion = 2;
+      localStorage.setItem(SCHEMA_KEY, '2');
+      localStorage.removeItem('checklist-migrated-v2'); // clean up old flag
+      console.log('[checklist] schema: detected v2 (legacy flag)');
+      return;
+    }
+    // Check if there's any data at all
+    const hasData = Object.keys(checks).length > 0;
+    if (!hasData) {
+      // Fresh install — stamp current version, no migration needed
+      localStorage.setItem(SCHEMA_KEY, String(SCHEMA_VERSION));
+      console.log(`[checklist] schema: fresh install → v${SCHEMA_VERSION}`);
+      return;
+    }
+    // Has data but no version → v1 (original index-based format)
+    storedVersion = 1;
+    console.log('[checklist] schema: detected v1 (legacy index keys)');
+  }
+
+  if (storedVersion >= SCHEMA_VERSION) return; // up to date
+
+  // Run each migration in sequence
+  let current = storedVersion;
+  while (current < SCHEMA_VERSION) {
+    const migration = MIGRATIONS.find(m => m.from === current);
+    if (!migration) {
+      console.warn(`[checklist] no migration from v${current}!`);
+      break;
+    }
+    const count = migration.run();
+    console.log(`[checklist] migration v${migration.from}→v${migration.to} (${migration.name}): ${count} changement(s)`);
+    current = migration.to;
+  }
+
+  saveChecks();
+  localStorage.setItem(SCHEMA_KEY, String(current));
+  localStorage.removeItem('checklist-migrated-v2'); // clean up old flag if present
+  console.log(`[checklist] schema: migrated to v${current} ✅`);
+}
+
+// ── Progress & section counts ─────────────────────────────────
+
+function updateProgress() {
+  const cl = CHECKLISTS[currentGroup];
+  const hidden = hiddenItems[currentGroup] || new Set();
+  let total = 0, done = 0;
+
+  // Restore hide-done state from localStorage
+  const hideState = localStorage.getItem('hide-done-' + currentGroup);
+  if (hideState === 'true') {
+    document.getElementById('app').classList.add('hide-done');
+    const btn = document.getElementById('filterDoneBtn');
+    btn.classList.add('active');
+    btn.textContent = '👁️ Afficher cochés';
+  }
+
+  // Built-in items (skip hidden)
+  cl.sections.forEach(section => {
+    section.items.forEach(item => {
+      const key = getStableKey(currentGroup, section.title, item.t);
+      if (hidden.has(key)) return; // hidden items don't count
+      total++;
+      if (checks[key]) done++;
+    });
+  });
+
+  // Custom items
+  (customItems[currentGroup] || []).forEach(ci => {
+    total++;
+    if (checks[ci.id]) done++;
+  });
+
+  const pct = total ? Math.round(done / total * 100) : 0;
+  document.getElementById('progressFill').style.width = pct + '%';
+  // Ascending counter: X cochés / Y total
+  document.getElementById('progressText').textContent = `${done} / ${total} cochés — ${pct}%`;
+
+  // Section counts
+  document.querySelectorAll('.section-count').forEach(el => {
+    const si = +el.dataset.si;
+    const section = cl.sections[si];
+    const customs = (customItems[currentGroup] || []).filter(ci => ci.si === si);
+    let sectionTotal = 0, sDone = 0;
+    section.items.forEach(item => {
+      const key = getStableKey(currentGroup, section.title, item.t);
+      if (hidden.has(key)) return;
+      sectionTotal++;
+      if (checks[key]) sDone++;
+    });
+    customs.forEach(ci => { sectionTotal++; if (checks[ci.id]) sDone++; });
+    el.textContent = `${sDone}/${sectionTotal}`;
+    el.style.color = sDone === sectionTotal ? 'var(--green)' : 'var(--muted)';
+  });
+}
+
+// ── Render ────────────────────────────────────────────────────
+
+function renderChecklist(group) {
+  currentGroup = group;
+  const cl = CHECKLISTS[group];
+  document.getElementById('userInfo').textContent = cl.subtitle;
+  document.getElementById('stickyBack').style.display = '';
+  const app = document.getElementById('app');
+
+  // Load custom items for this group
+  customItems[group] = loadCustomItems(group);
+  hiddenItems[group] = loadHiddenItems(group);
+  const hidden = hiddenItems[group];
+
+  // Meteo bar
+  let html = `<div style="text-align:center;padding:8px 16px;font-size:.8em;color:var(--muted)">${cl.meteo}</div>`;
+
+  cl.sections.forEach((section, si) => {
+    const colorStyle = section.color ? `border-left: 3px solid var(--${section.color})` : '';
+    // Count hidden in this section
+    let hiddenCount = 0;
+    section.items.forEach(item => { if (hidden.has(getStableKey(group, section.title, item.t))) hiddenCount++; });
+
+    html += `<div class="section">`;
+    html += `<div class="section-head" data-si="${si}" style="${colorStyle}">`;
+    html += `<span class="emoji">${section.emoji}</span>`;
+    html += `<span class="title">${section.title}</span>`;
+    html += `<span class="count section-count" data-si="${si}">0/${section.items.length}</span>`;
+    html += `<span class="chevron">▼</span>`;
+    html += `</div>`;
+    html += `<div class="section-body" data-si="${si}">`;
+
+    // Built-in items (visible ones)
+    section.items.forEach((item) => {
+      const key = getStableKey(group, section.title, item.t);
+      if (hidden.has(key)) return; // skip hidden items
+      const checked = checks[key] ? ' checked' : '';
+      const highlight = item.h ? ' highlight' : '';
+      const critical = item.c ? '<span class="tag tag-critical">CRITIQUE</span>' : '';
+      html += `<div class="item${checked}${highlight}" data-key="${key}">`;
+      html += `<div class="check"></div>`;
+      html += `<div class="label">${item.t} ${critical}${item.s ? `<small>${item.s}</small>` : ''}</div>`;
+      html += `<button class="hide-btn" data-hide-key="${key}" title="Masquer cet item">✕</button>`;
+      html += `</div>`;
+    });
+
+    // Custom items for this section
+    const sectionCustoms = (customItems[group] || []).filter(ci => ci.si === si);
+    sectionCustoms.forEach(ci => {
+      const checked = checks[ci.id] ? ' checked' : '';
+      html += `<div class="item custom${checked}" data-key="${ci.id}" data-custom-id="${ci.id}">`;
+      html += `<div class="check"></div>`;
+      html += `<div class="label">${escapeHtml(ci.text)}</div>`;
+      html += `<button class="delete-btn" data-custom-id="${ci.id}" title="Supprimer">✕</button>`;
+      html += `</div>`;
+    });
+
+    // Hidden items toggle (if any hidden in this section)
+    if (hiddenCount > 0) {
+      html += `<button class="hidden-toggle" data-si="${si}">👁️‍🗨️ Afficher ${hiddenCount} item${hiddenCount > 1 ? 's' : ''} masqué${hiddenCount > 1 ? 's' : ''}</button>`;
+      html += `<div class="hidden-items" data-si="${si}" style="display:none">`;
+      section.items.forEach((item) => {
+        const key = getStableKey(group, section.title, item.t);
+        if (!hidden.has(key)) return;
+        html += `<div class="item is-hidden" data-key="${key}">`;
+        html += `<div class="check"></div>`;
+        html += `<div class="label">${item.t}${item.s ? `<small>${item.s}</small>` : ''}</div>`;
+        html += `<button class="restore-btn" data-restore-key="${key}">Restaurer</button>`;
+        html += `</div>`;
+      });
+      html += `</div>`;
+    }
+
+    // "Add item" button at the end of each section
+    html += `<button class="add-item-btn" data-si="${si}"><span class="plus-icon">+</span> Ajouter un item…</button>`;
+    html += `</div></div>`;  // close section-body + section
+  });
+
+  html += `<div class="btn-row">`;
+  html += `<button class="btn btn-green" onclick="shareChecklist()">📤 Exporter</button>`;
+  html += `<label class="btn btn-accent" style="cursor:pointer">📥 Importer<input type="file" accept=".json,application/json" style="display:none" onchange="importChecklist(this)"></label>`;
+  html += `<a class="btn" href="checklist-valise-${group === 'rene-nicole' ? 'rene-nicole' : group === 'alex-dinah' ? 'alex-dinah' : 'laurine'}.html" target="_blank">🖨️ Imprimable</a>`;
+  html += `<button class="btn btn-red" onclick="resetChecks()">🗑️ Réinitialiser</button>`;
+  html += `</div>`;
+
+  app.innerHTML = html;
+  attachEventListeners(group);
+  updateProgress();
+}
+
+// Simple HTML escape to prevent XSS for user-entered custom items
+function escapeHtml(str) {
+  return (str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function toggleHideDone() {
+  const app = document.getElementById('app');
+  const btn = document.getElementById('filterDoneBtn');
+  const isHidden = app.classList.toggle('hide-done');
+  btn.classList.toggle('active', isHidden);
+  btn.textContent = isHidden ? '👁️ Afficher cochés' : '👁️ Masquer cochés';
+  localStorage.setItem('hide-done-' + currentGroup, isHidden);
+}
+
+// ── Event listeners ───────────────────────────────────────────
+
+function attachEventListeners(group) {
+  // Toggle check on built-in and custom items
+  document.querySelectorAll('.item').forEach(el => {
+    // Don't bubble from delete button
+    el.addEventListener('click', (e) => {
+      if (e.target.classList.contains('delete-btn')) return;
+      const key = el.dataset.key;
+      checks[key] = !checks[key];
+      if (!checks[key]) delete checks[key];
+      el.classList.toggle('checked');
+      saveChecks();
+      updateProgress();
+    });
+  });
+
+  // Delete custom item
+  document.querySelectorAll('.delete-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const id = btn.dataset.customId;
+      customItems[group] = (customItems[group] || []).filter(ci => ci.id !== id);
+      delete checks[id];
+      saveChecks();
+      saveCustomItems(group);
+      renderChecklist(group); // re-render to reflect removal
+    });
+  });
+
+  // Collapse/expand sections
+  document.querySelectorAll('.section-head').forEach(el => {
+    el.addEventListener('click', () => {
+      const si = el.dataset.si;
+      const body = document.querySelector(`.section-body[data-si="${si}"]`);
+      body.classList.toggle('hidden');
+      el.classList.toggle('collapsed');
+    });
+  });
+
+  // "Add item" button → show inline input
+  document.querySelectorAll('.add-item-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const si = +btn.dataset.si;
+      showAddInput(group, si, btn);
+    });
+  });
+
+  // Hide built-in item
+  document.querySelectorAll('.hide-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const key = btn.dataset.hideKey;
+      if (!hiddenItems[group]) hiddenItems[group] = new Set();
+      hiddenItems[group].add(key);
+      saveHiddenItems(group);
+      renderChecklist(group);
+    });
+  });
+
+  // Restore hidden item
+  document.querySelectorAll('.restore-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const key = btn.dataset.restoreKey;
+      if (hiddenItems[group]) hiddenItems[group].delete(key);
+      saveHiddenItems(group);
+      renderChecklist(group);
+    });
+  });
+
+  // Toggle hidden items visibility
+  document.querySelectorAll('.hidden-toggle').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const si = btn.dataset.si;
+      const panel = document.querySelector(`.hidden-items[data-si="${si}"]`);
+      const isOpen = panel.style.display !== 'none';
+      panel.style.display = isOpen ? 'none' : 'block';
+      btn.textContent = isOpen
+        ? `👁️‍🗨️ Afficher ${panel.querySelectorAll('.item').length} item${panel.querySelectorAll('.item').length > 1 ? 's' : ''} masqué${panel.querySelectorAll('.item').length > 1 ? 's' : ''}`
+        : `👁️‍🗨️ Masquer les items masqués`;
+    });
+  });
+
+  // Touch: show hide button on tap (mobile has no hover)
+  document.querySelectorAll('.item:not(.custom):not(.is-hidden) .hide-btn').forEach(btn => {
+    btn.style.opacity = '0';
+  });
+  let lastTapItem = null;
+  document.querySelectorAll('.item:not(.custom):not(.is-hidden)').forEach(el => {
+    el.addEventListener('touchstart', () => {
+      // Show hide button for this item
+      if (lastTapItem && lastTapItem !== el) {
+        const prevBtn = lastTapItem.querySelector('.hide-btn');
+        if (prevBtn) prevBtn.style.opacity = '0';
+      }
+      const hBtn = el.querySelector('.hide-btn');
+      if (hBtn) hBtn.style.opacity = '1';
+      lastTapItem = el;
+    }, { passive: true });
+  });
+}
+
+// ── Inline add-item input ─────────────────────────────────────
+
+function showAddInput(group, si, addBtn) {
+  // Avoid double-showing
+  if (addBtn.parentNode.querySelector('.add-input-row')) return;
+
+  const row = document.createElement('div');
+  row.className = 'add-input-row';
+  row.innerHTML = `
+    <input type="text" placeholder="Nom de l'item…" maxlength="80" autocomplete="off" />
+    <button class="confirm-btn">✓</button>
+    <button class="cancel-btn">✕</button>
+  `;
+  addBtn.parentNode.insertBefore(row, addBtn);
+
+  const input = row.querySelector('input');
+  input.focus();
+
+  const confirm = () => {
+    const text = input.value.trim();
+    if (!text) { row.remove(); return; }
+    // Stable ID for custom item: group + section slug + text slug + random suffix
+    const id = `${group}-custom-${slugify(CHECKLISTS[group].sections[si].title)}-${slugify(text)}-${Date.now()}`;
+    if (!customItems[group]) customItems[group] = [];
+    customItems[group].push({ id, text, si });
+    saveCustomItems(group);
+    row.remove();
+    renderChecklist(group);
+  };
+
+  row.querySelector('.confirm-btn').addEventListener('click', confirm);
+  input.addEventListener('keydown', (e) => { if (e.key === 'Enter') confirm(); if (e.key === 'Escape') row.remove(); });
+  row.querySelector('.cancel-btn').addEventListener('click', () => row.remove());
+}
+
+// ── Share / Export ─────────────────────────────────────────────
+
+function buildExportData() {
+  const group = currentGroup;
+  const cl = CHECKLISTS[group];
+  const hidden = hiddenItems[group] || new Set();
+  const customs = customItems[group] || [];
+
+  const exported = {
+    checklist: cl.label,
+    date: new Date().toISOString(),
+    sections: []
+  };
+
+  cl.sections.forEach((section, si) => {
+    const sec = { title: section.title, emoji: section.emoji, items: [] };
+
+    // Built-in items (not hidden)
+    section.items.forEach(item => {
+      const key = getStableKey(group, section.title, item.t);
+      if (hidden.has(key)) return;
+      sec.items.push({
+        name: item.t,
+        detail: item.s || null,
+        checked: !!checks[key],
+        custom: false
+      });
+    });
+
+    // Custom items in this section
+    customs.filter(ci => ci.si === si).forEach(ci => {
+      sec.items.push({
+        name: ci.text,
+        detail: null,
+        checked: !!checks[ci.id],
+        custom: true
+      });
+    });
+
+    if (sec.items.length > 0) exported.sections.push(sec);
+  });
+
+  return exported;
+}
+
+function exportToMarkdown(data) {
+  let md = `# 🧳 Checklist Valise — ${data.checklist}\n`;
+  md += `📅 ${new Date(data.date).toLocaleDateString('fr-FR', {day:'numeric',month:'long',year:'numeric',hour:'2-digit',minute:'2-digit'})}\n\n`;
+
+  const totalItems = data.sections.reduce((a, s) => a + s.items.length, 0);
+  const checkedItems = data.sections.reduce((a, s) => a + s.items.filter(i => i.checked).length, 0);
+  md += `**Progression : ${checkedItems}/${totalItems}** (${Math.round(checkedItems/totalItems*100)}%)\n\n`;
+
+  data.sections.forEach(sec => {
+    md += `## ${sec.emoji} ${sec.title}\n`;
+    sec.items.forEach(item => {
+      const check = item.checked ? '✅' : '⬜';
+      const custom = item.custom ? ' _(ajouté)_' : '';
+      const detail = item.detail ? ` — ${item.detail}` : '';
+      md += `${check} ${item.name}${detail}${custom}\n`;
+    });
+    md += `\n`;
+  });
+
+  return md;
+}
+
+async function shareChecklist() {
+  const data = buildExportData();
+  const md = exportToMarkdown(data);
+  const json = JSON.stringify(data, null, 2);
+
+  // Also include raw localStorage state for import
+  const importPayload = {
+    _format: 'checklist-backup-v1',
+    group: currentGroup,
+    checks: JSON.parse(localStorage.getItem('checklist-usa-2026') || '{}'),
+    customItems: JSON.parse(localStorage.getItem(`checklist-custom-${currentGroup}`) || '[]'),
+    hiddenItems: JSON.parse(localStorage.getItem(`checklist-hidden-${currentGroup}`) || '[]'),
+    schemaVersion: localStorage.getItem('checklist-schema-version'),
+    exportDate: new Date().toISOString(),
+    readable: data
+  };
+  const exportJson = JSON.stringify(importPayload, null, 2);
+
+  // Try Web Share API with file (best for WhatsApp/email)
+  if (navigator.share && navigator.canShare) {
+    try {
+      const file = new File([exportJson], `checklist-${currentGroup}.json`, { type: 'application/json' });
+      const shareData = {
+        title: `🧳 Checklist Valise — ${data.checklist}`,
+        text: md,
+        files: [file]
+      };
+      if (navigator.canShare(shareData)) {
+        await navigator.share(shareData);
+        return;
+      }
+    } catch(e) { /* file share not supported, fallback */ }
+
+    // Fallback: share text only
+    try {
+      await navigator.share({
+        title: `🧳 Checklist Valise — ${data.checklist}`,
+        text: md
+      });
+      return;
+    } catch(e) { /* user cancelled or not supported */ }
+  }
+
+  // Final fallback: copy to clipboard
+  try {
+    await navigator.clipboard.writeText(exportJson);
+    alert('📋 Liste copiée dans le presse-papier ! Colle-la dans WhatsApp ou un email.');
+  } catch(e) {
+    // Last resort: prompt with text
+    prompt('Copie ce texte :', md.substring(0, 500) + '...');
+  }
+}
+
+// ── Import ──────────────────────────────────────────────────
+
+function importChecklist(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try {
+      const data = JSON.parse(e.target.result);
+
+      // Validate format
+      if (data._format !== 'checklist-backup-v1' || !data.checks) {
+        alert('❌ Format de fichier non reconnu. Utilise un fichier export\u00e9 depuis l\'app.');
+        return;
+      }
+
+      const group = data.group || currentGroup;
+      const itemCount = Object.keys(data.checks).length;
+      const customCount = (data.customItems || []).length;
+
+      if (!confirm(`📥 Importer ${itemCount} coches + ${customCount} items custom pour "${group}" ?\n\n⚠️ Cela remplacera vos donn\u00e9es actuelles pour ce groupe.`)) {
+        input.value = '';
+        return;
+      }
+
+      // Merge checks (import overwrites matching keys, keeps others)
+      const currentChecks = JSON.parse(localStorage.getItem('checklist-usa-2026') || '{}');
+      // Remove old checks for this group
+      Object.keys(currentChecks).forEach(k => { if (k.startsWith(group)) delete currentChecks[k]; });
+      // Add imported checks
+      Object.assign(currentChecks, data.checks);
+      localStorage.setItem('checklist-usa-2026', JSON.stringify(currentChecks));
+
+      // Custom items
+      if (data.customItems) {
+        localStorage.setItem(`checklist-custom-${group}`, JSON.stringify(data.customItems));
+      }
+
+      // Hidden items
+      if (data.hiddenItems) {
+        localStorage.setItem(`checklist-hidden-${group}`, JSON.stringify(data.hiddenItems));
+      }
+
+      // Schema version
+      if (data.schemaVersion) {
+        localStorage.setItem('checklist-schema-version', data.schemaVersion);
+      }
+
+      // Save group selection
+      localStorage.setItem('checklist-group', group);
+
+      alert(`✅ Import r\u00e9ussi ! ${itemCount} coches + ${customCount} items custom restaur\u00e9s.`);
+
+      // Reload
+      loadChecks();
+      customItems[group] = loadCustomItems(group);
+      hiddenItems[group] = loadHiddenItems(group);
+      renderChecklist(group);
+
+    } catch(err) {
+      alert('❌ Erreur de lecture du fichier : ' + err.message);
+    }
+    input.value = '';
+  };
+  reader.readAsText(file);
+}
+
+// ── Reset ─────────────────────────────────────────────────────
+
+function resetChecks() {
+  if (confirm('Réinitialiser toutes les cases à cocher ?')) {
+    // Remove checks belonging to the current group
+    Object.keys(checks).forEach(k => { if (k.startsWith(currentGroup)) delete checks[k]; });
+    saveChecks();
+    renderChecklist(currentGroup);
+  }
+}
+
+// ── Selector screen ───────────────────────────────────────────
+
+function showSelector() {
+  const app = document.getElementById('app');
+  app.innerHTML = `
+    <div class="user-select">
+      <h2>Qui es-tu ? 👋</h2>
+      <button class="user-btn" onclick="selectGroup('rene-nicole')">👨‍👩 René + Nicole<br><small style="color:var(--muted)">19 jours · Désert → Montréal</small></button>
+      <button class="user-btn" onclick="selectGroup('alex-dinah')">👫 Alex + Dinah<br><small style="color:var(--muted)">14 jours · CDG → Denver</small></button>
+      <button class="user-btn" onclick="selectGroup('laurine')">👩 Laurine<br><small style="color:var(--muted)">11 jours · Nice → Las Vegas + Conf</small></button>
+    </div>
+  `;
+}
+
+function selectGroup(group) {
+  localStorage.setItem('checklist-group', group);
+  renderChecklist(group);
+}
+
+// ═══════════════════════════════════════════════════════════════
+// INIT — Detect GitHub user or show selector
+// ═══════════════════════════════════════════════════════════════
+
+async function init() {
+  loadChecks();
+  // Migrate legacy index-based keys to stable slug keys (runs once)
+  runMigrations();
+
+  // Try to detect GitHub user (same method as main app)
+  // Detect user via Authelia (Remote-User header, exposed via /api/me)
+  let autheliaUser = null;
+  try {
+    const r = await fetch("/api/me", { credentials: "same-origin" });
+    if (r.ok) {
+      const info = await r.json();
+      autheliaUser = info.user || null;
+      if (autheliaUser === "anonymous") autheliaUser = null;
+    }
+  } catch(e) {}
+  // Fallback: localStorage
+  if (!autheliaUser) {
+    try { autheliaUser = localStorage.getItem("authelia-user"); } catch(e) {}
+  }
+  if (autheliaUser) {
+    try { localStorage.setItem("authelia-user", autheliaUser); } catch(e) {}
+  }
+
+  // Auto-select group if GitHub user known
+  if (autheliaUser && USER_GROUP[autheliaUser]) {
+    renderChecklist(USER_GROUP[autheliaUser]);
+    return;
+  }
+
+  // Check localStorage
+  const saved = localStorage.getItem('checklist-group');
+  if (saved && CHECKLISTS[saved]) {
+    renderChecklist(saved);
+    return;
+  }
+
+  // Show selector
+  showSelector();
+}
+
+init();
+</script>
+<div class="sticky-back" id="stickyBack" style="display:none">
+  <a href="/">← Retour à l'app</a>
+</div>
+</body>
+</html>
