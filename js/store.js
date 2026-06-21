@@ -88,15 +88,27 @@ var Store = (() => {
   }
 
   /**
-   * Add a custom item.
+   * Add a custom item. Starts as local (shared: false).
    */
   function addCustomItem(listId, sectionIndex, text) {
     const items = getCustomItems(listId);
     const id = 'c' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
     const now = Date.now();
-    items[id] = { text, section: sectionIndex, createdAt: now };
+    items[id] = { text, section: sectionIndex, createdAt: now, shared: false };
     set(`${listId}-custom`, items);
     return id;
+  }
+
+  /**
+   * Toggle shared flag on a custom item.
+   */
+  function toggleShareItem(listId, itemId) {
+    const items = getCustomItems(listId);
+    if (items[itemId]) {
+      items[itemId].shared = !items[itemId].shared;
+      set(`${listId}-custom`, items);
+    }
+    return items[itemId];
   }
 
   /**
@@ -262,7 +274,7 @@ var Store = (() => {
     isSeedLoaded, markSeedLoaded,
     // Lists
     getChecks, toggleCheck, setCheck,
-    getCustomItems, addCustomItem, deleteCustomItem,
+    getCustomItems, addCustomItem, deleteCustomItem, toggleShareItem,
     getHidden, hideItem, restoreItem,
     getLastSyncAt, updateSyncMeta,
     resetList,

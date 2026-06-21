@@ -117,7 +117,12 @@ var API = (() => {
     const deviceId = Store.getDeviceId();
     const lastSyncAt = Store.getLastSyncAt(listId);
     const checks = Store.getChecks(listId);
-    const custom = Store.getCustomItems(listId);
+    const allCustom = Store.getCustomItems(listId);
+    // Only sync shared items (shared: true or received from another device)
+    const custom = {};
+    Object.entries(allCustom).forEach(([id, item]) => {
+      if (item.shared !== false) custom[id] = item;
+    });
     const hidden = [...Store.getHidden(listId)];
 
     const result = await safeFetch(`/trips/${tripId}/lists/${listId}/sync`, {
@@ -137,9 +142,9 @@ var API = (() => {
       const existing = Store.getCustomItems(listId);
       Object.entries(result.merged.custom).forEach(([id, item]) => {
         if (!existing[id]) {
-          // new item from another device
+          // new item from another device — mark as shared
           const cur = Store.getCustomItems(listId);
-          cur[id] = item;
+          cur[id] = { ...item, shared: true };
           Store.set(`${listId}-custom`, cur);
         }
       });
