@@ -164,11 +164,18 @@ var API = (() => {
     if (!navigator.onLine || !getToken()) return;
     // Async, fire-and-forget
     setTimeout(async () => {
-      const lists = await getLists(tripId);
-      if (!lists) return;
-      for (const listMeta of (lists.lists || [])) {
+      const resp = await getLists(tripId);
+      if (!resp) return;
+      const lists = resp.results || resp.lists || (Array.isArray(resp) ? resp : []);
+      let synced = false;
+      for (const listMeta of lists) {
         await syncList(tripId, listMeta.id);
+        synced = true;
         await new Promise(r => setTimeout(r, 200)); // small delay between syncs
+      }
+      // Re-render current view if a list is displayed (new items from other devices)
+      if (synced) {
+        window.dispatchEvent(new CustomEvent('tripkit-sync-done'));
       }
     }, 2000); // delay 2s after boot
   }
