@@ -86,11 +86,10 @@ var DayResolver = (() => {
     if (!trip || !trip.startDate) return null;
     const now = nowOverride || new Date();
     const start = new Date(trip.startDate + 'T00:00:00');
-    const day0Start = new Date(start.getTime() - 86400000); // Day 0 = startDate - 1
-    const diff = day0Start - now;
+    const diff = start - now;
     if (diff <= 0) return { days: 0, hours: 0, active: false };
     return {
-      days: Math.floor(diff / 86400000),
+      days: Math.ceil(diff / 86400000),
       hours: Math.floor((diff % 86400000) / 3600000),
       active: true,
     };
