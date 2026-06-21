@@ -149,8 +149,11 @@ var API = (() => {
         }
       });
     }
-    if (result.hidden) {
-      Store.set(`${listId}-hidden`, result.hidden);
+    if (result.hidden && result.hidden.length > 0) {
+      // Merge: union of local + server hidden items (hidden is additive)
+      const localHidden = Store.getHidden(listId);
+      const merged = new Set([...localHidden, ...result.hidden]);
+      Store.set(`${listId}-hidden`, [...merged]);
     }
     if (result.serverSyncAt) {
       Store.updateSyncMeta(listId, result.serverSyncAt);
