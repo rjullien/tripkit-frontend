@@ -159,9 +159,14 @@ var ListComponent = (() => {
   }
 
   function renderCustomItem(item, isChecked, listId) {
+    const isShared = item._shared !== false;
+    const shareIcon = isShared ? '☁️' : '↑';
+    const shareTitle = isShared ? 'Partagé avec tout le monde' : 'Partager avec le groupe';
+    const shareClass = isShared ? 'shared' : 'local';
     return `<div class="list-item custom${isChecked ? ' checked' : ''}" data-action="check" data-item="${esc(item.id)}">
       <div class="item-check"></div>
-      <div class="item-label">${esc(item.text)} <span class="item-cloud">☁️</span></div>
+      <div class="item-label">${esc(item.text)}</div>
+      <button class="item-share-btn ${shareClass}" data-action="toggle-share" data-custom-id="${esc(item._customId)}" title="${shareTitle}">${shareIcon}</button>
       <button class="item-delete-btn" data-action="delete-custom" data-custom-id="${esc(item._customId)}" title="Supprimer">🗑</button>
     </div>`;
   }
