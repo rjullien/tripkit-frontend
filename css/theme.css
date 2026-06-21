@@ -325,7 +325,6 @@ a:visited { color: var(--accent); }
 }
 
 .list-item .item-delete-btn {
-  margin-left: auto;
   flex-shrink: 0;
   background: none;
   border: none;
@@ -337,6 +336,23 @@ a:visited { color: var(--accent); }
 }
 
 .list-item .item-delete-btn:hover { color: var(--red); }
+
+.list-item .item-share-btn {
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: .9em;
+  padding: 4px 6px;
+  border-radius: 4px;
+  margin-left: auto;
+  opacity: 0.6;
+  transition: opacity .2s, transform .2s;
+}
+.list-item .item-share-btn:hover { opacity: 1; }
+.list-item .item-share-btn.shared { opacity: 1; color: var(--accent); }
+.list-item .item-share-btn.local { opacity: 0.5; }
 
 /* ── Progress Bar ── */
 .progress-wrap {

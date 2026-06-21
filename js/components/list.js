@@ -33,7 +33,7 @@ var ListComponent = (() => {
       // Custom items for this section
       const customForSection = Object.entries(custom)
         .filter(([, c]) => c.section === si)
-        .map(([id, c]) => ({ id: 'custom-' + id, text: c.text, note: null, _customId: id, _isCustom: true }));
+        .map(([id, c]) => ({ id: 'custom-' + id, text: c.text, note: null, _customId: id, _isCustom: true, _shared: c.shared !== false }));
 
       const allItems = [...visibleItems, ...customForSection];
       const sectionChecked = allItems.filter(it => checks[it.id]?.checked).length;
@@ -159,9 +159,14 @@ var ListComponent = (() => {
   }
 
   function renderCustomItem(item, isChecked, listId) {
+    const isShared = item._shared !== false;
+    const shareIcon = isShared ? '☁️' : '↑';
+    const shareTitle = isShared ? 'Partagé avec tout le monde' : 'Partager avec le groupe';
+    const shareClass = isShared ? 'shared' : 'local';
     return `<div class="list-item custom${isChecked ? ' checked' : ''}" data-action="check" data-item="${esc(item.id)}">
       <div class="item-check"></div>
       <div class="item-label">${esc(item.text)}</div>
+      <button class="item-share-btn ${shareClass}" data-action="toggle-share" data-custom-id="${esc(item._customId)}" title="${shareTitle}">${shareIcon}</button>
       <button class="item-delete-btn" data-action="delete-custom" data-custom-id="${esc(item._customId)}" title="Supprimer">🗑</button>
     </div>`;
   }
@@ -253,6 +258,21 @@ var ListComponent = (() => {
             Store.deleteCustomItem(listId, customId);
             render(el.id, listData);
             backgroundSync(listData);
+          }
+          break;
+        }
+        case 'toggle-share': {
+          e.stopPropagation();
+          const customId = target.dataset.customId;
+          if (customId) {
+            const updated = Store.toggleShareItem(listId, customId);
+            render(el.id, listData);
+            if (updated && updated.shared) {
+              backgroundSync(listData);
+              showToast('☁️ Partagé avec le groupe');
+            } else {
+              showToast('🔒 Gardé en local');
+            }
           }
           break;
         }
