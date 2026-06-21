@@ -79,8 +79,9 @@ var App = (() => {
   async function init() {
     window.addEventListener('hashchange', handleHash);
     window.addEventListener('tripkit-sync-done', () => {
-      // Re-render if currently viewing a list (shows items from other devices)
-      if (currentTab === 'plus' && currentListId) {
+      // Don't auto-re-render while user is on the list (causes tap misses).
+      // Only re-render if on the Plus tab but NOT viewing a specific list.
+      if (currentTab === 'plus' && !currentListId) {
         renderCurrentTab();
       }
     });
