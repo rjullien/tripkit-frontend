@@ -99,7 +99,7 @@ var Store = (() => {
     const items = getCustomItems(listId);
     const id = 'c' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
     const now = Date.now();
-    items[id] = { text, section: sectionIndex, createdAt: now, shared: false };
+    items[id] = { text, section: sectionIndex, createdAt: now, shared: true };
     set(`${listId}-custom`, items);
     return id;
   }
