@@ -172,6 +172,11 @@ var ListComponent = (() => {
   }
 
   function bindEvents(el, listData) {
+    // Store current listData on element for handler access
+    el._listData = listData;
+    // Prevent stacking event listeners on re-render of same list
+    if (el._listBoundId === listData.id) return;
+    el._listBoundId = listData.id;
     const listId = listData.id;
 
     el.addEventListener('click', (e) => {
