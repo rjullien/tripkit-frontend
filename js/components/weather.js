@@ -33,10 +33,11 @@ var Weather = (() => {
    */
   function dayDate(dayNum, day) {
     // Primary: compute from trip start date
+    // startDate = Day 1, so date = startDate + (dayNum - 1)
     const start = getTripStart();
     if (start) {
       const d = new Date(start);
-      d.setDate(d.getDate() + dayNum);
+      d.setDate(d.getDate() + dayNum - 1);
       return d.toISOString().split('T')[0];
     }
     // Fallback: if the day object has a parseable date field (e.g. "2026-04-18")
@@ -126,7 +127,7 @@ var Weather = (() => {
     if (!data) {
       try {
         const start = getTripStart() || new Date();
-        const end = new Date(start); end.setDate(start.getDate() + day.day + 2);
+        const end = new Date(start); end.setDate(start.getDate() + day.day - 1 + 2);
         const endStr = end.toISOString().split('T')[0];
         const url = `https://api.open-meteo.com/v1/forecast?latitude=${day.geo.lat}&longitude=${day.geo.lon}&hourly=temperature_2m,weathercode,precipitation_probability,precipitation,apparent_temperature&daily=weathercode,temperature_2m_max,temperature_2m_min,precipitation_probability_max,windspeed_10m_max,uv_index_max,sunrise,sunset&current_weather=true&timezone=${encodeURIComponent(tz)}&start_date=${dateStr}&end_date=${endStr}`;
         const resp = await fetch(url);
