@@ -159,23 +159,11 @@ var API = (() => {
    * Background sync all lists for a trip (called on app startup if online).
    */
   function backgroundSyncTrip(tripId) {
-    if (!navigator.onLine || !getToken()) return;
-    // Async, fire-and-forget
-    setTimeout(async () => {
-      const resp = await getLists(tripId);
-      if (!resp) return;
-      const lists = resp.results || resp.lists || (Array.isArray(resp) ? resp : []);
-      let synced = false;
-      for (const listMeta of lists) {
-        await syncList(tripId, listMeta.id);
-        synced = true;
-        await new Promise(r => setTimeout(r, 200)); // small delay between syncs
-      }
-      // Re-render current view if a list is displayed (new items from other devices)
-      if (synced) {
-        window.dispatchEvent(new CustomEvent('tripkit-sync-done'));
-      }
-    }, 2000); // delay 2s after boot
+    // Disabled: background sync at startup caused race conditions with user
+    // interactions (items disappearing, checks reverting). Sync now only
+    // happens on explicit user actions (check, add, delete).
+    // The next page load will still get fresh data from the seed endpoint.
+    return;
   }
 
   // ── Version check (lightweight, 3s timeout) ──────────────────────────────
