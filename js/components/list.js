@@ -159,14 +159,13 @@ var ListComponent = (() => {
   }
 
   function renderCustomItem(item, isChecked, listId) {
-    const isShared = item._shared !== false;
-    const shareIcon = isShared ? '☁️' : '↑';
-    const shareTitle = isShared ? 'Partagé avec tout le monde' : 'Partager avec le groupe';
-    const shareClass = isShared ? 'shared' : 'local';
+    const shareBtn = item._shared
+      ? `<button class="item-share-btn shared" data-action="toggle-share" data-custom-id="${esc(item._customId)}" title="Partagé avec le groupe — appuyer pour garder en local">☁️</button>`
+      : `<button class="item-share-btn" data-action="toggle-share" data-custom-id="${esc(item._customId)}" title="Local — appuyer pour partager avec le groupe">🔒</button>`;
     return `<div class="list-item custom${isChecked ? ' checked' : ''}" data-action="check" data-item="${esc(item.id)}">
       <div class="item-check"></div>
       <div class="item-label">${esc(item.text)}</div>
-      <button class="item-share-btn ${shareClass}" data-action="toggle-share" data-custom-id="${esc(item._customId)}" title="${shareTitle}">${shareIcon}</button>
+      ${shareBtn}
       <button class="item-delete-btn" data-action="delete-custom" data-custom-id="${esc(item._customId)}" title="Supprimer">🗑</button>
     </div>`;
   }
@@ -272,8 +271,8 @@ var ListComponent = (() => {
           if (customId) {
             const updated = Store.toggleShareItem(listId, customId);
             render(el.id, listData);
+            backgroundSync(listData); // propage la publication OU le retrait
             if (updated && updated.shared) {
-              backgroundSync(listData);
               showToast('☁️ Partagé avec le groupe');
             } else {
               showToast('🔒 Gardé en local');

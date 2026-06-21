@@ -103,13 +103,13 @@ test('setCheck: server cannot uncheck item checked <10s ago', () => {
 
 console.log('\n══════ Store: Custom Items ══════');
 
-test('addCustomItem creates shared item', () => {
+test('addCustomItem creates local item (shared:false)', () => {
   const id = Store.addCustomItem('list1', 0, 'Test item');
   const items = Store.getCustomItems('list1');
   assert(items[id]);
   assert.strictEqual(items[id].text, 'Test item');
   assert.strictEqual(items[id].section, 0);
-  assert.strictEqual(items[id].shared, true);
+  assert.strictEqual(items[id].shared, false);
 });
 
 test('deleteCustomItem removes item', () => {

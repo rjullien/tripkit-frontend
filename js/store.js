@@ -105,14 +105,26 @@ var Store = (() => {
   }
 
   /**
-   * Toggle shared flag on a custom item.
+   * Toggle the shared flag on a custom item.
+   * - share ON  → publish to the group: bump createdAt + clear any tombstone
+   *   so the server treats it as a current item (works after a prior unshare).
+   * - share OFF → retract from the group (tombstone) but KEEP it locally.
+   * The item's check state is never affected — checks stay local, per device.
    */
   function toggleShareItem(listId, itemId) {
     const items = getCustomItems(listId);
-    if (items[itemId]) {
-      items[itemId].shared = !items[itemId].shared;
-      set(`${listId}-custom`, items);
+    if (!items[itemId]) return null;
+    const nowShared = !items[itemId].shared;
+    items[itemId].shared = nowShared;
+    const tombs = getCustomDeleted(listId);
+    if (nowShared) {
+      items[itemId].createdAt = Date.now();
+      if (tombs[itemId]) { delete tombs[itemId]; set(`${listId}-custom-deleted`, tombs); }
+    } else {
+      tombs[itemId] = Date.now();
+      set(`${listId}-custom-deleted`, tombs);
     }
+    set(`${listId}-custom`, items);
     return items[itemId];
   }
 
@@ -127,6 +139,18 @@ var Store = (() => {
     const checks = getChecks(listId);
     delete checks['custom-' + itemId];
     set(`${listId}-checks`, checks);
+    // Record a tombstone so the deletion propagates and the item is not
+    // resurrected by a later sync (server union or a stale device).
+    const tombs = getCustomDeleted(listId);
+    tombs[itemId] = Date.now();
+    set(`${listId}-custom-deleted`, tombs);
+  }
+
+  /**
+   * Get custom-item tombstones for a list: { itemId: deletedAt }.
+   */
+  function getCustomDeleted(listId) {
+    return get(`${listId}-custom-deleted`, {});
   }
 
   /**
@@ -177,6 +201,7 @@ var Store = (() => {
   function resetList(listId) {
     del(`${listId}-checks`);
     del(`${listId}-custom`);
+    del(`${listId}-custom-deleted`);
     del(`${listId}-hidden`);
     // keep meta (lastSyncAt etc)
   }
@@ -279,7 +304,7 @@ var Store = (() => {
     isSeedLoaded, markSeedLoaded,
     // Lists
     getChecks, toggleCheck, setCheck,
-    getCustomItems, addCustomItem, deleteCustomItem, toggleShareItem,
+    getCustomItems, addCustomItem, deleteCustomItem, toggleShareItem, getCustomDeleted,
     getHidden, hideItem, restoreItem,
     getLastSyncAt, updateSyncMeta,
     resetList,

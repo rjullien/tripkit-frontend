@@ -115,41 +115,52 @@ var API = (() => {
    */
   async function syncList(tripId, listId) {
     const deviceId = Store.getDeviceId();
-    const lastSyncAt = Store.getLastSyncAt(listId);
-    const checks = Store.getChecks(listId);
-    const custom = Store.getCustomItems(listId);
-    const hidden = [...Store.getHidden(listId)];
+    const deletedCustom = Store.getCustomDeleted(listId);
+
+    // Only SHARED custom items leave the device. Checks and hidden are
+    // strictly local (per device) and are never sent or received.
+    const allCustom = Store.getCustomItems(listId);
+    const sharedCustom = {};
+    Object.entries(allCustom).forEach(([id, item]) => {
+      if (item.shared) sharedCustom[id] = { text: item.text, section: item.section, createdAt: item.createdAt };
+    });
 
     const result = await safeFetch(`/trips/${tripId}/lists/${listId}/sync`, {
       method: 'PATCH',
-      body: JSON.stringify({ deviceId, lastSyncAt, checks, custom, hidden }),
+      body: JSON.stringify({ deviceId, custom: sharedCustom, deletedCustom }),
     });
 
     if (!result) return; // backend unreachable — no-op
 
-    // Apply merged state to localStorage (per-item timestamp wins)
-    if (result.merged?.checks) {
-      Object.entries(result.merged.checks).forEach(([itemId, state]) => {
-        Store.setCheck(listId, itemId, state.checked, state.updatedAt);
-      });
-    }
-    if (result.merged?.custom) {
-      const existing = Store.getCustomItems(listId);
-      Object.entries(result.merged.custom).forEach(([id, item]) => {
-        if (!existing[id]) {
-          // new item from another device — mark as shared
-          const cur = Store.getCustomItems(listId);
+    // The server is authoritative for SHARED items only. Reconcile the local
+    // shared set with the server's merged set:
+    //   • add shared items published by other devices (unless locally tombstoned)
+    //   • drop local shared items the group no longer has (deleted/retracted by a peer)
+    // Local-only items (shared:false) and ALL checks are left untouched.
+    if (result.merged) {
+      const serverShared = result.merged.custom || {};
+      const tombstones = Store.getCustomDeleted(listId);
+      const cur = Store.getCustomItems(listId);
+      let changed = false;
+
+      Object.entries(serverShared).forEach(([id, item]) => {
+        if (!cur[id] && !tombstones[id]) {
           cur[id] = { ...item, shared: true };
-          Store.set(`${listId}-custom`, cur);
+          changed = true;
         }
       });
+
+      Object.entries(cur).forEach(([id, item]) => {
+        if (item.shared && !serverShared[id]) {
+          // a peer deleted/retracted this shared item → remove our copy
+          delete cur[id];
+          changed = true;
+        }
+      });
+
+      if (changed) Store.set(`${listId}-custom`, cur);
     }
-    if (result.hidden && result.hidden.length > 0) {
-      // Merge: union of local + server hidden items (hidden is additive)
-      const localHidden = Store.getHidden(listId);
-      const merged = new Set([...localHidden, ...result.hidden]);
-      Store.set(`${listId}-hidden`, [...merged]);
-    }
+
     if (result.serverSyncAt) {
       Store.updateSyncMeta(listId, result.serverSyncAt);
     }
