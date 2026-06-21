@@ -73,6 +73,11 @@ var Store = (() => {
     const checks = getChecks(listId);
     const current = checks[itemId];
     // Only update if incoming is newer
+    // Never let server uncheck something the user just checked (within 10s)
+    if (current && current.checked && !checked) {
+      const age = Date.now() - current.updatedAt;
+      if (age < 10000) return checks; // protect recent local check
+    }
     if (!current || updatedAt >= current.updatedAt) {
       checks[itemId] = { checked, updatedAt };
       set(`${listId}-checks`, checks);
