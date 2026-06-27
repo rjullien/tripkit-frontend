@@ -116,6 +116,29 @@ var HotelCard = (() => {
       })(_wifiQR, _qrId);
     }
 
+    // Search links (booking platforms) — shown when not booked
+    if (hotelData.booked === false && hotelData.searchLinks) {
+      const sl = hotelData.searchLinks;
+      const dates = hotelData.dates || {};
+      const nightsLabel = dates.nights ? `${dates.nights} nuit${dates.nights > 1 ? 's' : ''}` : '';
+      const dateLabel = dates.checkin && dates.checkout
+        ? `${dates.checkin.slice(5)} → ${dates.checkout.slice(5)}`
+        : '';
+      html += `<div style="margin-top:10px;padding:12px;background:rgba(255,193,7,.08);border:1px solid rgba(255,193,7,.2);border-radius:10px">`;
+      html += `<div style="font-size:.82em;font-weight:700;color:#ffc107;margin-bottom:8px">`;
+      html += `🔍 Chercher un hébergement`;
+      if (dateLabel) html += ` <span style="font-weight:400;color:var(--muted)">(${esc(nightsLabel)}, ${esc(dateLabel)})</span>`;
+      html += `</div>`;
+      html += `<div style="display:flex;flex-wrap:wrap;gap:6px">`;
+      if (sl.airbnb) html += `<a href="${escAttr(sl.airbnb)}" target="_blank" class="hotel-link-btn" style="background:rgba(255,88,93,.15);border-color:rgba(255,88,93,.3);color:#ff585d">🏠 Airbnb</a>`;
+      if (sl.booking) html += `<a href="${escAttr(sl.booking)}" target="_blank" class="hotel-link-btn" style="background:rgba(0,53,128,.15);border-color:rgba(0,53,128,.3);color:#4a9fd5">🏨 Booking</a>`;
+      if (sl.hotelscom) html += `<a href="${escAttr(sl.hotelscom)}" target="_blank" class="hotel-link-btn" style="background:rgba(214,0,28,.1);border-color:rgba(214,0,28,.2);color:#d6001c">🏨 Hotels.com</a>`;
+      if (sl.kayak) html += `<a href="${escAttr(sl.kayak)}" target="_blank" class="hotel-link-btn" style="background:rgba(255,94,0,.12);border-color:rgba(255,94,0,.25);color:#ff5e00">🔍 Kayak</a>`;
+      if (sl.expedia) html += `<a href="${escAttr(sl.expedia)}" target="_blank" class="hotel-link-btn" style="background:rgba(255,204,0,.12);border-color:rgba(255,204,0,.25);color:#ffc107">✈️ Expedia</a>`;
+      if (sl.terroirSaveurs) html += `<a href="${escAttr(sl.terroirSaveurs)}" target="_blank" class="hotel-link-btn" style="background:rgba(76,175,80,.12);border-color:rgba(76,175,80,.25);color:#4caf50">🧀 Terroir & Saveurs</a>`;
+      html += `</div></div>`;
+    }
+
     // Links
     const allLinks = [...(Array.isArray(links) ? links : [])];
     if (mapsUrl && !allLinks.find(l => l.url && l.url.includes('maps'))) {
