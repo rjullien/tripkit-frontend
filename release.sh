@@ -113,20 +113,50 @@ if [ $ELAPSED -ge 120 ]; then
   err "Build timed out after 120s!"
 fi
 
-# 6. Bump ArgoCD source
-cd "$INFRA_DIR"
-git pull origin main --rebase 2>/dev/null || true
+# 6. Wait for ArgoCD Image Updater to detect new image & deploy
+# The Image Updater watches ghcr.io/rjullien/tripkit-frontend and auto-commits
+# to BaptTF/vps-infra when a newer build is detected (strategy: newest-build).
+# We poll the live frontend version.json until it reflects the new version.
+log "Waiting for ArgoCD Image Updater to deploy sha-$NEW_SHA..."
+FRONTEND_INTERNAL="http://tripkit-frontend.tripkit.svc.cluster.local"
+DEPLOY_ELAPSED=0
+DEPLOY_TIMEOUT=300
+DEPLOYED=false
 
-cat > "$ARGOCD_SOURCE" << EOF
+while [ $DEPLOY_ELAPSED -lt $DEPLOY_TIMEOUT ]; do
+  LIVE_VERSION=$(curl -s "$FRONTEND_INTERNAL/version.json" 2>/dev/null | grep -o '"soft":"[^"]*"' | cut -d'"' -f4)
+  if [ "$LIVE_VERSION" = "$NEW_VERSION" ]; then
+    log "Deployed! Live version: $LIVE_VERSION (took ${DEPLOY_ELAPSED}s)"
+    DEPLOYED=true
+    break
+  fi
+  sleep 10
+  DEPLOY_ELAPSED=$((DEPLOY_ELAPSED + 10))
+  if [ $((DEPLOY_ELAPSED % 60)) -eq 0 ]; then
+    warn "Still waiting... (${DEPLOY_ELAPSED}s, live=$LIVE_VERSION, expected=$NEW_VERSION)"
+  fi
+done
+
+if [ "$DEPLOYED" = false ]; then
+  warn "Image Updater did not deploy within ${DEPLOY_TIMEOUT}s."
+  warn "Creating PR on BaptTF/vps-infra as fallback..."
+  cd "$INFRA_DIR"
+  git fetch upstream main 2>/dev/null || true
+  git checkout -B deploy-$TAG upstream/main 2>/dev/null || git checkout -B deploy-$TAG origin/main
+  cat > "$ARGOCD_SOURCE" << EOF
 kustomize:
   images:
   - ghcr.io/rjullien/tripkit-frontend:sha-$NEW_SHA
 EOF
-
-git add "$ARGOCD_SOURCE"
-git commit -m "chore(tripkit): bump frontend to sha-$NEW_SHA ($TAG)"
-git push origin main
-log "ArgoCD source bumped to sha-$NEW_SHA"
+  git add "$ARGOCD_SOURCE"
+  git commit -m "chore(tripkit): bump frontend to sha-$NEW_SHA ($TAG)"
+  git push origin deploy-$TAG --force
+  PR_URL=$(gh pr create --repo BaptTF/vps-infra --base main --head rjullien:deploy-$TAG \
+    --title "chore(tripkit): bump frontend to $TAG (sha-$NEW_SHA)" \
+    --body "Auto-fallback: Image Updater did not deploy within ${DEPLOY_TIMEOUT}s." 2>&1)
+  warn "PR created: $PR_URL — needs merge by repo admin"
+  git checkout main
+fi
 
 # 7. Import ALL seeds into backend
 log "Importing seeds into backend..."
