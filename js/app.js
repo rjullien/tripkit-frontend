@@ -433,7 +433,7 @@ var App = (() => {
       const hotelData = HotelCard.fromDay(day, tripData.hotels);
       if (hotelData) {
         html += `<div style="font-size:.75em;color:var(--muted);margin:14px 0 4px 4px">
-          Jour ${day.day + 1} · ${esc(day.date || '')} — ${esc(day.to || day.from || '')}</div>`;
+          Jour ${day.day} · ${esc(day.date || '')} — ${esc(day.to || day.from || '')}</div>`;
         html += HotelCard.render(hotelData);
       }
     });
