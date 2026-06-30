@@ -108,7 +108,7 @@ var RouteView = (() => {
         <div class="rc-header" onclick="document.getElementById('${cardId}').classList.toggle('open')">
           <span class="rc-emoji">${esc(day.emoji || '📍')}</span>
           <div class="rc-info">
-            <div class="rc-day">Jour ${(day.day !== undefined ? day.day + 1 : idx + 1)} — ${esc(day.dow || '')} ${esc(day.date || '')}</div>
+            <div class="rc-day">Jour ${(day.day !== undefined ? day.day : idx + 1)} — ${esc(day.dow || '')} ${esc(day.date || '')}</div>
             <div class="rc-label">${esc(day.label || day.to || '')}</div>
             ${dist ? `<div class="rc-dist">${esc(dist)}${dur ? ' · ' + esc(dur) : ''}</div>` : '<div class="rc-dist">Sur place</div>'}
           </div>
