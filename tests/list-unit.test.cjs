@@ -17,7 +17,11 @@ global.localStorage = {
   clear: () => { Object.keys(storage).forEach(k => delete storage[k]); }
 };
 global.window = { localStorage: global.localStorage };
-global.navigator = { onLine: true };
+Object.defineProperty(global, 'navigator', {
+  value: { onLine: true },
+  writable: true,
+  configurable: true
+});
 global.AbortSignal = { timeout: () => ({}) };
 global.fetch = async () => ({ ok: true, json: async () => ({}) });
 global.document = { getElementById: () => null, querySelectorAll: () => [] };

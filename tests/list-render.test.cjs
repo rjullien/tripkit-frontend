@@ -17,7 +17,11 @@ global.localStorage = {
   clear: () => { Object.keys(storage).forEach(k => delete storage[k]); }
 };
 global.window = { localStorage: global.localStorage, dispatchEvent: () => {} };
-global.navigator = { onLine: true, share: null, clipboard: { writeText: async () => {} } };
+Object.defineProperty(global, 'navigator', {
+  value: { onLine: true, share: null, clipboard: { writeText: async () => {} } },
+  writable: true,
+  configurable: true
+});
 global.document = {
   getElementById: (id) => mockElements[id] || null,
   querySelectorAll: () => [],
