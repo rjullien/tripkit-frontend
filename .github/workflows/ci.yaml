@@ -25,6 +25,9 @@ jobs:
         run: npm ci
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium
+      - name: Run unit tests (Node.js)
+        run: |
+          for f in tests/*.test.cjs; do node "$f"; done
       - name: Run Playwright tests
         run: npx playwright test
       - uses: actions/upload-artifact@v4
