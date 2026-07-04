@@ -432,8 +432,15 @@ var App = (() => {
       seen.add(key);
       const hotelData = HotelCard.fromDay(day, tripData.hotels);
       if (hotelData) {
+        // Use hotel check-in date if available (avoids off-by-one when day.date != check-in)
+        let headerDate = day.date || '';
+        if (hotelData.dates && hotelData.dates.checkin) {
+          const ci = new Date(hotelData.dates.checkin + 'T12:00:00Z');
+          const MONTHS = ['jan','fév','mar','avr','mai','juin','juil','août','sep','oct','nov','déc'];
+          headerDate = ci.getUTCDate() + ' ' + MONTHS[ci.getUTCMonth()];
+        }
         html += `<div style="font-size:.75em;color:var(--muted);margin:14px 0 4px 4px">
-          Jour ${day.day} · ${esc(day.date || '')} — ${esc(day.to || day.from || '')}</div>`;
+          Jour ${day.day} · ${esc(headerDate)} — ${esc(day.to || day.from || '')}</div>`;
         html += HotelCard.render(hotelData);
       }
     });
