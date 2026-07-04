@@ -439,8 +439,14 @@ var App = (() => {
           const MONTHS = ['jan','fév','mar','avr','mai','juin','juil','août','sep','oct','nov','déc'];
           headerDate = ci.getUTCDate() + ' ' + MONTHS[ci.getUTCMonth()];
         }
+        // City: prefer day.to (destination), fallback to locationId capitalized, then day.from
+        let headerCity = day.to || '';
+        if (!headerCity && day.locationId) {
+          headerCity = day.locationId.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+        }
+        if (!headerCity) headerCity = day.from || '';
         html += `<div style="font-size:.75em;color:var(--muted);margin:14px 0 4px 4px">
-          Jour ${day.day} · ${esc(headerDate)} — ${esc(day.to || day.from || '')}</div>`;
+          Jour ${day.day + 1} · ${esc(headerDate)} — ${esc(headerCity)}</div>`;
         html += HotelCard.render(hotelData);
       }
     });
