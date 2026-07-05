@@ -90,6 +90,8 @@ async function main() {
     culture: SEED.culture || [],
     hotels: SEED.hotels || {},
     locations: SEED.locations || {},
+    flights: SEED.flights || null,
+    carRental: SEED.carRental || null,
     mapImage: SEED.trip.mapImage || null,
     routeUrl: SEED.trip.routeUrl || null,
     users: SEED.trip.users || {},
