@@ -5,10 +5,11 @@
  * New card types are added here, not in daily-view.js.
  *
  * Supported types:
+ *   - html: Raw HTML block (title + innerHTML, no escaping)
  *   - rental-pickup: Car rental pickup (barcode, steps)
  *   - rental-return: Car rental return (address, deadline)
- *   - info: Generic info card
- *   - warning: Warning/alert card
+ *   - info: Generic info card (text or html)
+ *   - warning: Warning/alert card (text or html)
  *   - ticket: Event ticket with barcode/QR
  */
 
@@ -21,6 +22,7 @@ var DayCards = (() => {
 
   function renderCard(card) {
     switch (card.type) {
+      case 'html':           return renderHtml(card);
       case 'rental-pickup':  return renderRentalPickup(card);
       case 'rental-return':  return renderRentalReturn(card);
       case 'info':           return renderInfo(card);
@@ -28,6 +30,14 @@ var DayCards = (() => {
       case 'ticket':         return renderTicket(card);
       default:               return renderGeneric(card);
     }
+  }
+
+  function renderHtml(card) {
+    const d = card.data || {};
+    return `<div class="card" style="margin-top:16px">
+      <h3>${esc(card.title)}</h3>
+      <div>${d.html || ''}</div>
+    </div>`;
   }
 
   function renderRentalPickup(card) {

@@ -83,6 +83,15 @@ var RouteView = (() => {
       </div>`;
     }
 
+    // Carte interactive HTML (Leaflet, etc.) — hook non-hardcodé via trip.mapHtml
+    if (trip.mapHtml) {
+      const mapSrc = trip.mapHtml.startsWith('http') ? trip.mapHtml 
+        : (typeof API !== 'undefined' && API.assetUrl ? API.assetUrl(trip.id, trip.mapHtml) : trip.mapHtml);
+      html += `<div style="margin-bottom:16px;border-radius:12px;overflow:hidden;border:1px solid rgba(255,255,255,.1)">
+        <iframe src="${mapSrc}" style="width:100%;height:520px;border:0" loading="lazy" title="Carte interactive"></iframe>
+      </div>`;
+    }
+
     // Phase tracking
     let currentPhaseIdx = -1;
 
