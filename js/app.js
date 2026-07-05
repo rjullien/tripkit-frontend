@@ -232,6 +232,8 @@ var App = (() => {
           travelers: extra.travelers || tripData.trip?.travelers,
           phases: extra.phases || tripData.trip?.phases,
           mapImage: extra.mapImage || tripData.trip?.mapImage,
+          mapHtml: extra.mapHtml || tripData.trip?.mapHtml,
+          meteoHtml: extra.meteoHtml || tripData.trip?.meteoHtml,
           routeUrl: extra.routeUrl || tripData.trip?.routeUrl,
           users: extra.users || tripData.trip?.users,
           sharedLinks: extra.sharedLinks || tripData.trip?.sharedLinks,
