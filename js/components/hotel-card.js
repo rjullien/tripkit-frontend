@@ -77,6 +77,41 @@ var HotelCard = (() => {
       html += `</div>`;
     }
 
+    // ── Ligne obligatoire : petit-déj, piscine, spa, parking ──
+    const mandatoryItems = [];
+    if (hotelData.breakfast !== undefined && hotelData.breakfast !== null) {
+      const val = String(hotelData.breakfast);
+      const icon = val.startsWith('oui') ? '✅' : val === 'non' ? '❌' : '❓';
+      mandatoryItems.push(`${icon} Petit-déj`);
+    }
+    if (hotelData.pool !== undefined && hotelData.pool !== null) {
+      const val = String(hotelData.pool);
+      const icon = val.startsWith('oui') ? '✅' : val === 'non' ? '❌' : '❓';
+      mandatoryItems.push(`${icon} Piscine`);
+    }
+    if (hotelData.spa !== undefined && hotelData.spa !== null) {
+      const val = String(hotelData.spa);
+      const icon = val.startsWith('oui') ? '✅' : val === 'non' ? '❌' : '❓';
+      mandatoryItems.push(`${icon} Spa`);
+    }
+    if (hotelData.parking !== undefined && hotelData.parking !== null) {
+      const val = String(hotelData.parking);
+      const hasParking = val !== 'non';
+      const icon = hasParking ? '✅' : '❌';
+      const label = hasParking && val !== 'oui' && val !== 'gratuit' && val !== '?'
+        ? `Parking (${hotelData.parking})`
+        : val === 'gratuit' ? 'Parking gratuit' : val === '?' ? '❓ Parking' : '✅ Parking';
+      mandatoryItems.push(label);
+    }
+    if (mandatoryItems.length) {
+      html += `<div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;padding:8px 0;border-top:1px solid rgba(255,255,255,.08);font-size:.82em">`;
+      mandatoryItems.forEach((item, i) => {
+        html += `<span style="color:var(--muted)">${esc(item)}</span>`;
+        if (i < mandatoryItems.length - 1) html += `<span style="color:rgba(255,255,255,.15)"> | </span>`;
+      });
+      html += `</div>`;
+    }
+
     // Hotel access codes (yellow warning box)
     if (access) {
       html += `<div style="margin-top:8px;padding:10px 12px;background:rgba(255,193,7,.12);border:1px solid rgba(255,193,7,.25);border-radius:8px;font-size:.82em;color:#ffc107;line-height:1.5">\ud83d\udd11 ${esc(access)}</div>`;
