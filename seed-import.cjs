@@ -93,6 +93,8 @@ async function main() {
     flights: SEED.flights || null,
     carRental: SEED.carRental || null,
     mapImage: SEED.trip.mapImage || null,
+    mapHtml: SEED.trip.mapHtml || null,
+    meteoHtml: SEED.trip.meteoHtml || null,
     routeUrl: SEED.trip.routeUrl || null,
     users: SEED.trip.users || {},
   };
