@@ -92,6 +92,15 @@ var RouteView = (() => {
       </div>`;
     }
 
+    // Météo HTML — hook non-hardcodé via trip.meteoHtml
+    if (trip.meteoHtml) {
+      const metSrc = trip.meteoHtml.startsWith('http') ? trip.meteoHtml
+        : (typeof API !== 'undefined' && API.assetUrl ? API.assetUrl(trip.id, trip.meteoHtml) : trip.meteoHtml);
+      html += `<div style="margin-bottom:16px;border-radius:12px;overflow:hidden;border:1px solid rgba(255,255,255,.1)">
+        <iframe src="${metSrc}" style="width:100%;height:600px;border:0" loading="lazy" title="Météo"></iframe>
+      </div>`;
+    }
+
     // Phase tracking
     let currentPhaseIdx = -1;
 
