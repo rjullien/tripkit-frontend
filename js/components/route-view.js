@@ -137,7 +137,16 @@ var RouteView = (() => {
 
       // Highlights
       if (day.highlights && day.highlights.length) {
-        html += day.highlights.map(h => `<div class="rc-highlight">• ${esc(h)}</div>`).join('');
+        html += day.highlights.map(h => {
+          // Allow safe links through (same as daily-view.js)
+          const safe = h.replace(
+            /<a\s+href="([^"]*)"[^>]*>([^<]*)<\/a>/g,
+            (m, href, label) => href.startsWith('#')
+              ? `<a href="${href}">${esc(label)}</a>`
+              : `<a href="${href}" target="_blank">${esc(label)}</a>`
+          ).replace(/<(?!\/a>)(?!a\s)[^>]+>/g, '');
+          return `<div class="rc-highlight">• ${safe}</div>`;
+        }).join('');
       }
 
       // Hotel
