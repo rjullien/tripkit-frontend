@@ -650,13 +650,32 @@ var App = (() => {
 
   function showOffline() {
     const el = document.getElementById('programme-content');
-    if (el) el.innerHTML = `<div class="empty-state">
-      <div class="empty-emoji">\u23f3</div>
-      <h3>Chargement...</h3>
-      <p style="color:var(--muted)">R\u00e9cup\u00e9ration des donn\u00e9es depuis le serveur...</p>
+    if (!el) return;
+    el.innerHTML = `<div class="empty-state">
+      <div class="empty-emoji">\u26a0\ufe0f</div>
+      <h3>Impossible de charger le voyage</h3>
+      <p style="color:var(--muted);max-width:28em;margin:0 auto 12px">
+        Le serveur n'a renvoy\u00e9 aucune donn\u00e9e (session Authelia, token p\u00e9rim\u00e9, ou aucun voyage accessible).
+      </p>
+      <p style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-top:8px">
+        <button type="button" class="btn" id="tk-boot-retry" style="background:var(--accent);color:#000;font-weight:700">R\u00e9essayer</button>
+        <button type="button" class="btn" id="tk-boot-clear-token" style="background:var(--sec);color:#000;font-weight:600">Effacer le token local</button>
+      </p>
     </div>`;
-    // Auto-retry after 2s (backend may just be slow)
-    setTimeout(() => location.reload(), 2000);
+    const retry = document.getElementById('tk-boot-retry');
+    if (retry) retry.onclick = () => location.reload();
+    const clearBtn = document.getElementById('tk-boot-clear-token');
+    if (clearBtn) {
+      clearBtn.onclick = () => {
+        try {
+          if (typeof API !== 'undefined' && API.clearToken) API.clearToken();
+          else localStorage.removeItem('tk-api-token');
+          localStorage.removeItem('tk-user-name');
+          localStorage.removeItem('tk-user-role');
+        } catch (_) { /* ignore */ }
+        location.reload();
+      };
+    }
   }
 
   function showToast(msg, type = 'success') {

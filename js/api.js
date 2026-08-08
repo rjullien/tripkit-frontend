@@ -29,8 +29,16 @@ var API = (() => {
     : '/api';
   let _token = null;
 
-  function setToken(t) { _token = t; }
+  function setToken(t) {
+    _token = t;
+    if (t) localStorage.setItem('tk-api-token', t);
+    else localStorage.removeItem('tk-api-token');
+  }
   function getToken()  { return _token || localStorage.getItem('tk-api-token'); }
+  function clearToken() {
+    _token = null;
+    localStorage.removeItem('tk-api-token');
+  }
 
   function url(path) {
     return `${BASE_URL}${API_PREFIX}${path}`;
@@ -41,8 +49,12 @@ var API = (() => {
   /**
    * Non-blocking fetch. Returns a promise but callers may ignore it.
    * On any error: logs, returns null. NEVER throws to caller.
+   *
+   * On 401 with a stored Bearer token: drop the token and retry once without
+   * Authorization so Authelia's Remote-User can authenticate the session.
+   * Stale magic-link JWTs otherwise block the whole boot (infinite « Chargement… »).
    */
-  async function safeFetch(path, options = {}) {
+  async function safeFetch(path, options = {}, _retried = false) {
     if (!navigator.onLine) return null; // skip when offline
     try {
       const token = getToken();
@@ -56,6 +68,11 @@ var API = (() => {
         headers,
         signal: AbortSignal.timeout(8000), // never block more than 8s
       });
+      if (res.status === 401 && token && !_retried) {
+        console.debug('[API] 401 with Bearer — clearing stale token, retry via Authelia:', path);
+        clearToken();
+        return safeFetch(path, options, true);
+      }
       if (!res.ok) {
         console.debug('[API] non-OK:', res.status, path);
         return null;
@@ -184,22 +201,8 @@ var API = (() => {
    * Returns {version, updated_at} or null if unreachable/slow/offline.
    */
   async function checkVersion(tripId) {
-    if (!navigator.onLine) return null;
-    try {
-      const token = getToken();
-      const headers = {
-        ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
-      };
-      const res = await fetch(url(`/trips/${tripId}/version`), {
-        headers,
-        signal: AbortSignal.timeout(3000), // 3s hard cutoff — no debit = skip
-      });
-      if (!res.ok) return null;
-      return await res.json();
-    } catch (e) {
-      console.debug('[API] version check skipped:', e.message);
-      return null;
-    }
+    // Same 401→clear-token→retry behaviour as safeFetch (stale magic-link JWT).
+    return safeFetch(`/trips/${tripId}/version`);
   }
 
   // ── Seed / full data from backend ─────────────────────────────────────────
@@ -228,7 +231,7 @@ var API = (() => {
   function getBaseUrl() { return BASE_URL; }
 
   return {
-    setToken, getToken,
+    setToken, getToken, clearToken,
     getTrips, getTrip, createTrip,
     getDays, getDay,
     getHotels,
