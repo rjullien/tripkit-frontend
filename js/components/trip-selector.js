@@ -107,56 +107,10 @@ var TripSelector = (() => {
         const ver = await API.checkVersion(tripId);
         const seed = await API.fetchSeed(tripId);
         if (seed) {
-          const tripData = {};
-          if (seed.days && seed.days.length) {
-            tripData.days = seed.days.map(d => {
-              const raw = d.data;
-              return typeof raw === 'string' ? JSON.parse(raw) : (raw || d);
-            }).sort((a, b) => (a.day || 0) - (b.day || 0));
-          }
-          if (seed.trip) {
-            const t = seed.trip;
-            const extra = t.data ? (typeof t.data === 'string' ? JSON.parse(t.data) : t.data) : {};
-            tripData.trip = {
-              id: t.id,
-              name: t.name,
-              emoji: t.emoji,
-              startDate: t.start_date || extra.startDate,
-              endDate: t.end_date || extra.endDate,
-              travelers: extra.travelers || tripData.trip?.travelers,
-              phases: extra.phases || tripData.trip?.phases,
-              mapImage: extra.mapImage || tripData.trip?.mapImage,
-              routeUrl: extra.routeUrl || tripData.trip?.routeUrl,
-              users: extra.users || tripData.trip?.users,
-              sharedLinks: extra.sharedLinks || tripData.trip?.sharedLinks,
-            };
-            if (extra.restaurants) tripData.restaurants = extra.restaurants;
-            if (extra.culture) tripData.culture = extra.culture;
-            if (extra.hotels) {
-              if (Array.isArray(extra.hotels)) {
-                const dict = {};
-                extra.hotels.forEach(h => { if (h.id) dict[h.id] = h; });
-                tripData.hotels = dict;
-              } else {
-                tripData.hotels = extra.hotels;
-              }
-            }
-            if (extra.locations) tripData.locations = extra.locations;
-          }
-          if (seed.hotels && seed.hotels.length) {
-            seed.hotels.forEach(h => {
-              const hData = typeof h.data === 'string' ? JSON.parse(h.data) : (h.data || {});
-              const day = tripData.days?.find(d => d.day === h.day_num);
-              if (day) Object.assign(day, hData);
-            });
-          }
-          if (seed.lists && seed.lists.length) {
-            tripData.lists = tripData.lists || {};
-            seed.lists.forEach(l => {
-              const lData = typeof l.data === 'string' ? JSON.parse(l.data) : (l.data || {});
-              tripData.lists[l.id] = { id: l.id, type: l.type, title: l.title, ...lData };
-            });
-          }
+          // Clean rebuild (the cache was purged above) using the SAME mapping as
+          // App.refreshTripData. Never re-inline this: the old duplicated field
+          // list here dropped mapHtml/meteoHtml. See js/seed-merge.js.
+          const tripData = SeedMerge.merge(seed, {});
           Store.setTripData(tripId, tripData);
           if (ver) Store.set(tripId + '-data-version', ver.version);
         }
