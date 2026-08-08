@@ -404,7 +404,7 @@ var App = (() => {
     </a>`;
 
     // ── Quiz (only if quiz exists for current trip) ──
-    const tripsWithQuiz = ['usa-2026']; // trips that have a questions.json quiz
+    const tripsWithQuiz = []; // add trip ids that ship a questions.json quiz // trips that have a questions.json quiz
     const currentTripId = Store.getCurrentTripId();
     if (tripsWithQuiz.includes(currentTripId)) {
       html += `<div class="section-title" style="margin-top:24px">🧠 Quiz</div>`;

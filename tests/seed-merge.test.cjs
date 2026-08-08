@@ -38,13 +38,13 @@ function quebecSeed() {
       start_date: '2026-08-14',
       end_date: '2026-09-01',
       data: JSON.stringify({
-        travelers: [{ name: 'René', role: 'owner' }],
+        travelers: [{ name: 'Alice', role: 'owner' }],
         phases: [{ name: 'Québec', label: 'PHASE 1', range: [2, 5] }],
         routeUrl: 'https://www.google.com/maps/dir/Montreal/Quebec+City',
         mapHtml: 'quebec-map.html',
         meteoHtml: 'quebec-meteo.html',
         mapImage: 'route.jpg',
-        users: { rjullien: { city: 'Nice' } },
+        users: { alice: { city: 'Paris' } },
         sharedLinks: [{ label: 'Drive', url: 'https://example.invalid' }],
         locations: { montreal: { lat: 45.5, lon: -73.5, tz: 'America/Toronto' } },
         restaurants: { 2: { main: { name: 'Le Cercle' } } },
@@ -133,7 +133,7 @@ test('TRIP_DATA_COLLECTIONS lists every booking collection BookingsView needs', 
 
 test('incremental refresh keeps previously known meta when trip.data omits it', () => {
   const seed = quebecSeed();
-  seed.trip.data = JSON.stringify({ travelers: [{ name: 'René' }] }); // partial payload
+  seed.trip.data = JSON.stringify({ travelers: [{ name: 'Alice' }] }); // partial payload
   const td = SeedMerge.merge(seed, { trip: { mapHtml: 'quebec-map.html', routeUrl: 'x' } });
   assert.strictEqual(td.trip.mapHtml, 'quebec-map.html', 'lost cached mapHtml');
   assert.strictEqual(td.trip.routeUrl, 'x', 'lost cached routeUrl');

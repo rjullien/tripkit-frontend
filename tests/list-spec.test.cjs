@@ -1,5 +1,5 @@
 // Test d'isolation de la "partie liste" avec mocks.
-// Charge le VRAI js/store.js (localStorage mocké) et rejoue la spec de René :
+// Charge le VRAI js/store.js (localStorage mocké) et rejoue la spec d’isolation :
 //  - coche / masquage = LOCAL, jamais transmis
 //  - item créé = LOCAL (shared:false), invisible des autres
 //  - bouton ☁️ = publie l'ITEM (pas la coche) ; suppression/retrait se propagent
@@ -73,76 +73,76 @@ const ok = (msg) => { console.log('  ✅', msg); pass++; };
 // ===== Scénario 1 : coche locale, jamais transmise =====
 {
   const be = makeBackend();
-  const rene = makeDevice('rené'); const nicole = makeDevice('nicole');
-  rene.Store.toggleCheck(L, 'div-1'); // prise UK
-  rene.Store.toggleCheck(L, 'div-2');
-  assert.equal(rene.Store.getChecks(L)['div-1'].checked, true);
-  assert.equal(rene.Store.getChecks(L)['div-2'].checked, true, 'cocher un autre item ne décoche pas le premier');
-  const body = syncList(rene, L, be);
+  const alice = makeDevice('alice'); const bob = makeDevice('bob');
+  alice.Store.toggleCheck(L, 'div-1'); // prise UK
+  alice.Store.toggleCheck(L, 'div-2');
+  assert.equal(alice.Store.getChecks(L)['div-1'].checked, true);
+  assert.equal(alice.Store.getChecks(L)['div-2'].checked, true, 'cocher un autre item ne décoche pas le premier');
+  const body = syncList(alice, L, be);
   assert.deepEqual(body.custom, {}, 'aucun item à partager → payload vide');
-  syncList(nicole, L, be);
-  assert.deepEqual(nicole.Store.getChecks(L), {}, 'Nicole ne reçoit AUCUNE coche de René');
+  syncList(bob, L, be);
+  assert.deepEqual(bob.Store.getChecks(L), {}, 'Bob ne reçoit AUCUNE coche d’Alice');
   ok('coche locale: persiste, et ne fuit jamais vers l’autre device');
 }
 
 // ===== Scénario 2 : item créé reste local =====
 {
   const be = makeBackend();
-  const rene = makeDevice('rené'); const nicole = makeDevice('nicole');
-  const id = rene.Store.addCustomItem(L, 0, 'Adaptateur UK secours');
-  assert.equal(rene.Store.getCustomItems(L)[id].shared, false, 'créé en local (shared:false)');
-  syncList(rene, L, be);
-  syncList(nicole, L, be);
-  assert.equal(nicole.Store.getCustomItems(L)[id], undefined, 'item non partagé → invisible chez Nicole');
+  const alice = makeDevice('alice'); const bob = makeDevice('bob');
+  const id = alice.Store.addCustomItem(L, 0, 'Adaptateur UK secours');
+  assert.equal(alice.Store.getCustomItems(L)[id].shared, false, 'créé en local (shared:false)');
+  syncList(alice, L, be);
+  syncList(bob, L, be);
+  assert.equal(bob.Store.getCustomItems(L)[id], undefined, 'item non partagé → invisible chez Bob');
   ok('item créé: local par défaut, invisible des autres tant que non partagé');
 }
 
 // ===== Scénario 3 : partager publie l'ITEM (pas la coche) =====
 {
   const be = makeBackend();
-  const rene = makeDevice('rené'); const nicole = makeDevice('nicole');
-  const id = rene.Store.addCustomItem(L, 0, 'Crème solaire 50+');
-  rene.Store.toggleShareItem(L, id);                 // ☁️ publier
-  syncList(rene, L, be);
-  syncList(nicole, L, be);
-  assert.ok(nicole.Store.getCustomItems(L)[id], 'Nicole voit l’item partagé');
-  nicole.Store.toggleCheck(L, 'custom-' + id);       // Nicole coche chez elle
-  syncList(nicole, L, be);
-  syncList(rene, L, be);
-  assert.equal(rene.Store.getChecks(L)['custom-' + id], undefined, 'René ne récupère PAS la coche de Nicole');
-  assert.ok(rene.Store.getCustomItems(L)[id], 'l’item reste présent chez René');
+  const alice = makeDevice('alice'); const bob = makeDevice('bob');
+  const id = alice.Store.addCustomItem(L, 0, 'Crème solaire 50+');
+  alice.Store.toggleShareItem(L, id);                 // ☁️ publier
+  syncList(alice, L, be);
+  syncList(bob, L, be);
+  assert.ok(bob.Store.getCustomItems(L)[id], 'Bob voit l’item partagé');
+  bob.Store.toggleCheck(L, 'custom-' + id);       // Bob coche chez lui
+  syncList(bob, L, be);
+  syncList(alice, L, be);
+  assert.equal(alice.Store.getChecks(L)['custom-' + id], undefined, 'Alice ne récupère PAS la coche de Bob');
+  assert.ok(alice.Store.getCustomItems(L)[id], 'l’item reste présent chez Alice');
   ok('partage: l’item voyage, la coche reste personnelle à chaque device');
 }
 
 // ===== Scénario 4+5 : suppression se propage et ne ressuscite pas =====
 {
   const be = makeBackend();
-  const rene = makeDevice('rené'); const nicole = makeDevice('nicole');
-  const id = rene.Store.addCustomItem(L, 0, 'Powerbank');
-  rene.Store.toggleShareItem(L, id); syncList(rene, L, be); syncList(nicole, L, be);
-  assert.ok(nicole.Store.getCustomItems(L)[id], 'Nicole a bien reçu l’item');
-  rene.Store.deleteCustomItem(L, id); syncList(rene, L, be); // René supprime
-  syncList(nicole, L, be);                                   // Nicole (encore l’item) resync
-  assert.equal(nicole.Store.getCustomItems(L)[id], undefined, 'suppression propagée chez Nicole');
-  syncList(nicole, L, be);                                   // re-sync : pas de résurrection
-  assert.equal(nicole.Store.getCustomItems(L)[id], undefined, 'pas de résurrection');
+  const alice = makeDevice('alice'); const bob = makeDevice('bob');
+  const id = alice.Store.addCustomItem(L, 0, 'Powerbank');
+  alice.Store.toggleShareItem(L, id); syncList(alice, L, be); syncList(bob, L, be);
+  assert.ok(bob.Store.getCustomItems(L)[id], 'Bob a bien reçu l’item');
+  alice.Store.deleteCustomItem(L, id); syncList(alice, L, be); // Alice supprime
+  syncList(bob, L, be);                                   // Bob (encore l’item) resync
+  assert.equal(bob.Store.getCustomItems(L)[id], undefined, 'suppression propagée chez Bob');
+  syncList(bob, L, be);                                   // re-sync : pas de résurrection
+  assert.equal(bob.Store.getCustomItems(L)[id], undefined, 'pas de résurrection');
   ok('suppression: se propage aux autres et ne ressuscite jamais');
 }
 
 // ===== Scénario 6+7 : retrait (unshare) puis re-partage =====
 {
   const be = makeBackend();
-  const rene = makeDevice('rené'); const nicole = makeDevice('nicole');
-  const id = rene.Store.addCustomItem(L, 0, 'Jumelles');
-  rene.Store.toggleShareItem(L, id); syncList(rene, L, be); syncList(nicole, L, be);
-  assert.ok(nicole.Store.getCustomItems(L)[id], 'partagé puis reçu par Nicole');
-  rene.Store.toggleShareItem(L, id); syncList(rene, L, be);  // retrait
-  assert.equal(rene.Store.getCustomItems(L)[id].shared, false, 'René garde l’item en local après retrait');
-  syncList(nicole, L, be);
-  assert.equal(nicole.Store.getCustomItems(L)[id], undefined, 'retrait propagé : Nicole ne le voit plus');
-  rene.Store.toggleShareItem(L, id); syncList(rene, L, be);  // re-partage
-  syncList(nicole, L, be);
-  assert.ok(nicole.Store.getCustomItems(L)[id], 're-partage fonctionne après un retrait');
+  const alice = makeDevice('alice'); const bob = makeDevice('bob');
+  const id = alice.Store.addCustomItem(L, 0, 'Jumelles');
+  alice.Store.toggleShareItem(L, id); syncList(alice, L, be); syncList(bob, L, be);
+  assert.ok(bob.Store.getCustomItems(L)[id], 'partagé puis reçu par Bob');
+  alice.Store.toggleShareItem(L, id); syncList(alice, L, be);  // retrait
+  assert.equal(alice.Store.getCustomItems(L)[id].shared, false, 'Alice garde l’item en local après retrait');
+  syncList(bob, L, be);
+  assert.equal(bob.Store.getCustomItems(L)[id], undefined, 'retrait propagé : Bob ne le voit plus');
+  alice.Store.toggleShareItem(L, id); syncList(alice, L, be);  // re-partage
+  syncList(bob, L, be);
+  assert.ok(bob.Store.getCustomItems(L)[id], 're-partage fonctionne après un retrait');
   ok('retrait/re-partage: réversible et cohérent');
 }
 

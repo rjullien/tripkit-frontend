@@ -17,8 +17,8 @@ A progressive web app for collaborative trip planning. Offline-first, multi-devi
 
 ```
 tripkit-frontend (this repo)    tripkit-backend (Go API)     tripkit-seeds (private)
-├── js/components/              ├── cmd/api/                 ├── usa-2026.js
-├── js/day-helpers.js           ├── internal/handlers/       ├── langon-2026.js
+├── js/components/              ├── cmd/api/                 ├── my-trip-2026.js
+├── js/day-helpers.js           ├── internal/handlers/       ├── ...
 ├── js/day-resolver.js          ├── internal/middleware/     └── ...
 ├── css/                        └── internal/models/
 ├── seed-import.cjs

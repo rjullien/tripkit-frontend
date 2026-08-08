@@ -248,7 +248,7 @@ Per-day conference schedule with attendee switcher.
 ```typescript
 {
   dayLabel?:  string,                          // "Mercredi 22 avril"
-  sessions:   { [person]: ConfSession[] },     // "rene", "laurine"
+  sessions:   { [person]: ConfSession[] },     // "alice", "bob"
 }
 ```
 
@@ -280,7 +280,7 @@ Per-user personalization config, stored in `trip.users{}`.
   [userId]: {
     city:          string,     // "Nice" — departure city (Day 0 hero)
     locationId?:   string,     // → locations[id] for weather on Day 0
-    defaultConf?:  string,     // "rene" | "laurine" — conference toggle default
+    defaultConf?:  string,     // "alice" | "bob" — conference toggle default
     startDay?:     number,     // Default landing day for late joiners
     skipDays?:     number[],   // Days to hide (e.g. [0] for users who don't need prep)
   }

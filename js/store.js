@@ -46,7 +46,7 @@ var Store = (() => {
   }
 
   // ── List state: checks, custom, hidden ────────────────────────────────────
-  // listId: e.g. "courses-day1-usa2026", "checklist-rene-nicole-usa2026"
+  // listId: e.g. "courses-day1-usa2026", "checklist-alice-bob-demo2026"
 
   /**
    * Get the checks map for a list: { itemId: { checked: bool, updatedAt: ts } }
