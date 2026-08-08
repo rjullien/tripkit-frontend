@@ -92,6 +92,8 @@ async function main() {
     locations: SEED.locations || {},
     flights: SEED.flights || null,
     carRental: SEED.carRental || null,
+    ferry: SEED.ferry || null,
+    events: SEED.events || null,
     mapImage: SEED.trip.mapImage || null,
     mapHtml: SEED.trip.mapHtml || null,
     meteoHtml: SEED.trip.meteoHtml || null,

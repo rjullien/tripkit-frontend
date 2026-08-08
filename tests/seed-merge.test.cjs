@@ -49,6 +49,10 @@ function quebecSeed() {
         locations: { montreal: { lat: 45.5, lon: -73.5, tz: 'America/Toronto' } },
         restaurants: { 2: { main: { name: 'Le Cercle' } } },
         culture: { zones: [] },
+        flights: { outbound: { pnr: 'ABC' } },
+        carRental: { bookingRef: 'R1', provider: 'Avis' },
+        ferry: { route: 'A→B', orderRef: '316243', date: '2026-08-23' },
+        events: { show: { name: 'Cirque', orderRef: '88277', date: '2026-08-28' } },
       }),
     },
     days: [
@@ -111,6 +115,20 @@ test('trip.data collections land at the top level', () => {
   assert.ok(td.restaurants['2'], 'restaurants missing');
   assert.ok(td.culture, 'culture missing');
   assert.strictEqual(td.lists['checklist-quebec'].title, '🧳 Valise', 'lists missing');
+  assert.strictEqual(td.flights.outbound.pnr, 'ABC', 'flights dropped');
+  assert.strictEqual(td.carRental.bookingRef, 'R1', 'carRental dropped');
+  assert.strictEqual(td.ferry.orderRef, '316243', 'ferry dropped');
+  assert.strictEqual(td.events.show.orderRef, '88277', 'events dropped');
+});
+
+test('TRIP_DATA_COLLECTIONS lists every booking collection BookingsView needs', () => {
+  ['flights', 'carRental', 'ferry', 'events', 'hotels'].forEach(f => {
+    assert.ok(SeedMerge.TRIP_DATA_COLLECTIONS.includes(f), `${f} missing from TRIP_DATA_COLLECTIONS`);
+  });
+  const importSrc = fs.readFileSync('seed-import.cjs', 'utf8');
+  ['flights', 'carRental', 'ferry', 'events'].forEach(f => {
+    assert.ok(importSrc.includes(`${f}: SEED.${f}`), `seed-import.cjs does not inject ${f}`);
+  });
 });
 
 test('incremental refresh keeps previously known meta when trip.data omits it', () => {

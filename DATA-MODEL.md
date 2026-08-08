@@ -300,15 +300,60 @@ Stored in `hotels{}` dict, shared across days via `day.hotelId`.
   phone?:      string,
   booking?:    string,      // Platform name "Booking.com"
   ref?:        string,      // Booking reference
+  confirmationNumber?: string,
   note?:       string,      // "Vue Strip, 2 chambres"
   checkin?:    string,      // "15:00"
   checkout?:   string,      // "11:00"
-  amenities?:  string[],    // ["🏊 Piscine", "🅿️ Parking"]
+  cancellation?: string, // MUST start with 🟢|🔴|⚠️ — rendered as badge in UI
+  amenities?:  string[],    // ["🏊 Piscine", "🅿️ Parking"] → .badge.badge-green
   links?:      { label: string, url: string }[],  // Hotel-specific only!
   access?:     string,      // Door code / access instructions
   extras?:     string,      // Additional info
 }
 ```
+
+---
+
+## Bookings (trip.data → onglet Résa)
+
+Injected by `seed-import.cjs` into `trip.data`, merged onto `tripData` by `SeedMerge`
+(`flights`, `carRental`, `ferry`, `events`). Tab `data-tab="hotels"` keeps deep link `#hotels`;
+nav label is **Résa**.
+
+```typescript
+ferry?: {
+  route: string,
+  orderRef: string,
+  date: string,          // ISO
+  time: string,
+  vehicle?: string,
+  total: string,
+  deposit?: string,
+  balance?: string,
+  note?: string,
+  cancellation: string,  // 🟢|🔴|⚠️ prefix required
+  tags?: string[],       // chips UI (same as hotel amenities)
+}
+
+events?: {
+  [id: string]: {
+    name: string,
+    orderRef: string,
+    date: string,
+    total: string,
+    cancellation: string,
+    tags?: string[],
+    items?: { name: string, time?: string, qty?: number, unitPrice?: string, total?: string }[],
+    seats?: string,
+    phone?: string,
+    tickets?: string[],
+  }
+}
+
+// carRental / flights.outbound|inbound: optional cancellation + tags (same badge rules)
+```
+
+**Badge rules (BookingsView + HotelCard):** type chip (accent) + cancellation chip (green/red/orange) + `tags[]` (green).
 
 **ID format:** slug from hotel name — lowercase, strip accents, non-alnum → `-`.
 Example: `"Shep's Miners Inn"` → `"shep-s-miners-inn"`

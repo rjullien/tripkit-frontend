@@ -347,53 +347,15 @@ var App = (() => {
     CultureView.render('culture-content', tripData);
   }
 
-  // ── Hotels tab ────────────────────────────────────────────────────────────
+  // ── Résa tab (data-tab stays "hotels" for #hotels deep links) ─────────────
   function renderHotels(tripData) {
-    const container = document.getElementById('hotels-content');
-    if (!tripData || !tripData.days) {
-      container.innerHTML = `<div class="empty-state">
-        <div class="empty-emoji">🏨</div><h3>Aucun hébergement</h3></div>`;
+    if (typeof BookingsView !== 'undefined') {
+      BookingsView.render('hotels-content', tripData);
       return;
     }
-
-    let html = `<div class="page-header">
-      <h1>🏨 Hébergements</h1>
-      <div class="sub">${tripData.trip ? esc(tripData.trip.name) : ''}</div>
-    </div>`;
-
-    const seen = new Set();
-    tripData.days.map(d => DayHelpers.enrich(d, tripData)).forEach(day => {
-      // Normalized: hotelId ref. Legacy: day.hotel inline.
-      const key = day.hotelId || day.hotel;
-      if (!key || key === '—' || key === '') return;
-      if (seen.has(key)) return;
-      seen.add(key);
-      const hotelData = HotelCard.fromDay(day, tripData.hotels);
-      if (hotelData) {
-        // Use hotel check-in date if available (avoids off-by-one when day.date != check-in)
-        let headerDate = day.date || '';
-        if (hotelData.dates && hotelData.dates.checkin) {
-          const ci = new Date(hotelData.dates.checkin + 'T12:00:00Z');
-          const MONTHS = ['jan','fév','mar','avr','mai','juin','juil','août','sep','oct','nov','déc'];
-          headerDate = ci.getUTCDate() + ' ' + MONTHS[ci.getUTCMonth()];
-        }
-        // City: prefer day.to (destination), fallback to locationId capitalized, then day.from
-        let headerCity = day.to || '';
-        if (!headerCity && day.locationId) {
-          headerCity = day.locationId.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
-        }
-        if (!headerCity) headerCity = day.from || '';
-        html += `<div style="font-size:.75em;color:var(--muted);margin:14px 0 4px 4px">
-          Jour ${day.day + 1} · ${esc(headerDate)} — ${esc(headerCity)}</div>`;
-        html += HotelCard.render(hotelData);
-      }
-    });
-
-    if (seen.size === 0) {
-      html += `<div class="empty-state"><div class="empty-emoji">🏨</div><h3>Aucun hébergement</h3></div>`;
-    }
-
-    container.innerHTML = html;
+    const container = document.getElementById('hotels-content');
+    container.innerHTML = `<div class="empty-state">
+      <div class="empty-emoji">📋</div><h3>Réservations indisponibles</h3></div>`;
   }
 
   // ── Plus tab (listes + settings) ──────────────────────────────────────────
