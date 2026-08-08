@@ -7,7 +7,7 @@
  *
  * Defaults:
  *   --api    http://localhost:3001
- *   --seed   js/seed/usa-2026.js (auto-detected)
+ *   --seed   js/seed/test-trip.js (auto-detected)
  *
  * This script:
  * 1. Loads the seed JS file (auto-detects variable name)
@@ -28,7 +28,7 @@ const path = require('path');
 const args = process.argv.slice(2);
 let apiUrl = 'http://localhost:3001';
 let token = process.env.TRIPKIT_API_TOKEN || '';
-let seedFile = path.join(__dirname, 'js/seed/usa-2026.js');
+let seedFile = path.join(__dirname, 'js/seed/test-trip.js');
 
 for (let i = 0; i < args.length; i++) {
   if (args[i] === '--api' && args[i + 1]) apiUrl = args[++i];
@@ -90,7 +90,11 @@ async function main() {
     culture: SEED.culture || [],
     hotels: SEED.hotels || {},
     locations: SEED.locations || {},
+    flights: SEED.flights || null,
+    carRental: SEED.carRental || null,
     mapImage: SEED.trip.mapImage || null,
+    mapHtml: SEED.trip.mapHtml || null,
+    meteoHtml: SEED.trip.meteoHtml || null,
     routeUrl: SEED.trip.routeUrl || null,
     users: SEED.trip.users || {},
   };

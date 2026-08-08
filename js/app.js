@@ -78,6 +78,13 @@ var App = (() => {
   // ── Init ──────────────────────────────────────────────────────────────────
   async function init() {
     window.addEventListener('hashchange', handleHash);
+    window.addEventListener('tripkit-sync-done', () => {
+      // Don't auto-re-render while user is on the list (causes tap misses).
+      // Only re-render if on the Plus tab but NOT viewing a specific list.
+      if (currentTab === 'plus' && !currentListId) {
+        renderCurrentTab();
+      }
+    });
 
     // Magic link: intercept ?token=xxx in URL → exchange for JWT
     await handleMagicLink();
@@ -201,72 +208,10 @@ var App = (() => {
       const seed = await API.fetchSeed(tripId);
       if (!seed) return;
 
-      const tripData = Store.getTripData(tripId) || {};
-
-      // Days: backend stores each day as {day_num, data:{...}}
-      if (seed.days && seed.days.length) {
-        tripData.days = seed.days.map(d => {
-          const raw = d.data;
-          return typeof raw === 'string' ? JSON.parse(raw) : (raw || d);
-        }).filter(d => d.label && d.label !== '_deleted')
-          .sort((a, b) => (a.day || 0) - (b.day || 0));
-      }
-
-      // Trip metadata
-      if (seed.trip) {
-        const t = seed.trip;
-        const extra = t.data ? (typeof t.data === 'string' ? JSON.parse(t.data) : t.data) : {};
-        tripData.trip = {
-          id: t.id,
-          name: t.name,
-          emoji: t.emoji,
-          startDate: t.start_date || extra.startDate,
-          endDate: t.end_date || extra.endDate,
-          travelers: extra.travelers || tripData.trip?.travelers,
-          phases: extra.phases || tripData.trip?.phases,
-          mapImage: extra.mapImage || tripData.trip?.mapImage,
-          routeUrl: extra.routeUrl || tripData.trip?.routeUrl,
-          users: extra.users || tripData.trip?.users,
-          sharedLinks: extra.sharedLinks || tripData.trip?.sharedLinks,
-        };
-        // Restaurants and culture may be in trip.data
-        if (extra.restaurants) tripData.restaurants = extra.restaurants;
-        if (extra.culture) tripData.culture = extra.culture;
-        if (extra.hotels) {
-          // Normalize array format [{id, ...}] to dict {id: {...}} for HotelCard.fromDay()
-          if (Array.isArray(extra.hotels)) {
-            const dict = {};
-            extra.hotels.forEach(h => { if (h.id) dict[h.id] = h; });
-            tripData.hotels = dict;
-          } else {
-            tripData.hotels = extra.hotels;
-          }
-        }
-        if (extra.locations) tripData.locations = extra.locations;
-      }
-
-      // Hotels: merge into days by day_num
-      if (seed.hotels && seed.hotels.length) {
-        seed.hotels.forEach(h => {
-          const hData = typeof h.data === 'string' ? JSON.parse(h.data) : (h.data || {});
-          const day = tripData.days?.find(d => d.day === h.day_num);
-          if (day) Object.assign(day, hData);
-        });
-      }
-
-      // Lists: backend lists override seed lists (structure only, not check state)
-      if (seed.lists && seed.lists.length) {
-        tripData.lists = tripData.lists || {};
-        seed.lists.forEach(l => {
-          const lData = typeof l.data === 'string' ? JSON.parse(l.data) : (l.data || {});
-          tripData.lists[l.id] = {
-            id: l.id,
-            type: l.type,
-            title: l.title,
-            ...lData,
-          };
-        });
-      }
+      // Seed → tripData mapping lives in SeedMerge (shared with TripSelector.select).
+      // Do NOT inline it here again: the two copies drifted once and silently
+      // dropped mapHtml/meteoHtml. See js/seed-merge.js.
+      const tripData = SeedMerge.merge(seed, Store.getTripData(tripId) || {});
 
       // Register trip if first visit
       if (!Store.getCurrentTripId()) {
@@ -425,8 +370,21 @@ var App = (() => {
       seen.add(key);
       const hotelData = HotelCard.fromDay(day, tripData.hotels);
       if (hotelData) {
+        // Use hotel check-in date if available (avoids off-by-one when day.date != check-in)
+        let headerDate = day.date || '';
+        if (hotelData.dates && hotelData.dates.checkin) {
+          const ci = new Date(hotelData.dates.checkin + 'T12:00:00Z');
+          const MONTHS = ['jan','fév','mar','avr','mai','juin','juil','août','sep','oct','nov','déc'];
+          headerDate = ci.getUTCDate() + ' ' + MONTHS[ci.getUTCMonth()];
+        }
+        // City: prefer day.to (destination), fallback to locationId capitalized, then day.from
+        let headerCity = day.to || '';
+        if (!headerCity && day.locationId) {
+          headerCity = day.locationId.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+        }
+        if (!headerCity) headerCity = day.from || '';
         html += `<div style="font-size:.75em;color:var(--muted);margin:14px 0 4px 4px">
-          Jour ${day.day + 1} · ${esc(day.date || '')} — ${esc(day.to || day.from || '')}</div>`;
+          Jour ${day.day + 1} · ${esc(headerDate)} — ${esc(headerCity)}</div>`;
         html += HotelCard.render(hotelData);
       }
     });
@@ -484,7 +442,7 @@ var App = (() => {
     </a>`;
 
     // ── Quiz (only if quiz exists for current trip) ──
-    const tripsWithQuiz = ['usa-2026']; // trips that have a questions.json quiz
+    const tripsWithQuiz = []; // add trip ids that ship a questions.json quiz // trips that have a questions.json quiz
     const currentTripId = Store.getCurrentTripId();
     if (tripsWithQuiz.includes(currentTripId)) {
       html += `<div class="section-title" style="margin-top:24px">🧠 Quiz</div>`;
