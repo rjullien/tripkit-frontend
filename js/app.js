@@ -208,74 +208,10 @@ var App = (() => {
       const seed = await API.fetchSeed(tripId);
       if (!seed) return;
 
-      const tripData = Store.getTripData(tripId) || {};
-
-      // Days: backend stores each day as {day_num, data:{...}}
-      if (seed.days && seed.days.length) {
-        tripData.days = seed.days.map(d => {
-          const raw = d.data;
-          return typeof raw === 'string' ? JSON.parse(raw) : (raw || d);
-        }).filter(d => d.label && d.label !== '_deleted')
-          .sort((a, b) => (a.day || 0) - (b.day || 0));
-      }
-
-      // Trip metadata
-      if (seed.trip) {
-        const t = seed.trip;
-        const extra = t.data ? (typeof t.data === 'string' ? JSON.parse(t.data) : t.data) : {};
-        tripData.trip = {
-          id: t.id,
-          name: t.name,
-          emoji: t.emoji,
-          startDate: t.start_date || extra.startDate,
-          endDate: t.end_date || extra.endDate,
-          travelers: extra.travelers || tripData.trip?.travelers,
-          phases: extra.phases || tripData.trip?.phases,
-          mapImage: extra.mapImage || tripData.trip?.mapImage,
-          mapHtml: extra.mapHtml || tripData.trip?.mapHtml,
-          meteoHtml: extra.meteoHtml || tripData.trip?.meteoHtml,
-          routeUrl: extra.routeUrl || tripData.trip?.routeUrl,
-          users: extra.users || tripData.trip?.users,
-          sharedLinks: extra.sharedLinks || tripData.trip?.sharedLinks,
-        };
-        // Restaurants and culture may be in trip.data
-        if (extra.restaurants) tripData.restaurants = extra.restaurants;
-        if (extra.culture) tripData.culture = extra.culture;
-        if (extra.hotels) {
-          // Normalize array format [{id, ...}] to dict {id: {...}} for HotelCard.fromDay()
-          if (Array.isArray(extra.hotels)) {
-            const dict = {};
-            extra.hotels.forEach(h => { if (h.id) dict[h.id] = h; });
-            tripData.hotels = dict;
-          } else {
-            tripData.hotels = extra.hotels;
-          }
-        }
-        if (extra.locations) tripData.locations = extra.locations;
-      }
-
-      // Hotels: merge into days by day_num
-      if (seed.hotels && seed.hotels.length) {
-        seed.hotels.forEach(h => {
-          const hData = typeof h.data === 'string' ? JSON.parse(h.data) : (h.data || {});
-          const day = tripData.days?.find(d => d.day === h.day_num);
-          if (day) Object.assign(day, hData);
-        });
-      }
-
-      // Lists: backend lists override seed lists (structure only, not check state)
-      if (seed.lists && seed.lists.length) {
-        tripData.lists = tripData.lists || {};
-        seed.lists.forEach(l => {
-          const lData = typeof l.data === 'string' ? JSON.parse(l.data) : (l.data || {});
-          tripData.lists[l.id] = {
-            id: l.id,
-            type: l.type,
-            title: l.title,
-            ...lData,
-          };
-        });
-      }
+      // Seed → tripData mapping lives in SeedMerge (shared with TripSelector.select).
+      // Do NOT inline it here again: the two copies drifted once and silently
+      // dropped mapHtml/meteoHtml. See js/seed-merge.js.
+      const tripData = SeedMerge.merge(seed, Store.getTripData(tripId) || {});
 
       // Register trip if first visit
       if (!Store.getCurrentTripId()) {
