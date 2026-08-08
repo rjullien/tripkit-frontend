@@ -1,3 +1,15 @@
 node_modules/
 playwright-report/
 test-results/
+
+# Trip-specific route map screenshots — never commit to the open-source FE.
+# Serve via backend: PUT/GET /api/trips/:id/assets/day-XX-route.jpg
+# Source/backup: private seeds or local route-screenshots/<trip>/
+day-*-route*.jpg
+day-*-route*.png
+map-overview*.jpg
+map-overview*.png
+/*.jpg
+/*.jpeg
+/*.webp
+!icons/
