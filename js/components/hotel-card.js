@@ -23,6 +23,7 @@ var HotelCard = (() => {
       name, note, addr, address, city, booking, ref, phone,
       checkin, checkout, extras, amenities = [],
       links = [], price, rooms, host, notes, access, wifi,
+      cancellation, confirmationNumber,
     } = hotelData;
 
     const actualAddr = addr || address;
@@ -44,11 +45,12 @@ var HotelCard = (() => {
       html += `<div>\ud83d\udccd ${addrHtml}</div>`;
     }
 
-    if (booking || ref) {
+    if (booking || ref || confirmationNumber) {
       html += `<div>`;
       if (booking) html += `<strong>${esc(booking)}</strong>`;
-      if (booking && ref) html += ` \u00b7 `;
-      if (ref) html += `R\u00e9f: <strong>${esc(ref)}</strong>`;
+      const refVal = confirmationNumber || ref;
+      if (booking && refVal) html += ` \u00b7 `;
+      if (refVal) html += `R\u00e9f: <strong>${esc(refVal)}</strong>`;
       html += `</div>`;
     }
 
@@ -69,12 +71,21 @@ var HotelCard = (() => {
     if (notes && notes !== note) html += `<div style="margin-top:4px;font-size:.78em;font-style:italic;color:var(--muted)">${esc(notes)}</div>`;
     html += `</div>`; // .hotel-meta
 
-    // Amenities
+    // Tags: cancellation (🟢🔴⚠️) + amenities — same chip language as Résa
     const amenityList = Array.isArray(amenities) ? amenities : amenities ? [amenities] : [];
-    if (amenityList.length) {
-      html += `<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px">`;
-      amenityList.forEach(a => { html += `<span class="badge badge-green">${esc(a)}</span>`; });
-      html += `</div>`;
+    const tagChips = [];
+    if (cancellation) {
+      const raw = String(cancellation).trim();
+      let cls = 'badge-muted';
+      let label = 'Annulation';
+      if (raw.startsWith('🟢')) { cls = 'badge-green'; label = '🟢 Flexible'; }
+      else if (raw.startsWith('🔴')) { cls = 'badge-red'; label = '🔴 Non remboursable'; }
+      else if (raw.startsWith('⚠️') || raw.startsWith('⚠')) { cls = 'badge-orange'; label = '⚠️ À vérifier'; }
+      tagChips.push(`<span class="badge ${cls}" title="${escAttr(raw)}">${label}</span>`);
+    }
+    amenityList.forEach(a => { tagChips.push(`<span class="badge badge-green">${esc(a)}</span>`); });
+    if (tagChips.length) {
+      html += `<div class="booking-tags" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px">${tagChips.join('')}</div>`;
     }
 
     // ── Ligne obligatoire : petit-déj, piscine, spa, parking ──

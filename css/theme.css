@@ -577,6 +577,72 @@ a:visited { color: var(--accent); }
   flex: 1;
 }
 
+/* ── Booking / Résa cards ── */
+.booking-section-title {
+  font-size: 0.78em;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  margin: 18px 4px 8px;
+}
+
+.booking-card {
+  border-radius: var(--radius);
+  padding: 14px;
+  margin-bottom: 12px;
+  background: linear-gradient(135deg, rgba(78,205,196,.08), rgba(88,166,255,.05));
+  border: 1px solid rgba(78,205,196,.22);
+}
+
+.booking-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.booking-icon { font-size: 1.15em; line-height: 1; }
+
+.booking-title {
+  font-weight: 700;
+  color: var(--sec);
+  font-size: 1em;
+}
+
+.booking-meta {
+  font-size: 0.8em;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+.booking-meta strong { color: var(--text); }
+
+.booking-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.booking-details {
+  margin-top: 8px;
+  font-size: 0.78em;
+  color: var(--muted);
+  line-height: 1.55;
+}
+
+.booking-details .booking-note {
+  margin-top: 4px;
+  font-style: italic;
+}
+
+.booking-hotel-day {
+  font-size: 0.75em;
+  color: var(--muted);
+  margin: 14px 0 4px 4px;
+}
+
 /* ── Hotel Card ── */
 .hotel-card {
   border-radius: var(--radius);

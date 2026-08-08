@@ -33,6 +33,12 @@ var SeedMerge = (() => {
     'sharedLinks',
   ];
 
+  /** Top-level tripData collections carried in trip.data (see seed-import.cjs). */
+  const TRIP_DATA_COLLECTIONS = [
+    'restaurants', 'culture', 'locations', 'hotels',
+    'flights', 'carRental', 'ferry', 'events',
+  ];
+
   function parseMaybeJson(raw, fallback) {
     if (raw === undefined || raw === null) return fallback;
     if (typeof raw !== 'string') return raw;
@@ -74,10 +80,12 @@ var SeedMerge = (() => {
       TRIP_META_FIELDS.forEach(f => { meta[f] = extra[f] !== undefined ? extra[f] : prev[f]; });
       tripData.trip = meta;
 
-      // Collections that may travel inside trip.data
-      if (extra.restaurants) tripData.restaurants = extra.restaurants;
-      if (extra.culture) tripData.culture = extra.culture;
-      if (extra.locations) tripData.locations = extra.locations;
+      // Collections that may travel inside trip.data (top-level on tripData,
+      // NOT on trip — same pattern as hotels/restaurants). Must stay in sync
+      // with seed-import.cjs or BookingsView loses ferry/events/flights.
+      ['restaurants', 'culture', 'locations', 'flights', 'carRental', 'ferry', 'events'].forEach(key => {
+        if (extra[key] !== undefined) tripData[key] = extra[key];
+      });
       if (extra.hotels) {
         // Normalize array format [{id, ...}] to dict {id: {...}} for HotelCard.fromDay()
         if (Array.isArray(extra.hotels)) {
@@ -111,5 +119,5 @@ var SeedMerge = (() => {
     return tripData;
   }
 
-  return { merge, TRIP_META_FIELDS };
+  return { merge, TRIP_META_FIELDS, TRIP_DATA_COLLECTIONS };
 })();

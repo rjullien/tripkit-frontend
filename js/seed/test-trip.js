@@ -78,8 +78,56 @@ var SEED_TEST_TRIP = {
       note: "4-star hotel, central location.",
       checkin: "14:00",
       checkout: "11:00",
+      cancellation: "🟢 Free cancellation until June 10",
       amenities: ["🏊 Pool", "☕ Breakfast included", "📶 Free WiFi"],
       links: [{ label: "🌐 Website", url: "https://example.com" }]
+    }
+  },
+  flights: {
+    outbound: {
+      pnr: "TESTPNR",
+      airline: "Test Air",
+      class: "Economy",
+      price: "200 EUR",
+      cancellation: "🔴 Non refundable",
+      tags: ["Bagage included"],
+      from: "AAA",
+      to: "BBB",
+      dep: "2026-06-15T08:00",
+      arr: "2026-06-15T12:00"
+    }
+  },
+  carRental: {
+    bookingRef: "RENT123",
+    provider: "TestRent",
+    vehicle: "Compact",
+    price: "100 EUR",
+    cancellation: "⚠️ See rental terms",
+    tags: ["Unlimited km"],
+    fuelPolicy: "Full to full",
+    pickup: { date: "2026-06-15", time: "10:00", agency: "Airport" },
+    return: { date: "2026-06-18", time: "10:00", agency: "Airport" }
+  },
+  ferry: {
+    route: "Port A → Port B",
+    orderRef: "FERRY1",
+    date: "2026-06-16",
+    time: "09:30",
+    vehicle: "Car + 2 adults",
+    total: "50 EUR",
+    deposit: "10 EUR",
+    balance: "40 EUR at dock",
+    cancellation: "🟢 Refundable >24h",
+    tags: ["Car + 2 adults"]
+  },
+  events: {
+    "show-test": {
+      name: "Test Show",
+      orderRef: "EVT1",
+      date: "2026-06-17",
+      total: "80 EUR",
+      cancellation: "🔴 Non refundable",
+      tags: ["Front row"]
     }
   },
   locations: {

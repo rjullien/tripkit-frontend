@@ -76,29 +76,11 @@ var RouteView = (() => {
       </div>`;
     }
 
-    // Google Maps full route link
+    // Google Maps full route link — stays at top
     if (trip.routeUrl) {
       html += `<div style="margin-bottom:16px">
         <a href="${esc(trip.routeUrl)}" class="map-btn map-btn-primary" target="_blank" style="display:block;text-align:center">🗺️ Itinéraire complet — Google Maps</a>
       </div>`;
-    }
-
-    // Carte interactive HTML (Leaflet, etc.) — hook non-hardcodé via trip.mapHtml
-    if (trip.mapHtml) {
-      const mapFrameId = 'iframe-map-' + Date.now();
-      html += `<div style="margin-bottom:16px;border-radius:12px;overflow:hidden;border:1px solid rgba(255,255,255,.1)">
-        <iframe id="${mapFrameId}" style="width:100%;height:520px;border:0" title="Carte interactive" sandbox="allow-scripts allow-same-origin"></iframe>
-      </div>`;
-      loadHtmlIntoIframe(trip, trip.mapHtml, mapFrameId);
-    }
-
-    // Météo HTML — hook non-hardcodé via trip.meteoHtml
-    if (trip.meteoHtml) {
-      const metFrameId = 'iframe-meteo-' + Date.now();
-      html += `<div style="margin-bottom:16px;border-radius:12px;overflow:hidden;border:1px solid rgba(255,255,255,.1)">
-        <iframe id="${metFrameId}" style="width:100%;height:600px;border:0" title="Météo" sandbox="allow-scripts allow-same-origin"></iframe>
-      </div>`;
-      loadHtmlIntoIframe(trip, trip.meteoHtml, metFrameId);
     }
 
     // Phase tracking
@@ -162,7 +144,25 @@ var RouteView = (() => {
       html += `</div></div>`;
     });
 
+    // mapHtml / meteoHtml at bottom (after day list) — Google Maps stays on top
+    const pendingHtmlFrames = [];
+    if (trip.mapHtml) {
+      const mapFrameId = 'iframe-map-' + Date.now();
+      html += `<div style="margin:20px 0 16px;border-radius:12px;overflow:hidden;border:1px solid rgba(255,255,255,.1)">
+        <iframe id="${mapFrameId}" style="width:100%;height:520px;border:0" title="Carte interactive" sandbox="allow-scripts allow-same-origin"></iframe>
+      </div>`;
+      pendingHtmlFrames.push([trip.mapHtml, mapFrameId]);
+    }
+    if (trip.meteoHtml) {
+      const metFrameId = 'iframe-meteo-' + Date.now();
+      html += `<div style="margin-bottom:16px;border-radius:12px;overflow:hidden;border:1px solid rgba(255,255,255,.1)">
+        <iframe id="${metFrameId}" style="width:100%;height:600px;border:0" title="Météo" sandbox="allow-scripts allow-same-origin"></iframe>
+      </div>`;
+      pendingHtmlFrames.push([trip.meteoHtml, metFrameId]);
+    }
+
     container.innerHTML = html;
+    pendingHtmlFrames.forEach(([ref, id]) => loadHtmlIntoIframe(trip, ref, id));
 
     // Async: fetch weather batch
     fetchRouteWeather(tripData, days);
