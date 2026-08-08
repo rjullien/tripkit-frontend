@@ -180,16 +180,14 @@ test.describe('Plus Tab — Backend Version', () => {
   test('displays backend version from health endpoint', async ({ page }) => {
     await page.goto('/');
     await page.waitForSelector('.bottom-nav', { timeout: 8000 });
+    // Wait long enough for boot /health to resolve BEFORE opening Plus —
+    // this is the race that used to leave the label stuck on "…".
+    await page.waitForTimeout(1500);
     await page.locator('.bottom-nav button[data-tab="plus"]').click();
-    await page.waitForTimeout(2000);
 
-    // Backend info element should exist
     const backendInfo = page.locator('#tripkit-backend-info');
     await expect(backendInfo).toBeVisible({ timeout: 5000 });
-    // The /health mock returns version: 1.2.0, so it should show it
-    // If it shows "..." it means the health fetch didn't match — that's OK in test env
-    const text = await backendInfo.textContent();
-    // At minimum, the element should render
-    expect(text).toContain('Backend');
+    // Mock returns version: 1.2.0 — must show after cache fix (not stuck on …)
+    await expect(backendInfo).toContainText(/v?1\.2\.0/, { timeout: 5000 });
   });
 });
