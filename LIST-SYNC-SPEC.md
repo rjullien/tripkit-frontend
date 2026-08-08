@@ -1,6 +1,6 @@
 # TripKit — Spec listes & sync (source de vérité)
 
-> Décidée par René. Ne pas la modifier sans son accord explicite.
+> Spec produit — ne pas modifier sans revue explicite.
 > Toute PR sur les listes doit faire passer `tests/list-spec.test.cjs` (frontend)
 > et les `TestRepro*` (backend). Pas de changement de feature sans validation.
 
@@ -57,7 +57,7 @@ présentes en base sont ignorées côté client).
 ## Tests (exécutables)
 
 - **Frontend (isolation, mocks)** : `tests/list-spec.test.cjs`
-  Charge le vrai `js/store.js` (localStorage mocké), 2 devices (René/Nicole),
+  Charge le vrai `js/store.js` (localStorage mocké), 2 devices (Alice/Bob),
   backend mock reproduisant la sémantique serveur. Couvre : coche locale,
   création locale, partage, coche personnelle d'un item partagé, suppression
   propagée + anti-résurrection, retrait/re-partage.
