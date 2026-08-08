@@ -83,6 +83,24 @@ var RouteView = (() => {
       </div>`;
     }
 
+    // Carte interactive HTML (Leaflet, etc.) — hook non-hardcodé via trip.mapHtml
+    if (trip.mapHtml) {
+      const mapFrameId = 'iframe-map-' + Date.now();
+      html += `<div style="margin-bottom:16px;border-radius:12px;overflow:hidden;border:1px solid rgba(255,255,255,.1)">
+        <iframe id="${mapFrameId}" style="width:100%;height:520px;border:0" title="Carte interactive" sandbox="allow-scripts allow-same-origin"></iframe>
+      </div>`;
+      loadHtmlIntoIframe(trip, trip.mapHtml, mapFrameId);
+    }
+
+    // Météo HTML — hook non-hardcodé via trip.meteoHtml
+    if (trip.meteoHtml) {
+      const metFrameId = 'iframe-meteo-' + Date.now();
+      html += `<div style="margin-bottom:16px;border-radius:12px;overflow:hidden;border:1px solid rgba(255,255,255,.1)">
+        <iframe id="${metFrameId}" style="width:100%;height:600px;border:0" title="Météo" sandbox="allow-scripts allow-same-origin"></iframe>
+      </div>`;
+      loadHtmlIntoIframe(trip, trip.meteoHtml, metFrameId);
+    }
+
     // Phase tracking
     let currentPhaseIdx = -1;
 
@@ -144,45 +162,10 @@ var RouteView = (() => {
       html += `</div></div>`;
     });
 
-    // Liens vers les HTML (carte / météo) — en bas de l'itinéraire, pas en tête.
-    // Clic → fetch+blob (même bypass content-type que l'ex-iframe) puis nouvel onglet.
-    if (trip.mapHtml || trip.meteoHtml) {
-      html += `<div style="margin:20px 0 8px;display:flex;flex-direction:column;gap:10px">`;
-      if (trip.mapHtml) {
-        html += `<button type="button" class="map-btn map-btn-primary" style="display:block;width:100%;text-align:center;cursor:pointer"
-          data-html-asset="${esc(trip.mapHtml)}">🗺️ Carte interactive</button>`;
-      }
-      if (trip.meteoHtml) {
-        html += `<button type="button" class="map-btn" style="display:block;width:100%;text-align:center;cursor:pointer"
-          data-html-asset="${esc(trip.meteoHtml)}">🌤️ Météo (normales)</button>`;
-      }
-      html += `</div>`;
-    }
-
     container.innerHTML = html;
-
-    container.querySelectorAll('[data-html-asset]').forEach(btn => {
-      btn.addEventListener('click', () => openHtmlAsset(trip, btn.getAttribute('data-html-asset')));
-    });
 
     // Async: fetch weather batch
     fetchRouteWeather(tripData, days);
-  }
-
-  async function openHtmlAsset(trip, htmlRef) {
-    if (!htmlRef) return;
-    const url = htmlRef.startsWith('http') ? htmlRef
-      : (typeof API !== 'undefined' && API.assetUrl ? API.assetUrl(trip.id, htmlRef) : htmlRef);
-    try {
-      const resp = await fetch(url);
-      if (!resp.ok) throw new Error(resp.status + ' ' + url);
-      const blob = new Blob([await resp.text()], { type: 'text/html' });
-      const blobUrl = URL.createObjectURL(blob);
-      window.open(blobUrl, '_blank', 'noopener');
-    } catch (e) {
-      console.warn('[RouteView] openHtmlAsset failed:', e);
-      window.open(url, '_blank', 'noopener');
-    }
   }
 
   /**
@@ -345,6 +328,34 @@ var RouteView = (() => {
         ${srcBadge}
       </div>`;
     });
+  }
+
+  /**
+   * Fetch HTML content and inject into an iframe via srcdoc/blob URL.
+   * This bypasses content-type issues (e.g. backend serving text/plain or application/octet-stream).
+   */
+  function loadHtmlIntoIframe(trip, htmlRef, iframeId) {
+    const url = htmlRef.startsWith('http') ? htmlRef
+      : (typeof API !== 'undefined' && API.assetUrl ? API.assetUrl(trip.id, htmlRef) : htmlRef);
+
+    // Use setTimeout to ensure the iframe is in the DOM after container.innerHTML is set
+    setTimeout(async () => {
+      const iframe = document.getElementById(iframeId);
+      if (!iframe) return;
+      try {
+        const resp = await fetch(url);
+        if (!resp.ok) {
+          iframe.srcdoc = `<body style="background:#1e293b;color:#f87171;padding:2rem;font-family:sans-serif"><h3>⚠️ Erreur chargement</h3><p>${url} — ${resp.status}</p></body>`;
+          return;
+        }
+        const html = await resp.text();
+        // Use blob URL for full isolation (scripts, styles, etc.)
+        const blob = new Blob([html], { type: 'text/html' });
+        iframe.src = URL.createObjectURL(blob);
+      } catch (e) {
+        iframe.srcdoc = `<body style="background:#1e293b;color:#f87171;padding:2rem;font-family:sans-serif"><h3>⚠️ Erreur réseau</h3><p>${e.message}</p></body>`;
+      }
+    }, 0);
   }
 
   return { render };
