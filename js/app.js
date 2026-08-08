@@ -15,6 +15,8 @@ var App = (() => {
   let currentDayIndex = 0;   // index into tripData.days array
   let currentListId = null;
   let _cachedVersion = null; // loaded from version.json
+  let _backendVersion = null; // from GET /health — survives Plus tab re-renders
+  let _backendVersionFetch = null; // in-flight promise (dedupe)
   let _deferredInstallPrompt = null; // Android/Chrome install prompt
 
   // ── PWA Install prompt capture (Android/Chrome) ─────────────────────────────
@@ -101,19 +103,9 @@ var App = (() => {
       })
       .catch(() => {});
 
-    // Fetch backend version (non-blocking)
-    if (navigator.onLine) {
-      const baseUrl = (typeof API !== 'undefined' && API.getBaseUrl) ? API.getBaseUrl() : window.location.origin;
-      fetch(baseUrl + '/health', { signal: AbortSignal.timeout(3000) })
-        .then(r => r.ok ? r.json() : null)
-        .then(data => {
-          if (data && data.version) {
-            const el = document.getElementById('tripkit-backend-info');
-            if (el) el.innerHTML = `🖥️ Backend: <code style="font-size:.82em;color:var(--sec);font-weight:600">${esc(data.version.startsWith('v') ? data.version : 'v' + data.version)}</code>`;
-          }
-        })
-        .catch(() => {});
-    }
+    // Backend version — cache in memory so Plus tab can show it even if the
+    // /health response lands before #tripkit-backend-info exists (race).
+    fetchBackendVersion();
 
     const tripId = Store.getCurrentTripId();
     if (tripId && Store.getTripData(tripId)) {
@@ -467,11 +459,14 @@ var App = (() => {
 
     // ── App info ──
     const ver = _cachedVersion || { soft: '?', data: '?' };
+    const beLabel = _backendVersion
+      ? `🖥️ Backend: <code style="font-size:.82em;color:var(--sec);font-weight:600">${esc(formatBackendVersion(_backendVersion))}</code>`
+      : `🖥️ Backend: <code style="font-size:.82em;color:var(--muted)">…</code>`;
     html += `<div class="section-title" style="margin-top:24px">ℹ️ Infos app</div>
       <div class="card"><div style="font-size:.84em;color:var(--muted);line-height:2">
         <div>📱 <strong style="color:var(--text)">Juju's Adventures</strong> — PWA offline-first</div>
         <div id="tripkit-version-info">🏷️ Soft: <code style="font-size:.82em;color:var(--sec);font-weight:600">v${esc(ver.soft)}</code> · Data: <code style="font-size:.82em;color:var(--sec);font-weight:600">${esc(ver.data)}</code> · Cache: <code style="font-size:.82em;color:var(--sec)">${ver.cache || '?'}</code></div>
-        <div id="tripkit-backend-info">🖥️ Backend: <code style="font-size:.82em;color:var(--muted)">…</code></div>
+        <div id="tripkit-backend-info">${beLabel}</div>
         <div>💾 Device: <code style="font-size:.78em;color:var(--sec)">${Store.getDeviceId()}</code></div>
         <div>🌐 ${navigator.onLine ? '<span style="color:var(--green)">En ligne</span>' : '<span style="color:var(--orange)">Hors ligne</span>'}</div>
       </div></div>`;
@@ -497,6 +492,45 @@ var App = (() => {
     // Render TripSelector into its placeholder
     const selectorEl = document.getElementById('plus-trip-selector');
     if (selectorEl) TripSelector.render(selectorEl);
+
+    // If /health hasn't resolved yet (or failed earlier), retry now that the
+    // Plus DOM exists — paintBackendVersion will fill #tripkit-backend-info.
+    if (!_backendVersion) fetchBackendVersion();
+  }
+
+  function formatBackendVersion(v) {
+    const s = String(v || '');
+    return s.startsWith('v') ? s : 'v' + s;
+  }
+
+  function paintBackendVersion() {
+    if (!_backendVersion) return;
+    const el = document.getElementById('tripkit-backend-info');
+    if (!el) return;
+    el.innerHTML = `🖥️ Backend: <code style="font-size:.82em;color:var(--sec);font-weight:600">${esc(formatBackendVersion(_backendVersion))}</code>`;
+  }
+
+  /** Fetch GET /health once, cache APP_VERSION, paint Plus tab if visible. */
+  function fetchBackendVersion() {
+    if (!navigator.onLine) return Promise.resolve(null);
+    if (_backendVersion) {
+      paintBackendVersion();
+      return Promise.resolve(_backendVersion);
+    }
+    if (_backendVersionFetch) return _backendVersionFetch;
+    const baseUrl = (typeof API !== 'undefined' && API.getBaseUrl) ? API.getBaseUrl() : window.location.origin;
+    _backendVersionFetch = fetch(baseUrl + '/health', { signal: AbortSignal.timeout(3000) })
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (data && data.version) {
+          _backendVersion = data.version;
+          paintBackendVersion();
+        }
+        return _backendVersion;
+      })
+      .catch(() => null)
+      .finally(() => { _backendVersionFetch = null; });
+    return _backendVersionFetch;
   }
 
   function openList(listId) {
