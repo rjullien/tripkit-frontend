@@ -238,7 +238,10 @@ var DailyView = (() => {
     }
 
     // ── Shopping list shortcut ─────────────────────────────────────────────
-    const shoppingListId = `courses-day${displayNum}-usa2026`;
+    // Key the list by the CURRENT trip id (not a hardcoded one) so the shortcut
+    // works for every trip. Falls back to "usa2026" to preserve legacy keys.
+    const currentTripId = (window.Store && Store.getCurrentTripId()) || 'usa2026';
+    const shoppingListId = `courses-day${displayNum}-${currentTripId}`;
     if (tripData.lists && tripData.lists[shoppingListId]) {
       html += `<div style="margin:12px 0">
         <button class="btn btn-accent" style="width:100%" onclick="App.openList('${shoppingListId}');App.switchTab('listes')">
