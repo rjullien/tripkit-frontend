@@ -157,74 +157,79 @@ var App = (() => {
   // Offline after first visit: works from cache. Never-visited + offline: empty state shown.
 
   // ── Backend refresh (version-gated, data decoupled from code) ─────────────
+  async function resolveTripId() {
+    let tripId = Store.getCurrentTripId();
+    if (tripId) return tripId;
+    if (typeof TRIPKIT_CONFIG !== 'undefined' && TRIPKIT_CONFIG.defaultTripId &&
+        TRIPKIT_CONFIG.defaultTripId !== '${DEFAULT_TRIP_ID}') {
+      return TRIPKIT_CONFIG.defaultTripId;
+    }
+    const trips = await API.getTrips();
+    if (trips && trips.length) return trips[0].id;
+    return null;
+  }
+
+  /** Fetch seed for tripId; returns true if local trip data is usable afterwards. */
+  async function loadTripSeed(tripId) {
+    const hasLocal = !!Store.getTripData(tripId);
+    const ver = await API.checkVersion(tripId);
+    if (!ver) {
+      console.debug('[App] Version check failed for', tripId);
+      return false;
+    }
+
+    const cachedVersion = Store.get(tripId + '-data-version');
+    // Skip network seed only when we already have local data AND same version.
+    // A leftover *-data-version without tk-trip-* must NOT skip (boot would stall).
+    if (hasLocal && cachedVersion && String(cachedVersion) === String(ver.version)) {
+      console.debug('[App] Data up to date (v' + ver.version + ') — skip refresh');
+      return true;
+    }
+
+    console.log('[App] Fetching seed:', tripId, 'version', cachedVersion, '→', ver.version);
+    const seed = await API.fetchSeed(tripId);
+    if (!seed) return false;
+
+    const tripData = SeedMerge.merge(seed, Store.getTripData(tripId) || {});
+    Store.registerTrip(tripId);
+    Store.setCurrentTripId(tripId);
+    Store.markSeedLoaded(tripId);
+    Store.setTripData(tripId, tripData);
+    Store.set(tripId + '-data-version', ver.version);
+    console.log('[App] Backend data refreshed:', tripId, tripData.days?.length, 'days, version:', ver.version);
+    return true;
+  }
+
   async function refreshFromBackend() {
     if (!navigator.onLine) return;
 
-    // Resolve trip ID: cached or from config (first visit)
-    let tripId = Store.getCurrentTripId();
-    if (!tripId) {
-      // First visit — resolve default trip
-      // 1. From Docker config
-      if (typeof TRIPKIT_CONFIG !== 'undefined' && TRIPKIT_CONFIG.defaultTripId &&
-          TRIPKIT_CONFIG.defaultTripId !== '${DEFAULT_TRIP_ID}') {
-        tripId = TRIPKIT_CONFIG.defaultTripId;
-      } else {
-        // 2. Ask backend for first available trip
-        const trips = await API.getTrips();
-        if (trips && trips.length) tripId = trips[0].id;
-      }
-      if (!tripId) return; // No trips anywhere — nothing to load
-    }
+    let tripId = await resolveTripId();
+    if (!tripId) return;
 
     try {
-      // Step 1: Lightweight version check (3s timeout, ~50 bytes)
-      const ver = await API.checkVersion(tripId);
-      if (!ver) {
-        console.debug('[App] Version check skipped (offline/slow/unavailable)');
-        // Still sync list check states if possible
-        if (typeof API !== 'undefined') API.backgroundSyncTrip(tripId);
-        return;
+      let ok = await loadTripSeed(tripId);
+
+      // Stale tk-current-trip (deleted / 403 / 404): forget it and rediscover.
+      if (!ok && Store.getCurrentTripId() === tripId) {
+        console.debug('[App] Current trip unreachable — rediscovering via GET /trips');
+        localStorage.removeItem('tk-current-trip');
+        localStorage.removeItem(tripId + '-data-version');
+        const trips = await API.getTrips();
+        const next = trips && trips.length
+          ? (trips.find(t => t.id !== tripId) || trips[0])
+          : null;
+        if (next && next.id) {
+          ok = await loadTripSeed(next.id);
+          tripId = next.id;
+        }
       }
 
-      // Step 2: Compare with cached version
-      const cachedVersion = Store.get(tripId + '-data-version');
-      if (cachedVersion && String(cachedVersion) === String(ver.version)) {
-        console.debug('[App] Data up to date (v' + ver.version + ') — skip refresh');
-        if (typeof API !== 'undefined') API.backgroundSyncTrip(tripId);
-        return;
-      }
-
-      console.log('[App] Data version changed:', cachedVersion, '→', ver.version, '— fetching...');
-
-      // Step 3: Full seed fetch (only on version change)
-      const seed = await API.fetchSeed(tripId);
-      if (!seed) return;
-
-      // Seed → tripData mapping lives in SeedMerge (shared with TripSelector.select).
-      // Do NOT inline it here again: the two copies drifted once and silently
-      // dropped mapHtml/meteoHtml. See js/seed-merge.js.
-      const tripData = SeedMerge.merge(seed, Store.getTripData(tripId) || {});
-
-      // Register trip if first visit
-      if (!Store.getCurrentTripId()) {
-        Store.registerTrip(tripId);
-        Store.setCurrentTripId(tripId);
-        Store.markSeedLoaded(tripId);
-      }
-      Store.setTripData(tripId, tripData);
-
-      // Save version to skip future unnecessary fetches
-      Store.set(tripId + '-data-version', ver.version);
-      console.log('[App] Backend data refreshed:', tripId, tripData.days?.length, 'days, version:', ver.version);
-
-      // Re-render with fresh data
-      renderCurrentTab();
+      if (ok) renderCurrentTab();
     } catch (e) {
       console.debug('[App] Backend refresh failed (using cached):', e.message);
     }
 
-    // Also sync list check states
-    if (typeof API !== 'undefined') {
+    if (typeof API !== 'undefined' && tripId) {
       API.backgroundSyncTrip(tripId);
     }
   }
@@ -651,27 +656,36 @@ var App = (() => {
   function showOffline() {
     const el = document.getElementById('programme-content');
     if (!el) return;
+    const stuck = Store.getCurrentTripId();
     el.innerHTML = `<div class="empty-state">
       <div class="empty-emoji">\u26a0\ufe0f</div>
       <h3>Impossible de charger le voyage</h3>
       <p style="color:var(--muted);max-width:28em;margin:0 auto 12px">
-        Le serveur n'a renvoy\u00e9 aucune donn\u00e9e (session Authelia, token p\u00e9rim\u00e9, ou aucun voyage accessible).
+        Le serveur n'a renvoy\u00e9 aucune donn\u00e9e (voyage local p\u00e9rim\u00e9, token, session Authelia, ou aucun voyage accessible).
+        ${stuck ? `<br><code style="font-size:.8em">tk-current-trip=${esc(stuck)}</code>` : ''}
       </p>
       <p style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-top:8px">
         <button type="button" class="btn" id="tk-boot-retry" style="background:var(--accent);color:#000;font-weight:700">R\u00e9essayer</button>
-        <button type="button" class="btn" id="tk-boot-clear-token" style="background:var(--sec);color:#000;font-weight:600">Effacer le token local</button>
+        <button type="button" class="btn" id="tk-boot-reset-local" style="background:var(--sec);color:#000;font-weight:600">R\u00e9initialiser le local</button>
       </p>
     </div>`;
     const retry = document.getElementById('tk-boot-retry');
     if (retry) retry.onclick = () => location.reload();
-    const clearBtn = document.getElementById('tk-boot-clear-token');
-    if (clearBtn) {
-      clearBtn.onclick = () => {
+    const resetBtn = document.getElementById('tk-boot-reset-local');
+    if (resetBtn) {
+      resetBtn.onclick = () => {
         try {
           if (typeof API !== 'undefined' && API.clearToken) API.clearToken();
           else localStorage.removeItem('tk-api-token');
           localStorage.removeItem('tk-user-name');
           localStorage.removeItem('tk-user-role');
+          const cur = localStorage.getItem('tk-current-trip');
+          if (cur) {
+            localStorage.removeItem('tk-current-trip');
+            localStorage.removeItem(cur + '-data-version');
+            localStorage.removeItem('tk-trip-' + cur);
+            localStorage.removeItem('tk-seed-loaded-' + cur);
+          }
         } catch (_) { /* ignore */ }
         location.reload();
       };
