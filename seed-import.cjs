@@ -93,6 +93,7 @@ async function main() {
     flights: SEED.flights || null,
     carRental: SEED.carRental || null,
     ferry: SEED.ferry || null,
+    ferries: SEED.ferries || null,
     events: SEED.events || null,
     mapImage: SEED.trip.mapImage || null,
     mapHtml: SEED.trip.mapHtml || null,

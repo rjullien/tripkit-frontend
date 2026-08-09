@@ -36,7 +36,7 @@ var SeedMerge = (() => {
   /** Top-level tripData collections carried in trip.data (see seed-import.cjs). */
   const TRIP_DATA_COLLECTIONS = [
     'restaurants', 'culture', 'locations', 'hotels',
-    'flights', 'carRental', 'ferry', 'events',
+    'flights', 'carRental', 'ferry', 'ferries', 'events',
   ];
 
   function parseMaybeJson(raw, fallback) {
@@ -83,7 +83,7 @@ var SeedMerge = (() => {
       // Collections that may travel inside trip.data (top-level on tripData,
       // NOT on trip — same pattern as hotels/restaurants). Must stay in sync
       // with seed-import.cjs or BookingsView loses ferry/events/flights.
-      ['restaurants', 'culture', 'locations', 'flights', 'carRental', 'ferry', 'events'].forEach(key => {
+      ['restaurants', 'culture', 'locations', 'flights', 'carRental', 'ferry', 'ferries', 'events'].forEach(key => {
         if (extra[key] !== undefined) tripData[key] = extra[key];
       });
       if (extra.hotels) {
