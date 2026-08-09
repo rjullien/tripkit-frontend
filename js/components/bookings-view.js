@@ -141,11 +141,11 @@ var BookingsView = (() => {
         }
 
         html += bookingCard({
-          icon: doc.type === 'eta-canada' ? '🇨🇦' : '🛂',
+          icon: doc.type === 'eta-canada' ? '🇨🇦' : (doc.type === 'esta-usa' ? '🇺🇸' : '🛂'),
           title: `${person.emoji || ''} ${esc(person.name || '')} — ${esc(doc.label || doc.type || 'Document')}`.trim(),
           metaLines: meta,
           tagsHtml: renderBookingTags({
-            typeLabel: doc.type === 'eta-canada' ? 'AVE' : 'Document',
+            typeLabel: doc.type === 'eta-canada' ? 'AVE' : (doc.type === 'esta-usa' ? 'ESTA' : 'Document'),
             cancellation: doc.note && /🔴|⚠️/.test(doc.note) ? doc.note : null,
             tags: doc.tags,
           }),
