@@ -7,6 +7,7 @@
  *   - Departure marker: { t, d, type: 'departure', ref: 'traveler-id' }
  *   - With restaurant ref: { t, d, restaurantRef: N }
  *   - With culture badge: { t, d, culture: { icon, title, text } }
+ *   - Cross-TZ: { t, d, tz, date? } — local t primary; homeTz secondary via TzHelpers
  */
 
 var Timeline = (() => {
@@ -14,22 +15,26 @@ var Timeline = (() => {
   /**
    * Render timeline events.
    * @param {Array} events
-   * @param {Object} [opts] — { restaurants?, onDepartureClick? }
+   * @param {Object} [opts] — { restaurants?, homeTz?, dayDate? }
    * @returns {string} HTML string
    */
   function render(events, opts) {
     if (!events || !events.length) return '';
     const restaurants = (opts && opts.restaurants) || {};
+    const homeTz = (opts && opts.homeTz)
+      || (typeof TzHelpers !== 'undefined' ? TzHelpers.DEFAULT_HOME_TZ : 'Europe/Paris');
+    const dayDate = (opts && opts.dayDate) || '';
 
     const items = events.map(ev => {
       const time = ev.time || ev.t || '';
       const desc = ev.text || ev.d || '';
       const link = ev.link || null;
+      const timeBlock = renderTimeBlock(time, ev, { homeTz, dayDate });
 
       // ── Departure marker ──
       if (ev.type === 'departure') {
         return `<div class="timeline-item departure-marker" data-dep-ref="${escapeAttr(ev.ref || '')}">
-          <span class="tl-time">${escapeHtml(time)}</span>
+          ${timeBlock}
           <span class="tl-desc"><strong>${escapeAndLink(desc)}</strong></span>
         </div>`;
       }
@@ -67,17 +72,36 @@ var Timeline = (() => {
         descHtml += ` <a href="${link}" class="btn btn-muted" style="font-size:.75em;padding:3px 8px;margin-left:4px" target="_blank">\u2192</a>`;
       }
 
-      const timeHtml = time
-        ? `<span class="tl-time">${escapeHtml(time)}</span>`
-        : `<span class="tl-time" style="min-width:48px"></span>`;
-
       return `<div class="timeline-item ${dotClass}">
-        ${timeHtml}
+        ${timeBlock}
         <span class="tl-desc">${descHtml}</span>
       </div>`;
     });
 
     return `<div class="timeline">${items.join('')}</div>`;
+  }
+
+  /**
+   * Local time (primary) + optional home/Nice time (secondary).
+   * Dual display only when entry.tz is set (seed contract) and conversion differs.
+   */
+  function renderTimeBlock(time, ev, ctx) {
+    if (!time) {
+      return `<span class="tl-time" style="min-width:48px"></span>`;
+    }
+    let homeHtml = '';
+    if (ev && ev.tz && typeof TzHelpers !== 'undefined') {
+      const label = TzHelpers.homeTimeLabel({
+        t: time,
+        tz: ev.tz,
+        date: ev.date || ctx.dayDate,
+        homeTz: ctx.homeTz,
+      });
+      if (label && label.text) {
+        homeHtml = `<span class="tl-time-home" title="Heure Nice / maison">${escapeHtml(label.text)}</span>`;
+      }
+    }
+    return `<span class="tl-time">${escapeHtml(time)}${homeHtml}</span>`;
   }
 
   /**

@@ -5,7 +5,7 @@
   "main": "seed-import.js",
   "scripts": {
     "test": "npx playwright test",
-    "test:unit": "node tests/seed-merge.test.cjs && node tests/list-unit.test.cjs",
+    "test:unit": "node tests/seed-merge.test.cjs && node tests/list-unit.test.cjs && node tests/tz-helpers.test.cjs",
     "test:ui": "npx playwright test --ui",
     "test:headed": "npx playwright test --headed"
   },

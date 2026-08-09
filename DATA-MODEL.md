@@ -68,6 +68,7 @@ These rules MUST be followed when creating or editing seed data:
   name:         string,      // Display name "USA Road Trip 2026"
   emoji:        string,      // "🇺🇸"
   startDate:    string,      // ISO date of Day 1 (first real travel day). Day 0 = startDate - 1.
+  homeTz?:      string,      // IANA home/reference TZ for dual times (default "Europe/Paris" = Nice)
   endDate:      string,      // ISO date of last day
   travelers:    Traveler[],
   phases:       Phase[],
@@ -165,8 +166,10 @@ displayed_date(day_num) = startDate + (day_num - 1)
 ### TimelineEntry
 ```typescript
 {
-  t:              string,    // Time "09:30" (or emoji for timeless events)
+  t:              string,    // LOCAL time "09:30" at the event (airport/city) — primary column
   d:              string,    // Description (may contain safe HTML <a> links)
+  tz?:            string,    // IANA zone of `t` (e.g. "America/Toronto"). Enables dual display.
+  date?:          string,    // Local calendar date of `t` when ≠ day date (e.g. arrival "+1" "2026-09-02")
   type?:          string,    // "departure" = marker (details in day.departures[])
   ref?:           string,    // Departure traveler ref (when type=departure)
   restaurantRef?: number,    // → restaurants[N] for structured data linkage
@@ -175,6 +178,13 @@ displayed_date(day_num) = startDate + (day_num - 1)
   green?:         boolean,   // Green dot marker (auto-detected from ⭐/✅)
 }
 ```
+
+**Cross-timezone display (systematic):**
+- Primary = `t` in local airport/city time (`tz`)
+- Secondary (muted) = same instant in `trip.homeTz` (default Nice / `Europe/Paris`), e.g. `02:40+1 🇫🇷`
+- FE computes the secondary — **do not** hand-write `(HH:MM 🇫🇷)` in `d` for new seeds
+- Flight legs that cross zones **must** set `tz` per entry (day.locationId alone is wrong on multi-leg days)
+- Omit secondary when `tz === homeTz` or clocks match (e.g. Paris ↔ Zurich)
 
 **Departure markers:** `type: "departure"` entries are **visual placeholders only**.
 The actual steps live in `day.departures[]`. The timeline component renders the

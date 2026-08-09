@@ -100,6 +100,7 @@ async function main() {
     meteoHtml: SEED.trip.meteoHtml || null,
     routeUrl: SEED.trip.routeUrl || null,
     users: SEED.trip.users || {},
+    homeTz: SEED.trip.homeTz || 'Europe/Paris',
   };
 
   try {

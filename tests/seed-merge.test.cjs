@@ -44,6 +44,7 @@ function quebecSeed() {
         mapHtml: 'quebec-map.html',
         meteoHtml: 'quebec-meteo.html',
         mapImage: 'route.jpg',
+        homeTz: 'Europe/Paris',
         users: { alice: { city: 'Paris' } },
         sharedLinks: [{ label: 'Drive', url: 'https://example.invalid' }],
         locations: { montreal: { lat: 45.5, lon: -73.5, tz: 'America/Toronto' } },
@@ -84,6 +85,8 @@ test('every field read by route-view.js is declared in TRIP_META_FIELDS', () => 
     assert.ok(view.includes('trip.' + f), `route-view.js no longer reads trip.${f} — update this test`);
     assert.ok(SeedMerge.TRIP_META_FIELDS.includes(f), `trip.${f} is read by route-view but missing from TRIP_META_FIELDS`);
   });
+  assert.ok(SeedMerge.TRIP_META_FIELDS.includes('homeTz'), 'homeTz missing from TRIP_META_FIELDS');
+  assert.strictEqual(SeedMerge.merge(quebecSeed(), {}).trip.homeTz, 'Europe/Paris', 'homeTz dropped');
 });
 
 test('neither call site re-inlines its own trip meta field list', () => {
