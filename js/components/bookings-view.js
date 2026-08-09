@@ -281,7 +281,8 @@ var BookingsView = (() => {
     }
 
     days.forEach(day => {
-      const key = day.hotelId || day.hotel;
+      // Normalized seeds: only hotelId (ignore legacy day.hotel pollution from stale merges)
+      const key = day.hotelId;
       if (!key || key === '—' || key === '') return;
       if (seen.has(key)) return;
       seen.add(key);
