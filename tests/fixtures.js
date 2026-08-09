@@ -34,6 +34,16 @@ export const test = base.extend({
         });
       }
 
+      // GET /health — required since API.probe() gates refreshFromBackend (#19).
+      // Without this mock, probe fails against the static server and seed never loads.
+      if (url.includes('/health') && !url.includes('/api/')) {
+        return route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ status: 'ok', version: 'test-be' }),
+        });
+      }
+
       // GET /api/trips/:id/version
       if (url.includes(`/api/trips/${TRIP_ID}/version`)) {
         return route.fulfill({
