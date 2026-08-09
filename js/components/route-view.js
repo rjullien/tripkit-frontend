@@ -307,9 +307,10 @@ var RouteView = (() => {
       const loc = wxCache[k];
       if (!loc) return;
 
+      // startDate = Day 1 → date(N) = startDate + (N - 1)
       const dayNum = day.day !== undefined ? day.day : idx;
       const d = new Date(start);
-      d.setDate(d.getDate() + dayNum);
+      d.setDate(d.getDate() + (dayNum - 1));
       const iso = d.toISOString().slice(0, 10);
       const di = loc.time.indexOf(iso);
       if (di === -1) { el.innerHTML = ''; return; }

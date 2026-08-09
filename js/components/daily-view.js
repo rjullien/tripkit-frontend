@@ -224,6 +224,10 @@ var DailyView = (() => {
       })();
       html += `<div class="section-title">🏨 Hébergement</div>`;
       html += HotelCard.render(hotelData, { compact: !isFirstDayAtHotel });
+    } else if (day.day === 0) {
+      // J0 = startDate-1 : veille à la maison, pas d'hôtel
+      html += `<div class="section-title">🏨 Hébergement</div>`;
+      html += `<div class="card" style="padding:14px 16px">🏠 <strong>Maison</strong> — préparation des valises (veille du départ)</div>`;
     }
 
     // ── Special cards per day ──────────────────────────────────────────────
