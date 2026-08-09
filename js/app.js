@@ -469,17 +469,6 @@ var App = (() => {
     html += `<div id="plus-publish-panel"></div>`;
     html += `<div id="plus-leo-chat-stream"></div>`;
 
-    // ── Checklist valise (standalone page) ──
-    html += `<div class="section-title" style="margin-top:24px">🧳 Valise</div>`;
-    html += `<a href="checklist.html" class="trip-item" style="text-decoration:none;color:var(--text)">
-      <span class="trip-emoji">🧳</span>
-      <div class="trip-info">
-        <div class="trip-name">Checklist Valise interactive</div>
-        <div class="trip-dates">Par personne · Progression sauvegardée</div>
-      </div>
-      <span class="trip-arrow">›</span>
-    </a>`;
-
     // ── Quiz (only if quiz exists for current trip) ──
     const tripsWithQuiz = []; // add trip ids that ship a questions.json quiz // trips that have a questions.json quiz
     const currentTripId = Store.getCurrentTripId();
