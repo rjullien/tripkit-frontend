@@ -318,17 +318,20 @@ var API = (() => {
     if (!navigator.onLine) {
       return { ok: false, status: 0, data: null, error: 'offline' };
     }
+    // timeoutMs is ours — do not pass it through to fetch().
+    const { timeoutMs, headers: optHeaders, ...fetchOpts } = options;
+    const ms = typeof timeoutMs === 'number' && timeoutMs > 0 ? timeoutMs : 15000;
     try {
       const token = getToken();
       const headers = {
         'Content-Type': 'application/json',
         ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
-        ...options.headers,
+        ...optHeaders,
       };
       const res = await fetch(url(path), {
-        ...options,
+        ...fetchOpts,
         headers,
-        signal: AbortSignal.timeout(options.timeoutMs || 15000),
+        signal: AbortSignal.timeout(ms),
       });
       if (res.status === 401 && token && !_retried) {
         clearToken();
@@ -366,7 +369,19 @@ var API = (() => {
       return { ok: true, status: res.status, data };
     } catch (e) {
       setReachable(false);
-      return { ok: false, status: 0, data: null, error: e.message || 'network' };
+      const name = e && e.name;
+      const msg = (e && e.message) || '';
+      // AbortSignal.timeout / Cloudflare (~100s) / browser abort
+      if (name === 'AbortError' || name === 'TimeoutError'
+          || /aborted|timeout|timed out/i.test(msg)) {
+        return {
+          ok: false,
+          status: 0,
+          data: { code: 'timeout', hint: 'Léo a dépassé le délai (Cloudflare ~100s). Réessaie avec une demande plus courte.' },
+          error: `délai dépassé (~${Math.round(ms / 1000)}s)`,
+        };
+      }
+      return { ok: false, status: 0, data: null, error: msg || 'network' };
     }
   }
 
