@@ -41,10 +41,16 @@ var LeoChat = (() => {
 
     // requestJSON / fetch fallbacks that are not useful alone
     if (/^(error|failed|Échec)$/i.test(detail)) detail = '';
+    if (/fetch is aborted|aborted|timeout|délai dépassé/i.test(detail)) {
+      detail = 'délai dépassé — Léo a mis trop longtemps (limite Cloudflare ~100s)';
+    } else if (/load failed|failed to fetch|échec réseau/i.test(detail)) {
+      detail = 'échec réseau — connexion coupée (Safari / Cloudflare). Réessaie.';
+    }
 
     const byCode = {
       missing_hermes_key: 'clé Hermes absente (Infisical hermes-api-key)',
       leo_chat_failed: 'échec de l’appel à Hermes',
+      timeout: 'délai dépassé',
     };
     const byStatus = {
       0: 'réseau ou délai dépassé',

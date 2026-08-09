@@ -318,17 +318,20 @@ var API = (() => {
     if (!navigator.onLine) {
       return { ok: false, status: 0, data: null, error: 'offline' };
     }
+    // timeoutMs is ours — do not pass it through to fetch().
+    const { timeoutMs, headers: optHeaders, ...fetchOpts } = options;
+    const ms = typeof timeoutMs === 'number' && timeoutMs > 0 ? timeoutMs : 15000;
     try {
       const token = getToken();
       const headers = {
         'Content-Type': 'application/json',
         ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
-        ...options.headers,
+        ...optHeaders,
       };
       const res = await fetch(url(path), {
-        ...options,
+        ...fetchOpts,
         headers,
-        signal: AbortSignal.timeout(options.timeoutMs || 15000),
+        signal: AbortSignal.timeout(ms),
       });
       if (res.status === 401 && token && !_retried) {
         clearToken();
@@ -366,7 +369,28 @@ var API = (() => {
       return { ok: true, status: res.status, data };
     } catch (e) {
       setReachable(false);
-      return { ok: false, status: 0, data: null, error: e.message || 'network' };
+      const name = e && e.name;
+      const msg = (e && e.message) || '';
+      // AbortSignal.timeout / Cloudflare (~100s) / Safari « Load failed » / Chrome « Failed to fetch »
+      if (name === 'AbortError' || name === 'TimeoutError'
+          || /aborted|timeout|timed out|load failed|failed to fetch|networkerror/i.test(msg)) {
+        const isTimeout = name === 'AbortError' || name === 'TimeoutError'
+          || /aborted|timeout|timed out/i.test(msg);
+        return {
+          ok: false,
+          status: 0,
+          data: {
+            code: isTimeout ? 'timeout' : 'network',
+            hint: isTimeout
+              ? 'Léo a dépassé le délai (Cloudflare ~100s). Réessaie avec une demande plus courte.'
+              : 'Connexion coupée (réseau / Safari / Cloudflare). Réessaie.',
+          },
+          error: isTimeout
+            ? `délai dépassé (~${Math.round(ms / 1000)}s)`
+            : 'échec réseau (Load failed)',
+        };
+      }
+      return { ok: false, status: 0, data: null, error: msg || 'network' };
     }
   }
 
@@ -398,10 +422,12 @@ var API = (() => {
   }
 
   async function leoChat(body) {
+    // Stay under Cloudflare proxy limit (~100s) so we surface a clean timeout
+    // instead of a raw « Fetch is aborted ».
     return requestJSON('/leo/chat', {
       method: 'POST',
       body: JSON.stringify(body || {}),
-      timeoutMs: 120000,
+      timeoutMs: 95000,
     });
   }
 
