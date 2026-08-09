@@ -432,7 +432,7 @@ var App = (() => {
 
     let html = `<div class="page-header"><h1>⚙️ Plus</h1></div>`;
 
-    // ── Lists section ──
+    // ── Lists → Documents → Voyage actif ──
     if (tripData?.lists && Object.keys(tripData.lists).length > 0) {
       html += `<div class="section-title">📋 Listes</div>`;
       Object.entries(tripData.lists).forEach(([id, list]) => {
@@ -453,6 +453,17 @@ var App = (() => {
         </div>`;
       });
     }
+
+    // Traveler documents (from people.js) — collapsed by default
+    if (typeof BookingsView !== 'undefined' && BookingsView.renderDocumentsCollapsed) {
+      html += BookingsView.renderDocumentsCollapsed(tripData);
+    }
+
+    // ── Trip selector ──
+    html += `<div class="section-title" style="margin-top:24px">🌍 Voyage actif</div>`;
+    html += `<div id="plus-trip-selector"></div>`;
+    html += `<div id="plus-publish-panel"></div>`;
+    html += `<div id="plus-leo-chat-stream"></div>`;
 
     // ── Checklist valise (standalone page) ──
     html += `<div class="section-title" style="margin-top:24px">🧳 Valise</div>`;
@@ -479,12 +490,6 @@ var App = (() => {
         <span class="trip-arrow">›</span>
       </a>`;
     }
-
-    // ── Trip selector ──
-    html += `<div class="section-title" style="margin-top:24px">🌍 Voyage actif</div>`;
-    html += `<div id="plus-trip-selector"></div>`;
-    html += `<div id="plus-publish-panel"></div>`;
-    html += `<div id="plus-leo-chat-stream"></div>`;
 
     // ── Install guide (shown only if not already installed) ──
     const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
@@ -560,6 +565,10 @@ var App = (() => {
     </div>`;
 
     container.innerHTML = html;
+
+    if (typeof BookingsView !== 'undefined' && BookingsView.bindDocumentsCollapse) {
+      BookingsView.bindDocumentsCollapse(container);
+    }
 
     // Render TripSelector into its placeholder
     const selectorEl = document.getElementById('plus-trip-selector');

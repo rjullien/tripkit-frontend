@@ -1,5 +1,6 @@
 /**
  * bookings-view.js — Onglet Résa : vols, voiture, ferry, events, hôtels.
+ * Documents voyageurs → onglet Plus (section repliable).
  *
  * Tags: same language as hotel amenities — `.badge` chips + cancellation 🟢🔴⚠️.
  */
@@ -110,13 +111,25 @@ var BookingsView = (() => {
     return false;
   }
 
-  /** Documents from people.js (per traveler on this trip). */
-  function renderDocumentsSection(tripData) {
+  /** Count traveler documents for Plus header badge. */
+  function countDocuments(tripData) {
+    if (typeof PeopleHelpers === 'undefined') return 0;
+    let n = 0;
+    PeopleHelpers.withDocuments(tripData).forEach((person) => {
+      (person.documents || []).forEach((doc) => {
+        if (doc && typeof doc === 'object') n++;
+      });
+    });
+    return n;
+  }
+
+  /** Document booking cards (shared body for Plus collapse). */
+  function renderDocumentsCards(tripData) {
     if (typeof PeopleHelpers === 'undefined') return '';
     const folks = PeopleHelpers.withDocuments(tripData);
     if (!folks.length) return '';
 
-    let html = sectionTitle('🛂', 'Documents');
+    let html = '';
     folks.forEach((person) => {
       (person.documents || []).forEach((doc) => {
         if (!doc || typeof doc !== 'object') return;
@@ -154,6 +167,46 @@ var BookingsView = (() => {
       });
     });
     return html;
+  }
+
+  /**
+   * Plus tab: Documents collapsed by default (click header to expand).
+   * Empty when no traveler docs on this trip.
+   */
+  function renderDocumentsCollapsed(tripData) {
+    const cards = renderDocumentsCards(tripData);
+    if (!cards) return '';
+    const n = countDocuments(tripData);
+    // Same rhythm as Listes / Voyage actif: section title is the click target.
+    return `<div class="section-wrap plus-docs-wrap" id="plus-docs-wrap" style="margin-top:24px;border:none;background:transparent">
+        <div class="section-head collapsed plus-docs-head" id="plus-docs-head" role="button" tabindex="0"
+          aria-expanded="false" aria-controls="plus-docs-body">
+          <span class="s-emoji">🛂</span>
+          <span class="s-title">Documents</span>
+          <span class="s-count">${n}</span>
+          <span class="s-chevron">▼</span>
+        </div>
+        <div class="section-body hidden plus-docs-body" id="plus-docs-body">${cards}</div>
+      </div>`;
+  }
+
+  function bindDocumentsCollapse(root) {
+    const head = (root || document).querySelector('#plus-docs-head');
+    const body = (root || document).querySelector('#plus-docs-body');
+    if (!head || !body || head.dataset.bound === '1') return;
+    head.dataset.bound = '1';
+    const toggle = () => {
+      const open = body.classList.toggle('hidden') === false;
+      head.classList.toggle('collapsed', !open);
+      head.setAttribute('aria-expanded', open ? 'true' : 'false');
+    };
+    head.addEventListener('click', toggle);
+    head.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        toggle();
+      }
+    });
   }
 
   function renderFlightsSection(flights) {
@@ -411,7 +464,6 @@ var BookingsView = (() => {
       <div class="sub">${tripData.trip ? esc(tripData.trip.name) : ''}</div>
     </div>`;
 
-    html += renderDocumentsSection(tripData);
     html += renderFlightsSection(tripData.flights);
     html += renderCarRentalSection(tripData.carRental);
     // ferries[] (multi) preferred; ferry (singular) kept for quebec-style seeds
@@ -427,5 +479,11 @@ var BookingsView = (() => {
     container.innerHTML = html;
   }
 
-  return { render, renderBookingTags, cancellationBadge };
+  return {
+    render,
+    renderBookingTags,
+    cancellationBadge,
+    renderDocumentsCollapsed,
+    bindDocumentsCollapse,
+  };
 })();

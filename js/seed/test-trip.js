@@ -12,8 +12,8 @@ var SEED_TEST_TRIP = {
     mapImage: "map-overview.png",
     routeUrl: "https://www.google.com/maps/d/viewer?mid=test-route",
     travelers: [
-      { name: "Alice", emoji: "👩", role: "owner" },
-      { name: "Bob", emoji: "👨", role: "traveler" }
+      { personId: "alice", role: "owner" },
+      { personId: "bob", role: "traveler" }
     ],
     phases: [
       { name: "City", label: "CITY — Exploration", range: [0, 1] },
@@ -148,6 +148,25 @@ var SEED_TEST_TRIP = {
       ]
     }
   ],
+  people: {
+    alice: {
+      id: "alice",
+      name: "Alice",
+      emoji: "👩",
+      documents: [
+        { type: "passport", label: "Passeport", number: "X1234567", expiry: "2030-01-15" },
+        { type: "esta-usa", label: "ESTA USA", number: "ESTA-TEST-1", passport: "X1234567", approved: "2026-01-10" }
+      ]
+    },
+    bob: {
+      id: "bob",
+      name: "Bob",
+      emoji: "👨",
+      documents: [
+        { type: "passport", label: "Passeport", number: "Y7654321", expiry: "2029-06-01" }
+      ]
+    }
+  },
   lists: {
     "checklist-test": {
       id: "checklist-test",
