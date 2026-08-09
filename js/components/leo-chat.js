@@ -13,6 +13,62 @@ var LeoChat = (() => {
     }[c]));
   }
 
+  /** Human-readable Leo/Hermes failure (avoid bare « Erreur : error »). */
+  function formatLeoError(res) {
+    const data = (res && res.data) || {};
+    const status = (res && res.status) || 0;
+    const code = typeof data.code === 'string' ? data.code : '';
+
+    let detail = '';
+    const rawErr = data.error;
+    if (typeof rawErr === 'string' && rawErr.trim()) {
+      detail = rawErr.trim();
+    } else if (rawErr && typeof rawErr === 'object') {
+      detail = String(rawErr.message || rawErr.msg || '').trim()
+        || JSON.stringify(rawErr);
+    } else if (typeof data.raw === 'string' && data.raw.trim()) {
+      detail = data.raw.trim().slice(0, 240);
+    } else if (typeof (res && res.error) === 'string' && res.error.trim()) {
+      detail = res.error.trim();
+    }
+
+    // requestJSON / fetch fallbacks that are not useful alone
+    if (/^(error|failed|Échec)$/i.test(detail)) detail = '';
+
+    const byCode = {
+      missing_hermes_key: 'clé Hermes absente (Infisical hermes-api-key)',
+      leo_chat_failed: 'échec de l’appel à Hermes',
+    };
+    const byStatus = {
+      0: 'réseau ou délai dépassé',
+      401: 'session non authentifiée',
+      403: 'accès refusé',
+      408: 'délai dépassé',
+      502: 'Hermes injoignable (Bad Gateway)',
+      503: 'Léo indisponible côté serveur',
+      504: 'délai dépassé vers Hermes',
+    };
+
+    const parts = [];
+    if (status) parts.push(`HTTP ${status}`);
+    if (detail) {
+      if (code && !detail.includes(code)) parts.push(code);
+      parts.push(detail);
+    } else if (code && byCode[code]) {
+      parts.push(byCode[code]);
+    } else if (byStatus[status]) {
+      parts.push(byStatus[status]);
+    } else if (code) {
+      parts.push(code);
+    } else {
+      parts.push('échec sans détail (réponse vide)');
+    }
+    if (typeof data.hint === 'string' && data.hint.trim()) {
+      parts.push(data.hint.trim());
+    }
+    return parts.join(' — ');
+  }
+
   async function loadStatus() {
     const res = await API.getLeoStatus();
     if (!res.ok || !res.data) {
@@ -112,10 +168,9 @@ var LeoChat = (() => {
     });
 
     if (!res.ok) {
-      const err = (res.data && res.data.error) || res.error || 'Échec';
       _history.push({
         role: 'assistant',
-        content: 'Erreur : ' + err,
+        content: 'Erreur : ' + formatLeoError(res),
       });
       paintThread();
       setBusy(false);
