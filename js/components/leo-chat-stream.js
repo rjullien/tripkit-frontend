@@ -1,6 +1,6 @@
 /**
- * leo-chat-stream.js — Second Plus box: streaming Leo via BE SSE proxy.
- * Keeps the sync LeoChat box untouched.
+ * leo-chat-stream.js — Plus « Parler à Léo » (SSE via BE → Hermes).
+ * The sync LeoChat box was removed from the UI; BE POST /leo/chat remains for curl.
  */
 var LeoChatStream = (() => {
   let _status = null;
@@ -31,10 +31,13 @@ var LeoChatStream = (() => {
     const ready = !!(_status && _status.ready);
     const dash = (_status && _status.dashboardUrl) || 'https://hermes-leo.bapttf.com';
 
+    const tg = _status && _status.telegramUrl;
     container.innerHTML = `<div class="leo-section leo-stream-section">
-      <h3 class="section-title">Léo streaming</h3>
-      <p class="leo-hint">Même Léo, en <strong>SSE</strong> — tokens + progress tools en direct
-        (tient derrière Cloudflare grâce aux keepalives). Pour un test rapide sync → boîte du dessus.</p>
+      <h3 class="section-title">Parler à Léo</h3>
+      <p class="leo-hint">Modifs seed (voyage) en <strong>stream</strong> — tokens + outils en direct.
+        Gros chantier hors app → <a href="${escapeHtml(dash)}" target="_blank" rel="noopener">Dashboard</a>${
+          tg ? ` / <a href="${escapeHtml(tg)}" target="_blank" rel="noopener">Telegram</a>` : ''
+        }.</p>
       <div class="leo-thread" id="leo-stream-thread"></div>
       <div class="leo-stream-status" id="leo-stream-status" hidden></div>
       <div class="leo-wait" id="leo-stream-wait" hidden>
@@ -46,7 +49,7 @@ var LeoChatStream = (() => {
           placeholder="Ex. Dans quebec-2026, ajoute une note Day 12…"
           ${!ready || !navigator.onLine ? 'disabled' : ''}></textarea>
         <button type="submit" class="btn btn-primary" id="leo-stream-send"
-          ${!ready || !navigator.onLine ? 'disabled' : ''}>Streamer</button>
+          ${!ready || !navigator.onLine ? 'disabled' : ''}>Envoyer</button>
       </form>
       ${!ready ? `<div class="leo-banner">Léo non prêt — <a href="${escapeHtml(dash)}" target="_blank" rel="noopener">Dashboard</a></div>` : ''}
     </div>`;
@@ -96,7 +99,7 @@ var LeoChatStream = (() => {
     const wait = document.getElementById('leo-stream-wait');
     if (btn) {
       btn.disabled = on || !(_status && _status.ready) || !navigator.onLine;
-      btn.textContent = on ? 'Streaming…' : 'Streamer';
+      btn.textContent = on ? 'Léo…' : 'Envoyer';
     }
     if (input) input.disabled = on || !(_status && _status.ready) || !navigator.onLine;
     if (wait) wait.hidden = !on;
