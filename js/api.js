@@ -215,6 +215,66 @@ var API = (() => {
     return safeFetch(`/trips/${tripId}/seed`);
   }
 
+  // ── Explicit request (publish / jobs — keeps status + body) ───────────────
+
+  /**
+   * Fetch JSON and preserve HTTP status/errors (unlike safeFetch).
+   * @returns {{ ok: boolean, status: number, data: any, error?: string }}
+   */
+  async function requestJSON(path, options = {}, _retried = false) {
+    if (!navigator.onLine) {
+      return { ok: false, status: 0, data: null, error: 'offline' };
+    }
+    try {
+      const token = getToken();
+      const headers = {
+        'Content-Type': 'application/json',
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+        ...options.headers,
+      };
+      const res = await fetch(url(path), {
+        ...options,
+        headers,
+        signal: AbortSignal.timeout(options.timeoutMs || 15000),
+      });
+      if (res.status === 401 && token && !_retried) {
+        clearToken();
+        return requestJSON(path, options, true);
+      }
+      let data = null;
+      const text = await res.text();
+      if (text) {
+        try { data = JSON.parse(text); } catch (_) { data = { raw: text }; }
+      }
+      if (!res.ok) {
+        return {
+          ok: false,
+          status: res.status,
+          data,
+          error: (data && (data.error || data.code)) || res.statusText || 'error',
+        };
+      }
+      return { ok: true, status: res.status, data };
+    } catch (e) {
+      return { ok: false, status: 0, data: null, error: e.message || 'network' };
+    }
+  }
+
+  async function getPublishSources() {
+    return requestJSON('/publish/sources');
+  }
+
+  async function createPublishJob(body) {
+    return requestJSON('/publish/jobs', {
+      method: 'POST',
+      body: JSON.stringify(body || {}),
+    });
+  }
+
+  async function getPublishJob(jobId) {
+    return requestJSON(`/publish/jobs/${encodeURIComponent(jobId)}`);
+  }
+
   // ── Public API ────────────────────────────────────────────────────────────
 
   /**
@@ -237,6 +297,7 @@ var API = (() => {
     getHotels,
     getLists, getList, syncList, backgroundSyncTrip,
     checkVersion, fetchSeed,
+    requestJSON, getPublishSources, createPublishJob, getPublishJob,
     assetUrl, getBaseUrl,
   };
 })();

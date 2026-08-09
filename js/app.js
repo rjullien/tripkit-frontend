@@ -418,6 +418,7 @@ var App = (() => {
     // ── Trip selector ──
     html += `<div class="section-title" style="margin-top:24px">🌍 Voyage actif</div>`;
     html += `<div id="plus-trip-selector"></div>`;
+    html += `<div id="plus-publish-panel"></div>`;
 
     // ── Install guide (shown only if not already installed) ──
     const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
@@ -497,6 +498,15 @@ var App = (() => {
     // Render TripSelector into its placeholder
     const selectorEl = document.getElementById('plus-trip-selector');
     if (selectorEl) TripSelector.render(selectorEl);
+
+    // Publish from git (sources filtered server-side; disabled until registry enabled)
+    const publishEl = document.getElementById('plus-publish-panel');
+    if (publishEl && typeof PublishPanel !== 'undefined') {
+      PublishPanel.loadSources().then(() => {
+        PublishPanel.renderSection(publishEl);
+        PublishPanel.resumeIfNeeded();
+      });
+    }
 
     // If /health hasn't resolved yet (or failed earlier), retry now that the
     // Plus DOM exists — paintBackendVersion will fill #tripkit-backend-info.
