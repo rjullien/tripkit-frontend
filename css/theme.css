@@ -1198,6 +1198,19 @@ a:visited { color: var(--accent); }
   color: var(--text);
 }
 .leo-hint a { color: var(--sec); }
+.leo-stream-section { margin-top: 28px; padding-top: 8px; border-top: 1px solid rgba(255,255,255,.06); }
+.leo-stream-status {
+  font-size: .78em; color: var(--muted); margin: 0 0 8px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+.leo-msg.leo-live .leo-bubble::after {
+  content: '▍
+  animation: leo-caret 1s step-end infinite;
+  margin-left: 2px; color: var(--sec);
+}
+@keyframes leo-caret {
+  50% { opacity: 0; }
+}
 
 /* ── Weather modal ──────────────────────────────────────────── */
 .weather-modal-overlay {

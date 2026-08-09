@@ -485,6 +485,7 @@ var App = (() => {
     html += `<div id="plus-trip-selector"></div>`;
     html += `<div id="plus-publish-panel"></div>`;
     html += `<div id="plus-leo-chat"></div>`;
+    html += `<div id="plus-leo-chat-stream"></div>`;
 
     // ── Install guide (shown only if not already installed) ──
     const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
@@ -578,6 +579,10 @@ var App = (() => {
     const leoEl = document.getElementById('plus-leo-chat');
     if (leoEl && typeof LeoChat !== 'undefined') {
       LeoChat.loadStatus().then(() => LeoChat.renderSection(leoEl));
+    }
+    const leoStreamEl = document.getElementById('plus-leo-chat-stream');
+    if (leoStreamEl && typeof LeoChatStream !== 'undefined') {
+      LeoChatStream.loadStatus().then(() => LeoChatStream.renderSection(leoStreamEl));
     }
 
     // If /health hasn't resolved yet (or failed earlier), retry now that the

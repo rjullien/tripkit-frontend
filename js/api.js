@@ -446,6 +446,115 @@ var API = (() => {
     });
   }
 
+  /**
+   * Stream Leo chat (SSE). Yields { event, data } objects.
+   * Events: delta | tool | done | error
+   * @param {{ tripId?: string, messages: Array<{role:string,content:string}>, signal?: AbortSignal }} body
+   */
+  async function* leoChatStream(body = {}) {
+    if (!navigator.onLine) {
+      yield { event: 'error', data: { code: 'network', error: 'offline' } };
+      return;
+    }
+    const { signal, ...payload } = body || {};
+    const token = getToken();
+    const headers = {
+      'Content-Type': 'application/json',
+      Accept: 'text/event-stream',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    };
+    let res;
+    try {
+      res = await fetch(url('/leo/chat/stream'), {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(payload),
+        signal,
+      });
+    } catch (e) {
+      const name = e && e.name;
+      const cancelled = !!(signal && signal.aborted);
+      yield {
+        event: 'error',
+        data: {
+          code: cancelled ? 'cancelled' : (name === 'AbortError' ? 'timeout' : 'network'),
+          error: cancelled ? 'Annulé.' : 'Connexion coupée.',
+        },
+      };
+      return;
+    }
+    if (!res.ok) {
+      let data = null;
+      try { data = await res.json(); } catch (_) {}
+      yield {
+        event: 'error',
+        data: {
+          code: (data && data.code) || 'leo_chat_failed',
+          error: (data && data.error) || `HTTP ${res.status}`,
+        },
+      };
+      return;
+    }
+    setReachable(true);
+    if (!res.body || !res.body.getReader) {
+      yield { event: 'error', data: { code: 'leo_chat_failed', error: 'Streaming non supporté' } };
+      return;
+    }
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buf = '';
+    let eventName = '';
+    let dataLines = [];
+
+    const flush = function* () {
+      if (!dataLines.length) { eventName = ''; return; }
+      const raw = dataLines.join('\n');
+      dataLines = [];
+      const ev = eventName || 'message';
+      eventName = '';
+      let data = raw;
+      try { data = JSON.parse(raw); } catch (_) {}
+      yield { event: ev, data };
+    };
+
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buf += decoder.decode(value, { stream: true });
+        const parts = buf.split('\n');
+        buf = parts.pop() || '';
+        for (const line of parts) {
+          if (line === '') {
+            yield* flush();
+            continue;
+          }
+          if (line.startsWith(':')) continue; // keepalive
+          if (line.startsWith('event:')) {
+            eventName = line.slice(6).trim();
+            continue;
+          }
+          if (line.startsWith('data:')) {
+            dataLines.push(line.slice(5).trim());
+          }
+        }
+      }
+      if (buf) {
+        // trailing incomplete line — ignore
+      }
+      yield* flush();
+    } catch (e) {
+      const cancelled = !!(signal && signal.aborted);
+      yield {
+        event: 'error',
+        data: {
+          code: cancelled ? 'cancelled' : 'network',
+          error: cancelled ? 'Annulé.' : ((e && e.message) || 'stream interrompu'),
+        },
+      };
+    }
+  }
+
   // ── Public API ────────────────────────────────────────────────────────────
 
   /**
@@ -469,7 +578,7 @@ var API = (() => {
     getLists, getList, syncList, backgroundSyncTrip, flushOutbox,
     checkVersion, checkVersionStatus, fetchSeed,
     requestJSON, getPublishSources, createPublishJob, getPublishJob,
-    getLeoStatus, leoChat,
+    getLeoStatus, leoChat, leoChatStream,
     assetUrl, getBaseUrl,
     probe, isReachable, getReachability, onReachabilityChange,
   };

@@ -85,9 +85,10 @@ var LeoChat = (() => {
 
     let html = `<div class="leo-section">
       <h3 class="section-title">Parler à Léo</h3>
-      <p class="leo-hint">Demandes <strong>courtes</strong> (une note, un statut).
-        Gros chantier seed → <a href="${escapeHtml(dash)}" target="_blank" rel="noopener">Dashboard</a>${
-          tg ? ` ou <a href="${escapeHtml(tg)}" target="_blank" rel="noopener">Telegram</a>` : ''
+      <p class="leo-hint">Mode <strong>sync</strong> — demandes courtes (timeout ~45s).
+        Plus long → boîte <em>Léo streaming</em> dessous, ou
+        <a href="${escapeHtml(dash)}" target="_blank" rel="noopener">Dashboard</a>${
+          tg ? ` / <a href="${escapeHtml(tg)}" target="_blank" rel="noopener">Telegram</a>` : ''
         }.</p>`;
 
     if (!ready) {
