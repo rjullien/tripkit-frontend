@@ -131,11 +131,11 @@ var PublishPanel = (() => {
   function showErrors(el, res) {
     if (!el) return;
     const errs = (res.data && res.data.errors) || [];
-    const msg = res.error || 'Échec';
+    const msg = res.error || (res.data && res.data.error) || 'Échec';
     let body = `<div class="publish-errors"><strong>${escapeHtml(msg)}</strong>`;
     if (errs.length) {
       body += `<pre>${escapeHtml(errs.map(e => e.message || e).join('\n'))}</pre>`;
-    } else if (res.data && res.data.error) {
+    } else if (res.data && res.data.error && res.data.error !== msg) {
       body += `<pre>${escapeHtml(res.data.error)}</pre>`;
     }
     body += `<button type="button" class="btn" onclick="this.closest('.publish-errors').remove()">Fermer</button></div>`;
