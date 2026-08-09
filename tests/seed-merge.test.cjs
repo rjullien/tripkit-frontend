@@ -45,6 +45,7 @@ function quebecSeed() {
         meteoHtml: 'quebec-meteo.html',
         mapImage: 'route.jpg',
         homeTz: 'Europe/Paris',
+        people: { alice: { id: 'alice', name: 'Alice', documents: [] } },
         users: { alice: { city: 'Paris' } },
         sharedLinks: [{ label: 'Drive', url: 'https://example.invalid' }],
         locations: { montreal: { lat: 45.5, lon: -73.5, tz: 'America/Toronto' } },
@@ -127,13 +128,15 @@ test('trip.data collections land at the top level', () => {
 });
 
 test('TRIP_DATA_COLLECTIONS lists every booking collection BookingsView needs', () => {
-  ['flights', 'carRental', 'ferry', 'ferries', 'events', 'hotels'].forEach(f => {
+  ['flights', 'carRental', 'ferry', 'ferries', 'events', 'hotels', 'people'].forEach(f => {
     assert.ok(SeedMerge.TRIP_DATA_COLLECTIONS.includes(f), `${f} missing from TRIP_DATA_COLLECTIONS`);
   });
+  assert.strictEqual(SeedMerge.merge(quebecSeed(), {}).people.alice.name, 'Alice', 'people dropped');
   const importSrc = fs.readFileSync('seed-import.cjs', 'utf8');
   ['flights', 'carRental', 'ferry', 'ferries', 'events'].forEach(f => {
     assert.ok(importSrc.includes(`${f}: SEED.${f}`), `seed-import.cjs does not inject ${f}`);
   });
+  assert.ok(importSrc.includes('people:'), 'seed-import.cjs does not inject people');
 });
 
 test('incremental refresh keeps previously known meta when trip.data omits it', () => {

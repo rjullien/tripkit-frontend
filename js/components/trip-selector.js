@@ -36,6 +36,7 @@ var TripSelector = (() => {
                   travelers: extra.travelers || [],
                   phases: extra.phases || [],
                 },
+                people: extra.people || {},
                 days: [],
                 hotels: Array.isArray(extra.hotels)
                   ? extra.hotels.reduce((d, h) => { if (h.id) d[h.id] = h; return d; }, {})
@@ -81,7 +82,11 @@ var TripSelector = (() => {
         <div class="trip-info">
           <div class="trip-name">${escapeHtml(trip.name || id)}</div>
           ${dateStr ? `<div class="trip-dates">${dateStr}</div>` : ''}
-          ${trip.travelers ? `<div class="trip-dates">${trip.travelers.map(t => t.name).join(', ')}</div>` : ''}
+          ${trip.travelers ? `<div class="trip-dates">${trip.travelers.map(t =>
+            (typeof PeopleHelpers !== 'undefined')
+              ? PeopleHelpers.displayName(t, data.people)
+              : (t.name || t.personId || '?')
+          ).join(', ')}</div>` : ''}
         </div>
         <span class="trip-arrow">${isActive ? '✓' : '›'}</span>
       </div>`;
