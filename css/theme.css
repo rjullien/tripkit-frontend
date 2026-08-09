@@ -1158,6 +1158,36 @@ a:visited { color: var(--accent); }
 }
 .publish-modal-list { margin: 12px 0; padding-left: 18px; font-size: .9em; color: var(--muted); line-height: 1.7; }
 
+/* ── Leo chat (Hermes proxy) ────────────────────────────────── */
+.leo-section { margin-top: 24px; }
+.leo-hint { font-size: .82em; color: var(--muted); margin: 0 0 12px; line-height: 1.4; }
+.leo-banner {
+  border: 1px solid var(--orange); border-radius: 10px; padding: 12px;
+  background: rgba(210,153,34,.08); font-size: .85em; color: var(--text); margin-bottom: 12px;
+}
+.leo-fallback { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+.leo-thread {
+  max-height: 280px; overflow: auto; padding: 8px 0;
+  border-top: 1px solid rgba(255,255,255,.06);
+  border-bottom: 1px solid rgba(255,255,255,.06);
+  margin-bottom: 10px;
+}
+.leo-empty { font-size: .82em; color: var(--muted); padding: 8px 0; }
+.leo-msg { margin: 10px 0; }
+.leo-msg.user .leo-bubble { background: rgba(88,166,255,.12); }
+.leo-msg.assistant .leo-bubble { background: rgba(255,255,255,.04); }
+.leo-who { font-size: .72em; color: var(--muted); margin-bottom: 4px; font-weight: 600; }
+.leo-bubble {
+  border-radius: 10px; padding: 10px 12px; font-size: .88em; line-height: 1.45;
+  white-space: pre-wrap; word-break: break-word; color: var(--text);
+}
+.leo-compose { display: flex; flex-direction: column; gap: 8px; }
+.leo-compose textarea {
+  width: 100%; resize: vertical; min-height: 72px;
+  border-radius: 10px; border: 1px solid rgba(255,255,255,.12);
+  background: var(--bg); color: var(--text); padding: 10px 12px; font: inherit;
+}
+
 /* ── Weather modal ──────────────────────────────────────────── */
 .weather-modal-overlay {
   position: fixed; inset: 0;

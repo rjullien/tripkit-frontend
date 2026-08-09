@@ -4,7 +4,7 @@
  * Bump CACHE_NAME when deploying new versions.
  */
 
-const CACHE_NAME = 'tripkit-71';
+const CACHE_NAME = 'tripkit-72';
 
 const ASSETS = [
   '/',
@@ -34,6 +34,7 @@ const ASSETS = [
   '/js/components/weather.js',
   '/js/components/trip-selector.js',
   '/js/components/publish-panel.js',
+  '/js/components/leo-chat.js',
   '/js/components/route-view.js',
   '/js/components/culture-view.js',
   '/js/lib/qrcode-svg.min.js',
