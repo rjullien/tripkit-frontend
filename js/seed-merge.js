@@ -99,11 +99,16 @@ var SeedMerge = (() => {
     }
 
     // ── Hotels: merge into days by day_num ───────────────────────────────────
+    // Legacy path: hotel rows can carry wifi/etc. onto the day.
+    // NEVER attach a hotel onto a day without hotelId (J0 = maison) — stale
+    // hotels.day_num=0 would otherwise force Montréal onto the packing day.
     if (seed.hotels && seed.hotels.length) {
       seed.hotels.forEach(h => {
         const hData = parseMaybeJson(h.data, {}) || {};
         const day = tripData.days && tripData.days.find(d => d.day === h.day_num);
-        if (day) Object.assign(day, hData);
+        if (!day || !day.hotelId) return;
+        if (hData.hotelId && hData.hotelId !== day.hotelId) return;
+        Object.assign(day, hData);
       });
     }
 
