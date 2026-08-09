@@ -151,7 +151,14 @@ var DailyView = (() => {
     // ── Timeline ───────────────────────────────────────────────────────────
     if (day.timeline && day.timeline.length) {
       html += `<div class="section-title">📋 Programme</div>`;
-      html += Timeline.render(day.timeline, { restaurants: tripData.restaurants || {} });
+      const homeTz = (typeof TzHelpers !== 'undefined')
+        ? TzHelpers.homeTz(tripData.trip || {})
+        : ((tripData.trip && tripData.trip.homeTz) || 'Europe/Paris');
+      html += Timeline.render(day.timeline, {
+        restaurants: tripData.restaurants || {},
+        homeTz,
+        dayDate: day._isoDate || '',
+      });
     }
 
     // ── Highlights ─────────────────────────────────────────────────────────

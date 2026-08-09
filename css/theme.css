@@ -568,6 +568,16 @@ a:visited { color: var(--accent); }
   min-width: 48px;
   flex-shrink: 0;
   padding-top: 1px;
+  line-height: 1.25;
+}
+
+/* Secondary = fixed home/Nice time when timeline[].tz ≠ trip.homeTz */
+.tl-time-home {
+  display: block;
+  font-weight: 500;
+  font-size: 0.85em;
+  opacity: 0.55;
+  white-space: nowrap;
 }
 
 .tl-desc {

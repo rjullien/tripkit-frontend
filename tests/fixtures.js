@@ -72,6 +72,7 @@ export const test = base.extend({
                 events: SEED.events || null,
                 sharedLinks: SEED.trip.sharedLinks,
                 users: SEED.trip.users,
+                homeTz: SEED.trip.homeTz || 'Europe/Paris',
               },
             },
             days: SEED.days.map(d => ({ day_num: d.day, data: d })),

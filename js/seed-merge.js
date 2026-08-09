@@ -31,6 +31,7 @@ var SeedMerge = (() => {
     'routeUrl',    // full trip route on Google Maps
     'users',
     'sharedLinks',
+    'homeTz',      // IANA home TZ for timeline dual times (default Europe/Paris)
   ];
 
   /** Top-level tripData collections carried in trip.data (see seed-import.cjs). */
