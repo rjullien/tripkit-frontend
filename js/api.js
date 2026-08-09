@@ -379,6 +379,18 @@ var API = (() => {
     return requestJSON(`/publish/jobs/${encodeURIComponent(jobId)}`);
   }
 
+  async function getLeoStatus() {
+    return requestJSON('/leo/status');
+  }
+
+  async function leoChat(body) {
+    return requestJSON('/leo/chat', {
+      method: 'POST',
+      body: JSON.stringify(body || {}),
+      timeoutMs: 120000,
+    });
+  }
+
   // ── Public API ────────────────────────────────────────────────────────────
 
   /**
@@ -402,6 +414,7 @@ var API = (() => {
     getLists, getList, syncList, backgroundSyncTrip, flushOutbox,
     checkVersion, checkVersionStatus, fetchSeed,
     requestJSON, getPublishSources, createPublishJob, getPublishJob,
+    getLeoStatus, leoChat,
     assetUrl, getBaseUrl,
     probe, isReachable, getReachability, onReachabilityChange,
   };
