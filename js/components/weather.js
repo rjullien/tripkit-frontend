@@ -8,13 +8,21 @@ var Weather = (() => {
   const WMO_ICONS = {0:'☀️',1:'🌤️',2:'⛅',3:'☁️',45:'🌫️',48:'🌫️',51:'🌦️',53:'🌧️',55:'🌧️',61:'🌦️',63:'🌧️',65:'🌧️',71:'❄️',73:'❄️',75:'❄️',80:'🌦️',81:'🌧️',82:'⛈️',95:'⚡',96:'⚡',99:'⚡'};
   const WMO_DESC = {0:'Ciel dégagé',1:'Peu nuageux',2:'Partiellement nuageux',3:'Couvert',45:'Brouillard',48:'Brouillard givrant',51:'Bruine légère',53:'Bruine',55:'Bruine forte',61:'Pluie légère',63:'Pluie',65:'Forte pluie',71:'Neige légère',73:'Neige',75:'Forte neige',80:'Averses légères',81:'Averses',82:'Averses violentes',95:'Orage',96:'Orage grêle',99:'Orage grêle forte'};
 
+  /** Open-Meteo forecast window (~16 days from today). */
+  const FORECAST_MAX_DAYS = 16;
+  const MSG_TOO_FAR = 'Météo pas encore dispo (prévisions 16j max)';
+  const MSG_OFFLINE = 'Météo indisponible hors ligne';
+  const MSG_ERROR = 'Météo indisponible';
+
   const cache = {};
   const detailCache = {};
 
+  function mutedMsg(text) {
+    return `<div style="text-align:center;color:var(--muted);font-size:.82em;padding:8px"><em>${text}</em></div>`;
+  }
+
   /**
    * Resolve trip start date dynamically from Store.
-   * Falls back to day.date string ("18 avr" etc.) if available,
-   * or returns null if no data found.
    */
   function getTripStart() {
     const tripId = Store.getCurrentTripId();
@@ -28,10 +36,11 @@ var Weather = (() => {
 
   /**
    * Get ISO date string for a given day number.
-   * Uses trip.startDate from backend data — no hardcoded dates.
-   * Falls back to approximate date if day has geo.tz (for forecast queries).
+   * Prefer DayHelpers._isoDate when present (UTC-safe).
    */
   function dayDate(dayNum, day) {
+    if (day && day._isoDate) return day._isoDate;
+    if (day && day.isoDate) return day.isoDate;
     // Primary: compute from trip start date
     // startDate = Day 1, so date = startDate + (dayNum - 1)
     const start = getTripStart();
@@ -40,10 +49,37 @@ var Weather = (() => {
       d.setDate(d.getDate() + dayNum - 1);
       return d.toISOString().split('T')[0];
     }
-    // Fallback: if the day object has a parseable date field (e.g. "2026-04-18")
-    if (day && day.isoDate) return day.isoDate;
     // Last resort: today (weather for "today" is always available)
     return new Date().toISOString().split('T')[0];
+  }
+
+  /** Days from local today to isoDate (positive = future). */
+  function daysFromToday(isoDate) {
+    if (!isoDate) return 0;
+    const today = new Date();
+    today.setHours(12, 0, 0, 0);
+    const d = new Date(String(isoDate).slice(0, 10) + 'T12:00:00');
+    if (isNaN(d.getTime())) return 0;
+    return Math.round((d.getTime() - today.getTime()) / 86400000);
+  }
+
+  function isBeyondForecast(isoDate) {
+    return daysFromToday(isoDate) > FORECAST_MAX_DAYS;
+  }
+
+  function isOutOfRangeReason(reason) {
+    return /out of allowed range/i.test(String(reason || ''));
+  }
+
+  /**
+   * User-facing message for a failed weather fetch.
+   * Too-far / API range ≠ offline.
+   */
+  function errorMessage(err, apiBody) {
+    if (!navigator.onLine) return MSG_OFFLINE;
+    const reason = (apiBody && apiBody.reason) || (err && err.message) || '';
+    if (isOutOfRangeReason(reason) || (err && err.code === 'TOO_FAR')) return MSG_TOO_FAR;
+    return MSG_ERROR;
   }
 
   /**
@@ -64,6 +100,14 @@ var Weather = (() => {
     const dateStr = dayDate(day.day, day);
     const cacheKey = `${day.geo.lat},${day.geo.lon},${dateStr}`;
 
+    // Beyond Open-Meteo window — don't pretend we're offline
+    if (isBeyondForecast(dateStr)) {
+      container.innerHTML = mutedMsg(MSG_TOO_FAR);
+      container.style.cursor = 'default';
+      container.onclick = null;
+      return;
+    }
+
     // Show loading
     container.innerHTML = '<div style="text-align:center;color:var(--muted);font-size:.85em;padding:8px">🌤️ Chargement météo…</div>';
     container.style.cursor = 'pointer';
@@ -74,12 +118,22 @@ var Weather = (() => {
     try {
       const url = `https://api.open-meteo.com/v1/forecast?latitude=${day.geo.lat}&longitude=${day.geo.lon}&daily=weathercode,temperature_2m_max,temperature_2m_min,precipitation_probability_max,windspeed_10m_max,uv_index_max&timezone=${encodeURIComponent(day.geo.tz || 'UTC')}&start_date=${dateStr}&end_date=${dateStr}`;
       const resp = await fetch(url);
-      if (!resp.ok) throw new Error('API error');
-      const data = await resp.json();
-      const daily = data.daily;
+      let data = null;
+      try { data = await resp.json(); } catch (_) { data = null; }
+
+      if (!resp.ok) {
+        container.innerHTML = mutedMsg(errorMessage(new Error((data && data.reason) || 'API error'), data));
+        container.style.cursor = 'default';
+        container.onclick = null;
+        return;
+      }
+
+      const daily = data && data.daily;
 
       if (!daily || !daily.time || daily.time.length === 0) {
-        container.innerHTML = '<div style="text-align:center;color:var(--muted);font-size:.82em;padding:8px"><em>Météo pas encore dispo (prévisions 16j max)</em></div>';
+        container.innerHTML = mutedMsg(MSG_TOO_FAR);
+        container.style.cursor = 'default';
+        container.onclick = null;
         return;
       }
 
@@ -104,8 +158,10 @@ var Weather = (() => {
 
       cache[cacheKey] = html;
       container.innerHTML = html;
-    } catch(e) {
-      container.innerHTML = '<div style="text-align:center;color:var(--muted);font-size:.82em;padding:8px"><em>Météo indisponible hors ligne</em></div>';
+    } catch (e) {
+      container.innerHTML = mutedMsg(errorMessage(e));
+      container.style.cursor = 'default';
+      container.onclick = null;
     }
   }
 
@@ -130,6 +186,11 @@ var Weather = (() => {
     </div>`;
     document.body.appendChild(overlay);
 
+    if (isBeyondForecast(dateStr)) {
+      document.getElementById('wmContent').innerHTML = `<em>${MSG_TOO_FAR}</em>`;
+      return;
+    }
+
     const cacheKey = `detail_${day.geo.lat},${day.geo.lon},${dateStr}`;
     let data = detailCache[cacheKey];
     if (!data) {
@@ -139,11 +200,16 @@ var Weather = (() => {
         const endStr = end.toISOString().split('T')[0];
         const url = `https://api.open-meteo.com/v1/forecast?latitude=${day.geo.lat}&longitude=${day.geo.lon}&hourly=temperature_2m,weathercode,precipitation_probability,precipitation,apparent_temperature&daily=weathercode,temperature_2m_max,temperature_2m_min,precipitation_probability_max,windspeed_10m_max,uv_index_max,sunrise,sunset&current_weather=true&timezone=${encodeURIComponent(tz)}&start_date=${dateStr}&end_date=${endStr}`;
         const resp = await fetch(url);
-        if (!resp.ok) throw new Error('API error');
-        data = await resp.json();
+        let body = null;
+        try { body = await resp.json(); } catch (_) { body = null; }
+        if (!resp.ok) {
+          document.getElementById('wmContent').innerHTML = `<em>${errorMessage(new Error((body && body.reason) || 'API error'), body)}</em>`;
+          return;
+        }
+        data = body;
         detailCache[cacheKey] = data;
-      } catch(e) {
-        document.getElementById('wmContent').innerHTML = '<em>Météo indisponible hors ligne</em>';
+      } catch (e) {
+        document.getElementById('wmContent').innerHTML = `<em>${errorMessage(e)}</em>`;
         return;
       }
     }
@@ -151,7 +217,7 @@ var Weather = (() => {
     const daily = data.daily;
     const hourly = data.hourly;
     if (!daily || !daily.time || daily.time.length === 0) {
-      document.getElementById('wmContent').innerHTML = '<em>Météo pas encore dispo</em>';
+      document.getElementById('wmContent').innerHTML = `<em>${MSG_TOO_FAR}</em>`;
       return;
     }
 
@@ -274,5 +340,5 @@ var Weather = (() => {
     return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   }
 
-  return { renderInline, openModal };
+  return { renderInline, openModal, isBeyondForecast, errorMessage, MSG_TOO_FAR, MSG_OFFLINE };
 })();
