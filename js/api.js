@@ -371,14 +371,23 @@ var API = (() => {
       setReachable(false);
       const name = e && e.name;
       const msg = (e && e.message) || '';
-      // AbortSignal.timeout / Cloudflare (~100s) / browser abort
+      // AbortSignal.timeout / Cloudflare (~100s) / Safari « Load failed » / Chrome « Failed to fetch »
       if (name === 'AbortError' || name === 'TimeoutError'
-          || /aborted|timeout|timed out/i.test(msg)) {
+          || /aborted|timeout|timed out|load failed|failed to fetch|networkerror/i.test(msg)) {
+        const isTimeout = name === 'AbortError' || name === 'TimeoutError'
+          || /aborted|timeout|timed out/i.test(msg);
         return {
           ok: false,
           status: 0,
-          data: { code: 'timeout', hint: 'Léo a dépassé le délai (Cloudflare ~100s). Réessaie avec une demande plus courte.' },
-          error: `délai dépassé (~${Math.round(ms / 1000)}s)`,
+          data: {
+            code: isTimeout ? 'timeout' : 'network',
+            hint: isTimeout
+              ? 'Léo a dépassé le délai (Cloudflare ~100s). Réessaie avec une demande plus courte.'
+              : 'Connexion coupée (réseau / Safari / Cloudflare). Réessaie.',
+          },
+          error: isTimeout
+            ? `délai dépassé (~${Math.round(ms / 1000)}s)`
+            : 'échec réseau (Load failed)',
         };
       }
       return { ok: false, status: 0, data: null, error: msg || 'network' };

@@ -43,6 +43,8 @@ var LeoChat = (() => {
     if (/^(error|failed|Échec)$/i.test(detail)) detail = '';
     if (/fetch is aborted|aborted|timeout|délai dépassé/i.test(detail)) {
       detail = 'délai dépassé — Léo a mis trop longtemps (limite Cloudflare ~100s)';
+    } else if (/load failed|failed to fetch|échec réseau/i.test(detail)) {
+      detail = 'échec réseau — connexion coupée (Safari / Cloudflare). Réessaie.';
     }
 
     const byCode = {
