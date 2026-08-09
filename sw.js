@@ -4,7 +4,7 @@
  * Bump CACHE_NAME when deploying new versions.
  */
 
-const CACHE_NAME = 'tripkit-70';
+const CACHE_NAME = 'tripkit-71';
 
 const ASSETS = [
   '/',
@@ -66,13 +66,35 @@ self.addEventListener('activate', event => {
   self.clients.claim();
 });
 
-// ── Fetch: network-first, fallback to cache ───────────────────────────────────
+// ── Fetch: network-first (shell), cache-first for trip assets ─────────────────
 self.addEventListener('fetch', event => {
   // Only handle GET requests
   if (event.request.method !== 'GET') return;
 
-  // Skip API calls (they handle their own offline logic)
   const url = new URL(event.request.url);
+
+  // Trip assets: cache-first so the current voyage keeps images offline
+  // after they were loaded once online.
+  if (/^\/api\/trips\/[^/]+\/assets\//.test(url.pathname)) {
+    event.respondWith(
+      caches.open(CACHE_NAME).then(cache =>
+        cache.match(event.request).then(cached => {
+          const network = fetch(event.request)
+            .then(response => {
+              if (response && response.status === 200) {
+                cache.put(event.request, response.clone());
+              }
+              return response;
+            })
+            .catch(() => cached || new Response('Offline', { status: 503 }));
+          return cached || network;
+        })
+      )
+    );
+    return;
+  }
+
+  // Other API calls: app handles offline (localStorage)
   if (url.pathname.startsWith('/api/')) return;
 
   event.respondWith(

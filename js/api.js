@@ -28,6 +28,10 @@ var API = (() => {
     ? TRIPKIT_CONFIG.apiPrefix
     : '/api';
   let _token = null;
+  /** Real backend reachability — not navigator.onLine (captive portal / flaky 4G). */
+  let _reachable = null; // null=unknown, true/false
+  const _reachListeners = [];
+  let _probeInflight = null;
 
   function setToken(t) {
     _token = t;
@@ -44,6 +48,55 @@ var API = (() => {
     return `${BASE_URL}${API_PREFIX}${path}`;
   }
 
+  function isReachable() { return _reachable === true; }
+  function getReachability() { return _reachable; }
+
+  function setReachable(ok) {
+    const next = !!ok;
+    if (_reachable === next) return;
+    _reachable = next;
+    _reachListeners.forEach(fn => {
+      try { fn(next); } catch (e) { console.debug('[API] reach listener', e.message); }
+    });
+  }
+
+  function onReachabilityChange(fn) {
+    if (typeof fn === 'function') _reachListeners.push(fn);
+    return () => {
+      const i = _reachListeners.indexOf(fn);
+      if (i >= 0) _reachListeners.splice(i, 1);
+    };
+  }
+
+  /**
+   * Probe real backend (/health). navigator.onLine alone is not enough.
+   * @returns {Promise<boolean>}
+   */
+  async function probe() {
+    if (!navigator.onLine) {
+      setReachable(false);
+      return false;
+    }
+    if (_probeInflight) return _probeInflight;
+    _probeInflight = (async () => {
+      try {
+        const res = await fetch(`${BASE_URL}/health`, {
+          signal: AbortSignal.timeout(3000),
+          cache: 'no-store',
+        });
+        const ok = !!(res && res.ok);
+        setReachable(ok);
+        return ok;
+      } catch (_) {
+        setReachable(false);
+        return false;
+      } finally {
+        _probeInflight = null;
+      }
+    })();
+    return _probeInflight;
+  }
+
   // ── Core fetch (fire-and-forget safe) ─────────────────────────────────────
 
   /**
@@ -55,7 +108,8 @@ var API = (() => {
    * Stale magic-link JWTs otherwise block the whole boot (infinite « Chargement… »).
    */
   async function safeFetch(path, options = {}, _retried = false) {
-    if (!navigator.onLine) return null; // skip when offline
+    // Device offline → skip. Device "online" is not enough; failures mark unreachable.
+    if (!navigator.onLine) return null;
     try {
       const token = getToken();
       const headers = {
@@ -66,7 +120,7 @@ var API = (() => {
       const res = await fetch(url(path), {
         ...options,
         headers,
-        signal: AbortSignal.timeout(8000), // never block more than 8s
+        signal: AbortSignal.timeout(options.timeoutMs || 8000),
       });
       if (res.status === 401 && token && !_retried) {
         console.debug('[API] 401 with Bearer — clearing stale token, retry via Authelia:', path);
@@ -75,12 +129,16 @@ var API = (() => {
       }
       if (!res.ok) {
         console.debug('[API] non-OK:', res.status, path);
+        // HTTP from our host ⇒ path exists; treat as reachable unless 0/network.
+        if (res.status > 0) setReachable(true);
         return null;
       }
+      setReachable(true);
       return await res.json();
     } catch (e) {
-      // Network error, CORS, timeout — all silent
+      // Network error, CORS, timeout — backend not really usable
       console.debug('[API] error:', e.message, path);
+      setReachable(false);
       return null;
     }
   }
@@ -130,6 +188,23 @@ var API = (() => {
    * Fire-and-forget: caller may ignore returned promise.
    * If server responds with merged state, applies it to localStorage.
    */
+  const OUTBOX_KEY = 'tk-list-sync-outbox';
+
+  function readOutbox() {
+    try {
+      const raw = localStorage.getItem(OUTBOX_KEY);
+      return raw ? JSON.parse(raw) : [];
+    } catch (_) { return []; }
+  }
+  function writeOutbox(list) {
+    try { localStorage.setItem(OUTBOX_KEY, JSON.stringify(list)); } catch (_) {}
+  }
+  function enqueueListSync(tripId, listId) {
+    const box = readOutbox().filter(x => !(x.tripId === tripId && x.listId === listId));
+    box.push({ tripId, listId, at: Date.now() });
+    writeOutbox(box);
+  }
+
   async function syncList(tripId, listId) {
     const deviceId = Store.getDeviceId();
     const deletedCustom = Store.getCustomDeleted(listId);
@@ -147,8 +222,12 @@ var API = (() => {
       body: JSON.stringify({ deviceId, custom: sharedCustom, deletedCustom }),
     });
 
-    if (!result) return; // backend unreachable — no-op
-
+    if (!result) {
+      enqueueListSync(tripId, listId);
+      return;
+    }
+    // Drop this pair from outbox on success
+    writeOutbox(readOutbox().filter(x => !(x.tripId === tripId && x.listId === listId)));
     // The server is authoritative for SHARED items only. Reconcile the local
     // shared set with the server's merged set:
     //   • add shared items published by other devices (unless locally tombstoned)
@@ -187,11 +266,25 @@ var API = (() => {
    * Background sync all lists for a trip (called on app startup if online).
    */
   function backgroundSyncTrip(tripId) {
-    // Disabled: background sync at startup caused race conditions with user
-    // interactions (items disappearing, checks reverting). Sync now only
-    // happens on explicit user actions (check, add, delete).
-    // The next page load will still get fresh data from the seed endpoint.
-    return;
+    // Disabled full-trip sync (race with UI). Flush pending list outbox only
+    // when the backend is actually reachable.
+    flushOutbox();
+  }
+
+  /** Retry queued list syncs after a successful probe. */
+  async function flushOutbox() {
+    if (!navigator.onLine) return;
+    const ok = _reachable === true ? true : await probe();
+    if (!ok) return;
+    const box = readOutbox();
+    if (!box.length) return;
+    for (const item of box.slice()) {
+      try {
+        await syncList(item.tripId, item.listId);
+      } catch (e) {
+        console.debug('[API] outbox flush failed', e.message);
+      }
+    }
   }
 
   // ── Version check (lightweight, 3s timeout) ──────────────────────────────
@@ -247,6 +340,7 @@ var API = (() => {
         try { data = JSON.parse(text); } catch (_) { data = { raw: text }; }
       }
       if (!res.ok) {
+        if (res.status > 0) setReachable(true);
         return {
           ok: false,
           status: res.status,
@@ -254,10 +348,20 @@ var API = (() => {
           error: (data && (data.error || data.code)) || res.statusText || 'error',
         };
       }
+      setReachable(true);
       return { ok: true, status: res.status, data };
     } catch (e) {
+      setReachable(false);
       return { ok: false, status: 0, data: null, error: e.message || 'network' };
     }
+  }
+
+  /**
+   * Version check that preserves HTTP status (for 403/404 rediscovery).
+   * @returns {{ ok: boolean, status: number, data: any }}
+   */
+  async function checkVersionStatus(tripId) {
+    return requestJSON(`/trips/${encodeURIComponent(tripId)}/version`, { timeoutMs: 4000 });
   }
 
   async function getPublishSources() {
@@ -295,9 +399,10 @@ var API = (() => {
     getTrips, getTrip, createTrip,
     getDays, getDay,
     getHotels,
-    getLists, getList, syncList, backgroundSyncTrip,
-    checkVersion, fetchSeed,
+    getLists, getList, syncList, backgroundSyncTrip, flushOutbox,
+    checkVersion, checkVersionStatus, fetchSeed,
     requestJSON, getPublishSources, createPublishJob, getPublishJob,
     assetUrl, getBaseUrl,
+    probe, isReachable, getReachability, onReachabilityChange,
   };
 })();
