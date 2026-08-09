@@ -318,9 +318,23 @@ var API = (() => {
     if (!navigator.onLine) {
       return { ok: false, status: 0, data: null, error: 'offline' };
     }
-    // timeoutMs is ours — do not pass it through to fetch().
-    const { timeoutMs, headers: optHeaders, ...fetchOpts } = options;
+    // timeoutMs / signal are ours — do not pass timeoutMs through to fetch().
+    const { timeoutMs, headers: optHeaders, signal: userSignal, ...fetchOpts } = options;
     const ms = typeof timeoutMs === 'number' && timeoutMs > 0 ? timeoutMs : 15000;
+    const timeoutSignal = AbortSignal.timeout(ms);
+    let signal = timeoutSignal;
+    if (userSignal) {
+      if (typeof AbortSignal.any === 'function') {
+        signal = AbortSignal.any([userSignal, timeoutSignal]);
+      } else {
+        const ac = new AbortController();
+        const abortBoth = () => { try { ac.abort(); } catch (_) {} };
+        userSignal.addEventListener('abort', abortBoth, { once: true });
+        timeoutSignal.addEventListener('abort', abortBoth, { once: true });
+        if (userSignal.aborted || timeoutSignal.aborted) abortBoth();
+        signal = ac.signal;
+      }
+    }
     try {
       const token = getToken();
       const headers = {
@@ -331,7 +345,7 @@ var API = (() => {
       const res = await fetch(url(path), {
         ...fetchOpts,
         headers,
-        signal: AbortSignal.timeout(ms),
+        signal,
       });
       if (res.status === 401 && token && !_retried) {
         clearToken();
@@ -371,23 +385,22 @@ var API = (() => {
       setReachable(false);
       const name = e && e.name;
       const msg = (e && e.message) || '';
-      // AbortSignal.timeout / Cloudflare (~100s) / Safari « Load failed » / Chrome « Failed to fetch »
+      // AbortSignal.timeout / user cancel / Safari « Load failed » / Chrome « Failed to fetch »
       if (name === 'AbortError' || name === 'TimeoutError'
           || /aborted|timeout|timed out|load failed|failed to fetch|networkerror/i.test(msg)) {
-        const isTimeout = name === 'AbortError' || name === 'TimeoutError'
-          || /aborted|timeout|timed out/i.test(msg);
+        const userCancel = !!(userSignal && userSignal.aborted);
+        const isTimeout = !userCancel && (
+          name === 'TimeoutError'
+          || /timeout|timed out/i.test(msg)
+          || (name === 'AbortError' && timeoutSignal.aborted)
+          || name === 'AbortError'
+        );
+        const code = userCancel ? 'cancelled' : (isTimeout ? 'timeout' : 'network');
         return {
           ok: false,
           status: 0,
-          data: {
-            code: isTimeout ? 'timeout' : 'network',
-            hint: isTimeout
-              ? 'Léo a dépassé le délai (Cloudflare ~100s). Réessaie avec une demande plus courte.'
-              : 'Connexion coupée (réseau / Safari / Cloudflare). Réessaie.',
-          },
-          error: isTimeout
-            ? `délai dépassé (~${Math.round(ms / 1000)}s)`
-            : 'échec réseau (Load failed)',
+          data: { code },
+          error: code,
         };
       }
       return { ok: false, status: 0, data: null, error: msg || 'network' };
@@ -421,13 +434,15 @@ var API = (() => {
     return requestJSON('/leo/status');
   }
 
-  async function leoChat(body) {
-    // Stay under Cloudflare proxy limit (~100s) so we surface a clean timeout
-    // instead of a raw « Fetch is aborted ».
+  async function leoChat(body = {}) {
+    // Plus chat = short asks. Fail well under Cloudflare (~100s).
+    // Optional body.signal (AbortController) for UI cancel.
+    const { signal, ...payload } = body || {};
     return requestJSON('/leo/chat', {
       method: 'POST',
-      body: JSON.stringify(body || {}),
-      timeoutMs: 95000,
+      body: JSON.stringify(payload),
+      timeoutMs: 45000,
+      ...(signal ? { signal } : {}),
     });
   }
 

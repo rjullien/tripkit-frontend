@@ -1183,10 +1183,21 @@ a:visited { color: var(--accent); }
 }
 .leo-compose { display: flex; flex-direction: column; gap: 8px; }
 .leo-compose textarea {
-  width: 100%; resize: vertical; min-height: 72px;
+  width: 100%; resize: vertical; min-height: 56px;
   border-radius: 10px; border: 1px solid rgba(255,255,255,.12);
   background: var(--bg); color: var(--text); padding: 10px 12px; font: inherit;
 }
+.leo-wait {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  font-size: .82em; color: var(--muted); margin: 0 0 8px; padding: 6px 0;
+}
+.leo-wait[hidden] { display: none !important; }
+.leo-msg.error .leo-bubble {
+  background: rgba(210,153,34,.10);
+  border: 1px solid rgba(210,153,34,.35);
+  color: var(--text);
+}
+.leo-hint a { color: var(--sec); }
 
 /* ── Weather modal ──────────────────────────────────────────── */
 .weather-modal-overlay {
