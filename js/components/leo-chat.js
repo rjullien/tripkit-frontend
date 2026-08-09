@@ -1,6 +1,7 @@
 /**
- * leo-chat.js — Chat Plus → TripKit BE proxy → Hermes Léo
- * Short sync asks only; long seed work → Dashboard / Telegram.
+ * leo-chat.js — Legacy sync Plus chat (POST /leo/chat).
+ * Removed from the UI in favor of leo-chat-stream.js. File kept for reference;
+ * not loaded by index.html. BE endpoint remains for curl/debug.
  */
 var LeoChat = (() => {
   let _status = null;

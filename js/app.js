@@ -484,7 +484,6 @@ var App = (() => {
     html += `<div class="section-title" style="margin-top:24px">🌍 Voyage actif</div>`;
     html += `<div id="plus-trip-selector"></div>`;
     html += `<div id="plus-publish-panel"></div>`;
-    html += `<div id="plus-leo-chat"></div>`;
     html += `<div id="plus-leo-chat-stream"></div>`;
 
     // ── Install guide (shown only if not already installed) ──
@@ -576,10 +575,7 @@ var App = (() => {
     }
 
     // Chat with Hermes Léo (BE proxy; shows fallback if key missing)
-    const leoEl = document.getElementById('plus-leo-chat');
-    if (leoEl && typeof LeoChat !== 'undefined') {
-      LeoChat.loadStatus().then(() => LeoChat.renderSection(leoEl));
-    }
+    // Sync LeoChat UI removed — stream only (BE POST /leo/chat kept for curl).
     const leoStreamEl = document.getElementById('plus-leo-chat-stream');
     if (leoStreamEl && typeof LeoChatStream !== 'undefined') {
       LeoChatStream.loadStatus().then(() => LeoChatStream.renderSection(leoStreamEl));
