@@ -1,5 +1,5 @@
 /**
- * leo-chat-stream.js — Plus « Parler à Léo » (SSE via BE → Hermes).
+ * leo-chat-stream.js — Plus « Construire le voyage avec Léo » (SSE via BE → Hermes).
  * The sync LeoChat box was removed from the UI; BE POST /leo/chat remains for curl.
  */
 var LeoChatStream = (() => {
@@ -31,13 +31,9 @@ var LeoChatStream = (() => {
     const ready = !!(_status && _status.ready);
     const dash = (_status && _status.dashboardUrl) || 'https://hermes-leo.bapttf.com';
 
-    const tg = _status && _status.telegramUrl;
     container.innerHTML = `<div class="leo-section leo-stream-section">
-      <h3 class="section-title">Parler à Léo</h3>
-      <p class="leo-hint">Modifs seed (voyage) en <strong>stream</strong> — tokens + outils en direct.
-        Gros chantier hors app → <a href="${escapeHtml(dash)}" target="_blank" rel="noopener">Dashboard</a>${
-          tg ? ` / <a href="${escapeHtml(tg)}" target="_blank" rel="noopener">Telegram</a>` : ''
-        }.</p>
+      <h3 class="section-title">Construire le voyage avec Léo</h3>
+      <p class="leo-hint">Demande la création ou modification du seed voyage.</p>
       <div class="leo-thread" id="leo-stream-thread"></div>
       <div class="leo-stream-status" id="leo-stream-status" hidden></div>
       <div class="leo-wait" id="leo-stream-wait" hidden>
