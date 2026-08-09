@@ -68,6 +68,7 @@ export const test = base.extend({
                 flights: SEED.flights || null,
                 carRental: SEED.carRental || null,
                 ferry: SEED.ferry || null,
+                ferries: SEED.ferries || null,
                 events: SEED.events || null,
                 sharedLinks: SEED.trip.sharedLinks,
                 users: SEED.trip.users,

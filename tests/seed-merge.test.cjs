@@ -52,15 +52,16 @@ function quebecSeed() {
         flights: { outbound: { pnr: 'ABC' } },
         carRental: { bookingRef: 'R1', provider: 'Avis' },
         ferry: { route: 'A→B', orderRef: '316243', date: '2026-08-23' },
+        ferries: [{ route: 'X→Y', date: '2026-08-24' }],
         events: { show: { name: 'Cirque', orderRef: '88277', date: '2026-08-28' } },
       }),
     },
     days: [
-      { day_num: 1, data: JSON.stringify({ day: 1, label: 'Vol' }) },
-      { day_num: 0, data: JSON.stringify({ day: 0, label: 'Valises' }) },
+      { day_num: 1, data: JSON.stringify({ day: 1, label: 'Vol', hotelId: 'montreal' }) },
+      { day_num: 0, data: JSON.stringify({ day: 0, label: 'Valises' }) }, // J0 maison — no hotelId
       { day_num: 2, data: JSON.stringify({ day: 2, label: '_deleted' }) },
     ],
-    hotels: [{ day_num: 1, data: JSON.stringify({ hotel: 'Airbnb St-Denis' }) }],
+    hotels: [{ day_num: 1, data: JSON.stringify({ hotel: 'Airbnb St-Denis', hotelId: 'montreal' }) }],
     lists: [{ id: 'checklist-quebec', type: 'packing', title: '🧳 Valise', data: JSON.stringify({ sections: [] }) }],
   };
 }
@@ -118,15 +119,16 @@ test('trip.data collections land at the top level', () => {
   assert.strictEqual(td.flights.outbound.pnr, 'ABC', 'flights dropped');
   assert.strictEqual(td.carRental.bookingRef, 'R1', 'carRental dropped');
   assert.strictEqual(td.ferry.orderRef, '316243', 'ferry dropped');
+  assert.strictEqual(td.ferries[0].route, 'X→Y', 'ferries dropped');
   assert.strictEqual(td.events.show.orderRef, '88277', 'events dropped');
 });
 
 test('TRIP_DATA_COLLECTIONS lists every booking collection BookingsView needs', () => {
-  ['flights', 'carRental', 'ferry', 'events', 'hotels'].forEach(f => {
+  ['flights', 'carRental', 'ferry', 'ferries', 'events', 'hotels'].forEach(f => {
     assert.ok(SeedMerge.TRIP_DATA_COLLECTIONS.includes(f), `${f} missing from TRIP_DATA_COLLECTIONS`);
   });
   const importSrc = fs.readFileSync('seed-import.cjs', 'utf8');
-  ['flights', 'carRental', 'ferry', 'events'].forEach(f => {
+  ['flights', 'carRental', 'ferry', 'ferries', 'events'].forEach(f => {
     assert.ok(importSrc.includes(`${f}: SEED.${f}`), `seed-import.cjs does not inject ${f}`);
   });
 });

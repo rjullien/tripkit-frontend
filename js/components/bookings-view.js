@@ -93,16 +93,35 @@ var BookingsView = (() => {
 
   // ── Sections ─────────────────────────────────────────────────────────────
 
+  /** True when a flight leg has real booking data (not seed placeholders like n/a). */
+  function isRealFlightLeg(leg) {
+    if (!leg || typeof leg !== 'object') return false;
+    const na = (v) => {
+      const s = String(v == null ? '' : v).trim().toLowerCase();
+      return !s || s === 'n/a' || s === 'na' || s === '-' || s === '?';
+    };
+    const segs = Array.isArray(leg.segments) ? leg.segments : [];
+    if (segs.length > 0) {
+      return segs.some(s => s && !na(s.from) && !na(s.to) && !na(s.dep));
+    }
+    // Flat leg: need a real route + departure (ignore airline/pnr = "n/a")
+    if (!na(leg.from) && !na(leg.to) && !na(leg.dep)) return true;
+    if (!na(leg.dep) && !na(leg.flight) && !na(leg.airline)) return true;
+    return false;
+  }
+
   function renderFlightsSection(flights) {
     if (!flights) return '';
     const outbound = flights.outbound || flights.aller;
     const inbound = flights.inbound || flights.return || flights.retour;
-    if (!outbound && !inbound) return '';
+    const outOk = isRealFlightLeg(outbound);
+    const inOk = isRealFlightLeg(inbound);
+    if (!outOk && !inOk) return '';
 
     let html = sectionTitle('✈️', 'Vols');
 
     function flightCard(leg, label) {
-      if (!leg) return '';
+      if (!isRealFlightLeg(leg)) return '';
       const segs = Array.isArray(leg.segments) ? leg.segments : null;
       let route = '';
       let when = '';
@@ -124,6 +143,8 @@ var BookingsView = (() => {
         details += segs.map(s =>
           `<div>${esc(s.flight || '')} ${esc(s.from)}→${esc(s.to)} · ${esc(formatDateTime(s.dep))} → ${esc(formatDateTime(s.arr))}${s.duration ? ' (' + esc(s.duration) + ')' : ''}</div>`
         ).join('');
+      } else if (leg.arr) {
+        details += `<div>🛬 Arrivée: ${esc(formatDateTime(leg.arr))}${leg.duration ? ' (' + esc(leg.duration) + ')' : ''}</div>`;
       }
       if (leg.layover) details += `<div>🔁 Escales: ${esc(leg.layover)}</div>`;
       if (leg.note) details += `<div class="booking-note">${esc(leg.note)}</div>`;
@@ -142,8 +163,8 @@ var BookingsView = (() => {
       });
     }
 
-    html += flightCard(outbound, 'Vol aller');
-    html += flightCard(inbound, 'Vol retour');
+    if (outOk) html += flightCard(outbound, 'Vol aller');
+    if (inOk) html += flightCard(inbound, 'Vol retour');
     return html;
   }
 
@@ -193,36 +214,49 @@ var BookingsView = (() => {
     return html;
   }
 
-  function renderFerrySection(ferry) {
-    if (!ferry) return '';
-    let html = sectionTitle('⛴️', 'Traversier');
+  function renderFerrySection(ferryOrList) {
+    const list = Array.isArray(ferryOrList)
+      ? ferryOrList
+      : (ferryOrList ? [ferryOrList] : []);
+    if (!list.length) return '';
 
-    const meta = [];
-    if (ferry.date) meta.push(`📅 ${formatDate(ferry.date)}${ferry.time ? ' · ' + esc(ferry.time) : ''}`);
-    if (ferry.orderRef) meta.push(`🔖 #${esc(ferry.orderRef)}`);
-    if (ferry.total) meta.push(`💶 ${esc(ferry.total)}`);
-    if (ferry.vehicle) meta.push(`🚙 ${esc(ferry.vehicle)}`);
+    let html = sectionTitle('⛴️', list.length > 1 ? 'Ferrys / Traversées' : 'Ferry / Traversier');
 
-    const derived = [];
-    if (ferry.balance) derived.push('Solde au quai');
+    list.forEach((ferry) => {
+      if (!ferry || typeof ferry !== 'object') return;
+      const meta = [];
+      if (ferry.date) meta.push(`📅 ${formatDate(ferry.date)}${ferry.time ? ' · ' + esc(ferry.time) : ''}`);
+      if (ferry.arrDate || ferry.arr) {
+        meta.push(`🛬 ${formatDate(ferry.arrDate || ferry.arr)}${ferry.arrTime ? ' · ' + esc(ferry.arrTime) : ''}`);
+      }
+      if (ferry.orderRef) meta.push(`🔖 #${esc(ferry.orderRef)}`);
+      if (ferry.total) meta.push(`💶 ${esc(ferry.total)}`);
+      if (ferry.operator) meta.push(`⛴️ ${esc(ferry.operator)}`);
+      if (ferry.vehicle) meta.push(`🚙 ${esc(ferry.vehicle)}`);
 
-    let details = '';
-    if (ferry.deposit) details += `<div>💳 Acompte: ${esc(ferry.deposit)}</div>`;
-    if (ferry.balance) details += `<div>💰 Solde: ${esc(ferry.balance)}</div>`;
-    if (ferry.note) details += `<div class="booking-note">${esc(ferry.note)}</div>`;
-    if (ferry.cancellation) details += `<div class="booking-note">${esc(ferry.cancellation)}</div>`;
+      const derived = [];
+      if (ferry.balance) derived.push('Solde au quai');
+      if (ferry.cabin) derived.push('Cabine');
 
-    html += bookingCard({
-      icon: '⛴️',
-      title: ferry.route || 'Traversier',
-      metaLines: meta,
-      tagsHtml: renderBookingTags({
-        typeLabel: 'Ferry',
-        cancellation: ferry.cancellation,
-        tags: ferry.tags,
-        derived,
-      }),
-      detailsHtml: details,
+      let details = '';
+      if (ferry.deposit) details += `<div>💳 Acompte: ${esc(ferry.deposit)}</div>`;
+      if (ferry.balance) details += `<div>💰 Solde: ${esc(ferry.balance)}</div>`;
+      if (ferry.cabin) details += `<div>🛏️ ${esc(ferry.cabin)}</div>`;
+      if (ferry.note) details += `<div class="booking-note">${esc(ferry.note)}</div>`;
+      if (ferry.cancellation) details += `<div class="booking-note">${esc(ferry.cancellation)}</div>`;
+
+      html += bookingCard({
+        icon: '⛴️',
+        title: ferry.route || ferry.operator || 'Ferry',
+        metaLines: meta,
+        tagsHtml: renderBookingTags({
+          typeLabel: 'Ferry',
+          cancellation: ferry.cancellation,
+          tags: ferry.tags,
+          derived,
+        }),
+        detailsHtml: details,
+      });
     });
     return html;
   }
@@ -333,7 +367,8 @@ var BookingsView = (() => {
 
     html += renderFlightsSection(tripData.flights);
     html += renderCarRentalSection(tripData.carRental);
-    html += renderFerrySection(tripData.ferry);
+    // ferries[] (multi) preferred; ferry (singular) kept for quebec-style seeds
+    html += renderFerrySection(tripData.ferries || tripData.ferry);
     html += renderEventsSection(tripData.events);
     html += renderHotelsSection(tripData);
 
