@@ -298,10 +298,11 @@ var RouteView = (() => {
 
   /**
    * Inject weather icons + temps into route cards.
+   * Use DayHelpers._isoDate (UTC noon) — local T00:00:00 + toISOString
+   * shifted dates for Europe/Paris and emptied Québec outlook cards.
    */
   function renderWeatherInline(days, startDate) {
     if (!wxCache) return;
-    const start = new Date(startDate + 'T00:00:00');
 
     days.forEach((day, idx) => {
       const el = document.getElementById(`wx-${idx}`);
@@ -310,13 +311,18 @@ var RouteView = (() => {
       const loc = wxCache[k];
       if (!loc) return;
 
-      // startDate = Day 1 → date(N) = startDate + (N - 1)
-      const dayNum = day.day !== undefined ? day.day : idx;
-      const d = new Date(start);
-      d.setDate(d.getDate() + (dayNum - 1));
-      const iso = d.toISOString().slice(0, 10);
+      const iso = day._isoDate
+        || (typeof DayHelpers !== 'undefined' && DayHelpers.isoDate
+          ? DayHelpers.isoDate(day, { startDate })
+          : '');
+      if (!iso) { el.innerHTML = ''; return; }
+
       const di = loc.time.indexOf(iso);
-      if (di === -1) { el.innerHTML = ''; return; }
+      if (di === -1) {
+        // Beyond Open-Meteo window (~16j) — expected for late Québec / Baléares
+        el.innerHTML = `<div style="text-align:center;min-width:48px;color:var(--muted);font-size:.62em;line-height:1.2" title="Prévisions 16j max">16j+</div>`;
+        return;
+      }
 
       const icon = loc.icon[di] || '🌤️';
       const tmax = Math.round(loc.tmax[di]);
