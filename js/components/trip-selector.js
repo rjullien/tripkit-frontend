@@ -103,21 +103,24 @@ var TripSelector = (() => {
   async function select(tripId) {
     Store.setCurrentTripId(tripId);
 
-    // PURGE + force re-fetch — prevents stale/mixed trip data
-    Store.clearTripData(tripId);
-    Store.set(tripId + '-data-version', null);
+    // Keep local cache until a successful seed fetch (offline-safe).
+    const hadLocal = !!Store.getTripData(tripId);
 
     if (navigator.onLine && typeof API !== 'undefined') {
       try {
-        const ver = await API.checkVersion(tripId);
-        const seed = await API.fetchSeed(tripId);
-        if (seed) {
-          // Clean rebuild (the cache was purged above) using the SAME mapping as
-          // App.refreshTripData. Never re-inline this: the old duplicated field
-          // list here dropped mapHtml/meteoHtml. See js/seed-merge.js.
-          const tripData = SeedMerge.merge(seed, {});
-          Store.setTripData(tripId, tripData);
-          if (ver) Store.set(tripId + '-data-version', ver.version);
+        const up = API.isReachable && API.isReachable()
+          ? true
+          : (API.probe ? await API.probe() : true);
+        if (up) {
+          const ver = await API.checkVersion(tripId);
+          const seed = await API.fetchSeed(tripId);
+          if (seed) {
+            const tripData = SeedMerge.merge(seed, Store.getTripData(tripId) || {});
+            Store.setTripData(tripId, tripData);
+            if (ver) Store.set(tripId + '-data-version', ver.version);
+          } else if (!hadLocal) {
+            App.showToast('Serveur injoignable — pas de données locales', 'error');
+          }
         }
       } catch (e) {
         console.debug('[TripSelector] Failed to fetch trip data:', e.message);
@@ -125,7 +128,7 @@ var TripSelector = (() => {
     }
 
     App.reloadAllViews();
-    App.showToast(`Voyage sélectionné !`, 'success');
+    App.showToast(hadLocal || Store.getTripData(tripId) ? 'Voyage sélectionné !' : 'Chargement…', 'success');
   }
 
   function formatDate(isoDate) {

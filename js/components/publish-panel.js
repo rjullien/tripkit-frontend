@@ -35,7 +35,8 @@ var PublishPanel = (() => {
       <p class="publish-hint">Créer ou mettre à jour un voyage depuis le repo famille (après QA).</p>`;
     _sources.forEach(s => {
       const label = s.operation === 'create' ? 'Créer le voyage' : 'Mettre à jour le voyage';
-      const disabled = !s.enabled || !navigator.onLine;
+      const backendUp = typeof API !== 'undefined' && API.isReachable ? API.isReachable() : navigator.onLine;
+      const disabled = !s.enabled || !navigator.onLine || !backendUp;
       const badge = s.enabled ? '' : ' <span class="publish-badge">inactif</span>';
       html += `<div class="publish-row" data-source="${escapeHtml(s.sourceId)}" data-trip="${escapeHtml(s.tripId)}">
         <div class="publish-meta">
@@ -106,10 +107,20 @@ var PublishPanel = (() => {
     }
     document.querySelectorAll('.publish-btn').forEach(b => { b.disabled = true; });
 
+    if (typeof API.probe === 'function') {
+      const up = await API.probe();
+      if (!up) {
+        showErrors(statusEl, { ok: false, error: 'Backend injoignable — réessaie quand le réseau fonctionne vraiment' });
+        document.querySelectorAll('.publish-btn').forEach(b => { b.disabled = true; });
+        return;
+      }
+    }
+
     const res = await API.createPublishJob({ sourceId, tripId, confirmCreate: !!confirmCreate });
     if (!res.ok) {
       showErrors(statusEl, res);
-      document.querySelectorAll('.publish-btn').forEach(b => { b.disabled = !navigator.onLine; });
+      const up = typeof API.isReachable === 'function' ? API.isReachable() : navigator.onLine;
+      document.querySelectorAll('.publish-btn').forEach(b => { b.disabled = !up; });
       return;
     }
     _jobId = res.data.id;
@@ -134,15 +145,26 @@ var PublishPanel = (() => {
 
   function pollJob() {
     stopPoll();
+    let netFails = 0;
     _pollTimer = setInterval(async () => {
       if (!_jobId) return;
       const res = await API.getPublishJob(_jobId);
-      if (!res.ok) return;
+      if (!res.ok) {
+        netFails += 1;
+        if (netFails >= 5) {
+          stopPoll();
+          const el = document.getElementById('publish-job-status');
+          showErrors(el, { ok: false, error: 'Réseau instable — le job continue côté serveur. Réouvre Plus pour reprendre.' });
+        }
+        return;
+      }
+      netFails = 0;
       const job = res.data;
       renderJobProgress(job);
       if (job.status === 'succeeded' || job.status === 'failed') {
         stopPoll();
-        document.querySelectorAll('.publish-btn').forEach(b => { b.disabled = !navigator.onLine; });
+        const up = typeof API.isReachable === 'function' ? API.isReachable() : navigator.onLine;
+        document.querySelectorAll('.publish-btn').forEach(b => { b.disabled = !up; });
         try { sessionStorage.removeItem('tk-publish-job'); } catch (_) {}
         if (job.status === 'succeeded') {
           if (typeof App !== 'undefined' && App.showToast) {

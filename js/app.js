@@ -150,6 +150,10 @@ var App = (() => {
 
     // 5. Swipe navigation
     setupSwipe();
+
+    // 6. Resume when backend is really reachable again
+    setupConnectivityResume();
+    paintConnectivity();
   }
 
   // ── No static seed — data comes from backend, cached in localStorage ─────
@@ -166,17 +170,25 @@ var App = (() => {
     }
     const trips = await API.getTrips();
     if (trips && trips.length) return trips[0].id;
+    // Offline / backend down: keep browsing a locally cached trip
+    const localIds = Store.getAllTripIds();
+    if (localIds && localIds.length) return localIds[0];
     return null;
   }
 
-  /** Fetch seed for tripId; returns true if local trip data is usable afterwards. */
+  /**
+   * Fetch seed for tripId; returns true if local trip data is usable afterwards.
+   * Network failure never invalidates a good local cache.
+   */
   async function loadTripSeed(tripId) {
     const hasLocal = !!Store.getTripData(tripId);
-    const ver = await API.checkVersion(tripId);
-    if (!ver) {
-      console.debug('[App] Version check failed for', tripId);
-      return false;
+    const verRes = await API.checkVersionStatus(tripId);
+    if (!verRes.ok || !verRes.data) {
+      console.debug('[App] Version check failed for', tripId, verRes.status || verRes.error);
+      // Keep current trip usable offline / when backend is flaky
+      return hasLocal;
     }
+    const ver = verRes.data;
 
     const cachedVersion = Store.get(tripId + '-data-version');
     // Skip network seed only when we already have local data AND same version.
@@ -188,7 +200,7 @@ var App = (() => {
 
     console.log('[App] Fetching seed:', tripId, 'version', cachedVersion, '→', ver.version);
     const seed = await API.fetchSeed(tripId);
-    if (!seed) return false;
+    if (!seed) return hasLocal;
 
     const tripData = SeedMerge.merge(seed, Store.getTripData(tripId) || {});
     Store.registerTrip(tripId);
@@ -201,30 +213,45 @@ var App = (() => {
   }
 
   async function refreshFromBackend() {
-    if (!navigator.onLine) return;
+    // Prefer a real probe when the device claims to be online
+    if (navigator.onLine && typeof API !== 'undefined' && API.probe) {
+      const up = await API.probe();
+      if (!up) {
+        // Stay on cache — do not rediscover / wipe
+        if (typeof API.flushOutbox === 'function') API.flushOutbox();
+        return;
+      }
+    } else if (!navigator.onLine) {
+      return;
+    }
 
     let tripId = await resolveTripId();
     if (!tripId) return;
 
     try {
+      const hasLocal = !!Store.getTripData(tripId);
       let ok = await loadTripSeed(tripId);
 
-      // Stale tk-current-trip (deleted / 403 / 404): forget it and rediscover.
-      if (!ok && Store.getCurrentTripId() === tripId) {
-        console.debug('[App] Current trip unreachable — rediscovering via GET /trips');
-        localStorage.removeItem('tk-current-trip');
-        localStorage.removeItem(tripId + '-data-version');
-        const trips = await API.getTrips();
-        const next = trips && trips.length
-          ? (trips.find(t => t.id !== tripId) || trips[0])
-          : null;
-        if (next && next.id) {
-          ok = await loadTripSeed(next.id);
-          tripId = next.id;
+      // Rediscover ONLY on definitive 403/404 and when we have NO local cache.
+      // Never clear tk-current-trip because /health or /version timed out.
+      if (!ok && !hasLocal && Store.getCurrentTripId() === tripId) {
+        const st = await API.checkVersionStatus(tripId);
+        if (st.status === 403 || st.status === 404) {
+          console.debug('[App] Current trip gone (', st.status, ') — rediscovering');
+          localStorage.removeItem('tk-current-trip');
+          localStorage.removeItem(tripId + '-data-version');
+          const trips = await API.getTrips();
+          const next = trips && trips.length
+            ? (trips.find(t => t.id !== tripId) || trips[0])
+            : null;
+          if (next && next.id) {
+            ok = await loadTripSeed(next.id);
+            tripId = next.id;
+          }
         }
       }
 
-      if (ok) renderCurrentTab();
+      if (ok || Store.getTripData(tripId)) renderCurrentTab();
     } catch (e) {
       console.debug('[App] Backend refresh failed (using cached):', e.message);
     }
@@ -232,6 +259,44 @@ var App = (() => {
     if (typeof API !== 'undefined' && tripId) {
       API.backgroundSyncTrip(tripId);
     }
+  }
+
+  /** Resume when network is really back (probe), not merely navigator.onLine. */
+  function setupConnectivityResume() {
+    let _resumeTimer = null;
+    const kick = () => {
+      clearTimeout(_resumeTimer);
+      _resumeTimer = setTimeout(async () => {
+        if (typeof API === 'undefined') return;
+        const up = await API.probe();
+        paintConnectivity();
+        if (!up) return;
+        await refreshFromBackend();
+        if (typeof PublishPanel !== 'undefined' && PublishPanel.resumeIfNeeded) {
+          PublishPanel.resumeIfNeeded();
+        }
+      }, 400);
+    };
+    window.addEventListener('online', kick);
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') kick();
+    });
+    if (typeof API.onReachabilityChange === 'function') {
+      API.onReachabilityChange(() => paintConnectivity());
+    }
+  }
+
+  function paintConnectivity() {
+    const el = document.getElementById('tripkit-connectivity');
+    if (!el) return;
+    const device = navigator.onLine;
+    const be = (typeof API !== 'undefined' && API.getReachability) ? API.getReachability() : null;
+    let label;
+    if (!device) label = '<span style="color:var(--orange)">Hors ligne (appareil)</span>';
+    else if (be === true) label = '<span style="color:var(--green)">Backend OK</span>';
+    else if (be === false) label = '<span style="color:var(--orange)">Appareil en ligne · backend injoignable</span>';
+    else label = '<span style="color:var(--muted)">Appareil en ligne · backend…</span>';
+    el.innerHTML = `🌐 ${label}`;
   }
 
   // ── Router ────────────────────────────────────────────────────────────────
@@ -474,7 +539,7 @@ var App = (() => {
         <div id="tripkit-version-info">🏷️ Soft: <code style="font-size:.82em;color:var(--sec);font-weight:600">v${esc(ver.soft)}</code> · Data: <code style="font-size:.82em;color:var(--sec);font-weight:600">${esc(ver.data)}</code> · Cache: <code style="font-size:.82em;color:var(--sec)">${ver.cache || '?'}</code></div>
         <div id="tripkit-backend-info">${beLabel}</div>
         <div>💾 Device: <code style="font-size:.78em;color:var(--sec)">${Store.getDeviceId()}</code></div>
-        <div>🌐 ${navigator.onLine ? '<span style="color:var(--green)">En ligne</span>' : '<span style="color:var(--orange)">Hors ligne</span>'}</div>
+        <div id="tripkit-connectivity">🌐 …</div>
       </div></div>`;
 
     html += `<div class="btn-row" style="margin-top:12px;gap:8px;flex-direction:column">
@@ -511,6 +576,8 @@ var App = (() => {
     // If /health hasn't resolved yet (or failed earlier), retry now that the
     // Plus DOM exists — paintBackendVersion will fill #tripkit-backend-info.
     if (!_backendVersion) fetchBackendVersion();
+    paintConnectivity();
+    if (typeof API !== 'undefined' && API.probe) API.probe().then(() => paintConnectivity());
   }
 
   function formatBackendVersion(v) {
@@ -554,22 +621,20 @@ var App = (() => {
   }
 
   function selectTrip(tripId) {
-    const prevTripId = Store.getCurrentTripId();
     Store.setCurrentTripId(tripId);
     currentListId = null;
     currentDayIndex = 0;
 
-    // PURGE cached trip data to avoid stale/mixed data
-    // Forces a clean re-fetch from backend on every switch
-    if (prevTripId !== tripId) {
-      Store.clearTripData(tripId);
-      Store.set(tripId + '-data-version', null);
-    }
-
-    // Load fresh from backend
-    tripData = {};
+    // Do NOT purge local cache before fetch — offline / flaky backend must keep
+    // the previous seed. Successful loadTripSeed merges over it.
+    tripData = Store.getTripData(tripId) || {};
     switchTab('programme');
-    showToast('✅ Chargement...');
+    if (tripData && tripData.days && tripData.days.length) {
+      renderCurrentTab();
+      showToast('✅ Voyage sélectionné');
+    } else {
+      showToast('✅ Chargement…');
+    }
     refreshFromBackend();
   }
 
