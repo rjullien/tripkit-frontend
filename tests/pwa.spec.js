@@ -21,15 +21,16 @@ test.describe('PWA', () => {
 
   test('registers service worker', async ({ page }) => {
     await page.goto('/');
-    // Wait a bit for SW registration
-    await page.waitForTimeout(2000);
-
-    const swRegistered = await page.evaluate(async () => {
+    // App registers SW after async boot — wait for controller/ready
+    await page.waitForFunction(async () => {
       if (!('serviceWorker' in navigator)) return false;
-      const regs = await navigator.serviceWorker.getRegistrations();
-      return regs.length > 0;
-    });
-    expect(swRegistered).toBe(true);
+      try {
+        const reg = await navigator.serviceWorker.getRegistration();
+        return !!(reg && (reg.active || reg.installing || reg.waiting));
+      } catch (_) {
+        return false;
+      }
+    }, { timeout: 10000 });
   });
 
   test('update button exists in Plus tab', async ({ page }) => {

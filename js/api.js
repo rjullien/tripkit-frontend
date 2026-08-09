@@ -567,6 +567,33 @@ var API = (() => {
     return url(`/trips/${tripId}/assets/${filename}`);
   }
 
+  /**
+   * Prefetch trip assets into the SW cache while online so Jour/Route
+   * keep maps & day-route images when the network drops.
+   * Fire-and-forget; failures are ignored.
+   */
+  function warmTripAssets(tripId, tripData) {
+    if (!navigator.onLine || !tripId || !tripData) return;
+    const names = new Set();
+    const trip = tripData.trip || {};
+    ['mapImage', 'mapHtml'].forEach((k) => {
+      const v = trip[k];
+      if (v && typeof v === 'string' && !v.startsWith('http') && !v.startsWith('data:')) {
+        names.add(v);
+      }
+    });
+    (tripData.days || []).forEach((d) => {
+      if (!d || d.routeImage === false) return;
+      const n = Number(d.day);
+      if (!Number.isFinite(n)) return;
+      names.add(`day-${String(n).padStart(2, '0')}-route.jpg`);
+    });
+    names.forEach((filename) => {
+      const href = assetUrl(tripId, filename);
+      fetch(href, { credentials: 'same-origin' }).catch(() => {});
+    });
+  }
+
   /** Backend base URL (without /api prefix). */
   function getBaseUrl() { return BASE_URL; }
 
@@ -579,7 +606,7 @@ var API = (() => {
     checkVersion, checkVersionStatus, fetchSeed,
     requestJSON, getPublishSources, createPublishJob, getPublishJob,
     getLeoStatus, leoChat, leoChatStream,
-    assetUrl, getBaseUrl,
+    assetUrl, getBaseUrl, warmTripAssets,
     probe, isReachable, getReachability, onReachabilityChange,
   };
 })();

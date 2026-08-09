@@ -144,7 +144,7 @@ var RouteView = (() => {
       html += `</div></div>`;
     });
 
-    // mapHtml / meteoHtml at bottom (after day list) — Google Maps stays on top
+    // mapHtml at bottom — meteoHtml only when online (Route OK sans météo)
     const pendingHtmlFrames = [];
     if (trip.mapHtml) {
       const mapFrameId = 'iframe-map-' + Date.now();
@@ -153,7 +153,7 @@ var RouteView = (() => {
       </div>`;
       pendingHtmlFrames.push([trip.mapHtml, mapFrameId]);
     }
-    if (trip.meteoHtml) {
+    if (trip.meteoHtml && navigator.onLine) {
       const metFrameId = 'iframe-meteo-' + Date.now();
       html += `<div style="margin-bottom:16px;border-radius:12px;overflow:hidden;border:1px solid rgba(255,255,255,.1)">
         <iframe id="${metFrameId}" style="width:100%;height:600px;border:0" title="Météo" sandbox="allow-scripts allow-same-origin"></iframe>
@@ -164,7 +164,7 @@ var RouteView = (() => {
     container.innerHTML = html;
     pendingHtmlFrames.forEach(([ref, id]) => loadHtmlIntoIframe(trip, ref, id));
 
-    // Async: fetch weather batch
+    // Weather batch: local cache OK offline; live fetch only online
     fetchRouteWeather(tripData, days);
   }
 
@@ -178,7 +178,7 @@ var RouteView = (() => {
     const startDate = trip.startDate;
     if (!startDate) return;
 
-    // Check cache (3h TTL)
+    // Check cache (3h TTL) — reused offline when still fresh
     const stored = localStorage.getItem('wxRouteCache-v1');
     if (stored) {
       try {
@@ -190,6 +190,9 @@ var RouteView = (() => {
         }
       } catch(e) {}
     }
+
+    // Offline: no Open-Meteo / NWS (itinerary stays usable)
+    if (!navigator.onLine) return;
 
     // Collect unique coords
     const seen = new Set();
@@ -354,7 +357,8 @@ var RouteView = (() => {
         const blob = new Blob([html], { type: 'text/html' });
         iframe.src = URL.createObjectURL(blob);
       } catch (e) {
-        iframe.srcdoc = `<body style="background:#1e293b;color:#f87171;padding:2rem;font-family:sans-serif"><h3>⚠️ Erreur réseau</h3><p>${e.message}</p></body>`;
+        const offline = !navigator.onLine;
+        iframe.srcdoc = `<body style="background:#1e293b;color:#94a3b8;padding:2rem;font-family:sans-serif"><h3>${offline ? '📴 Hors ligne' : '⚠️ Erreur réseau'}</h3><p>${offline ? 'Carte interactive indisponible sans réseau (l’itinéraire texte reste OK).' : (e.message || '')}</p></body>`;
       }
     }, 0);
   }

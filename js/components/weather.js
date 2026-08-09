@@ -54,6 +54,13 @@ var Weather = (() => {
   async function renderInline(container, day) {
     if (!container || !day || !day.geo) return;
 
+    // Offline: hide box (Jour stays clean — no error flash)
+    if (!navigator.onLine) {
+      container.style.display = 'none';
+      container.innerHTML = '';
+      return;
+    }
+
     const dateStr = dayDate(day.day, day);
     const cacheKey = `${day.geo.lat},${day.geo.lon},${dateStr}`;
 
@@ -107,6 +114,7 @@ var Weather = (() => {
    */
   async function openModal(day) {
     if (!day || !day.geo) return;
+    if (!navigator.onLine) return;
 
     const dateStr = dayDate(day.day, day);
     const tz = day.geo.tz || 'UTC';

@@ -143,8 +143,8 @@ var DailyView = (() => {
       html += `</div></div>`;
     }
 
-    // ── Weather box (async, filled after render) ───────────────────────────
-    if (day.geo) {
+    // ── Weather box (online only — offline = Jour sans météo) ──────────────
+    if (day.geo && navigator.onLine) {
       html += `<div id="weatherBox" class="card" style="margin-top:12px;text-align:center;color:var(--muted);font-size:.85em">🌤️ Chargement météo…</div>`;
     }
 
@@ -287,8 +287,8 @@ var DailyView = (() => {
       img.src = heroUrl;
     }
 
-    // Fetch weather async (after DOM render)
-    if (day.geo && typeof Weather !== 'undefined') {
+    // Fetch weather async (after DOM render) — skipped offline
+    if (day.geo && navigator.onLine && typeof Weather !== 'undefined') {
       const wb = document.getElementById('weatherBox');
       if (wb) Weather.renderInline(wb, day);
     }
