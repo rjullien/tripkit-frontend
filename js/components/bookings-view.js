@@ -271,7 +271,16 @@ var BookingsView = (() => {
 
     let body = '';
     const seen = new Set();
-    tripData.days.map(d => (typeof DayHelpers !== 'undefined' ? DayHelpers.enrich(d, tripData) : d)).forEach(day => {
+    const days = tripData.days.map(d => (typeof DayHelpers !== 'undefined' ? DayHelpers.enrich(d, tripData) : d));
+
+    // J0 = veille à la maison (pas de hotelId) — ancrage calendrier
+    const day0 = days.find(d => d.day === 0);
+    if (day0 && !day0.hotelId && !day0.hotel) {
+      body += `<div class="booking-hotel-day">Jour 0 · ${esc(day0.date || '')} — Maison</div>`;
+      body += `<div class="booking-note" style="margin:0 0 12px">🏠 Préparation à la maison (veille du départ)</div>`;
+    }
+
+    days.forEach(day => {
       const key = day.hotelId || day.hotel;
       if (!key || key === '—' || key === '') return;
       if (seen.has(key)) return;
@@ -289,7 +298,8 @@ var BookingsView = (() => {
       }
       if (!headerCity) headerCity = day.from || '';
 
-      body += `<div class="booking-hotel-day">Jour ${day.day + 1} · ${esc(headerDate)} — ${esc(headerCity)}</div>`;
+      // day.day is already the calendar day index (0 = veille, 1 = startDate)
+      body += `<div class="booking-hotel-day">Jour ${day.day} · ${esc(headerDate)} — ${esc(headerCity)}</div>`;
       body += HotelCard.render(hotelData);
     });
 

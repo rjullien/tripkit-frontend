@@ -2,7 +2,7 @@
  * day-helpers.js — Resolve computed fields for days
  *
  * Days in the seed are normalized:
- * - No date/dow (computed from trip.startDate + day.day)
+ * - No date/dow (computed from trip.startDate + (day.day - 1); Day 0 = startDate-1)
  * - No geo (resolved from locations[locationId])
  * - No inline culture (top-level culture[] is source of truth)
  * - No inline hotel fields (resolved from hotels[hotelId])
