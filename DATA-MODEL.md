@@ -81,10 +81,39 @@ These rules MUST be followed when creating or editing seed data:
 ### Traveler
 ```typescript
 {
-  name:       string,      // "Alice"
-  emoji?:     string,      // "👨"
+  personId:   string,      // → people[personId] (from people.js of the seed repo)
+  name?:      string,      // Denormalized by seed-import for display (from people)
+  emoji?:     string,
   role?:      string,      // "owner" | "traveler"
-  leaveDate?: string,      // ISO date if leaving early
+  leaveDate?: string,      // ISO date if leaving early (trip-specific)
+  note?:      string,
+}
+```
+
+### People (`people.js` per seed repo / family)
+Identity + durable documents. **Not** shared across family repos (ACL).
+Injected into `trip.data.people` (subset for travelers on that trip) by seed-import.
+
+```typescript
+{
+  [personId]: {
+    id:          string,
+    name:        string,
+    fullName?:   string,
+    emoji?:      string,
+    note?:       string,
+    documents?:  {
+      type: string,           // "passport" | "eta-canada" | …
+      label?: string,
+      number?: string,
+      passport?: string,      // linked passport # (AVE)
+      expiry?: string,        // ISO
+      approved?: string,
+      caseRef?: string,
+      note?: string,
+    }[],
+    loyalty?: { program: string, number?: string }[],
+  }
 }
 ```
 

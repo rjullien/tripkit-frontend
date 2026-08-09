@@ -55,6 +55,56 @@ if (!SEED || !SEED.trip || !SEED.days) {
 console.log(`📦 Importing ${SEED.trip.name} (${SEED.days.length} days, ${Object.keys(SEED.restaurants || {}).length} restaurants)`);
 console.log(`🌐 API: ${apiUrl}`);
 
+// Load people.js from the same directory as the voyage seed (per-family repo).
+function loadPeople(seedDir) {
+  const peopleFile = path.join(seedDir, 'people.js');
+  if (!fs.existsSync(peopleFile)) return {};
+  const code = fs.readFileSync(peopleFile, 'utf8');
+  const m = code.match(/^var\s+(\w+)\s*=/m);
+  if (!m) {
+    console.warn('⚠️  people.js: no var found — skipping');
+    return {};
+  }
+  try {
+    return new Function(code + '; return ' + m[1] + ';')() || {};
+  } catch (e) {
+    console.warn('⚠️  people.js load failed:', e.message);
+    return {};
+  }
+}
+
+const ALL_PEOPLE = loadPeople(path.dirname(path.resolve(seedFile)));
+
+/** Subset of people referenced by trip.travelers (+ enrich name/emoji for legacy UI). */
+function resolveTravelersAndPeople(travelers, allPeople) {
+  const list = Array.isArray(travelers) ? travelers : [];
+  const people = {};
+  const resolved = list.map((t) => {
+    if (!t || typeof t !== 'object') return t;
+    const pid = t.personId;
+    if (pid && allPeople[pid]) {
+      people[pid] = allPeople[pid];
+      const p = allPeople[pid];
+      return {
+        ...t,
+        name: t.name || p.name,
+        emoji: t.emoji || p.emoji,
+      };
+    }
+    if (pid) {
+      console.warn(`⚠️  personId "${pid}" not in people.js`);
+    }
+    return t;
+  });
+  return { travelers: resolved, people };
+}
+
+const { travelers: RESOLVED_TRAVELERS, people: TRIP_PEOPLE } = resolveTravelersAndPeople(
+  SEED.trip.travelers,
+  ALL_PEOPLE
+);
+console.log(`👥 people: ${Object.keys(TRIP_PEOPLE).length} fiche(s) for this trip`);
+
 // Support both Bearer token and Basic auth (user:pass)
 const authHeader = token
   ? (token.includes(':') 
@@ -84,7 +134,8 @@ async function main() {
   // 1. Create or update trip
   const tripId = SEED.trip.id;
   const tripData = {
-    travelers: SEED.trip.travelers,
+    travelers: RESOLVED_TRAVELERS,
+    people: TRIP_PEOPLE,
     phases: SEED.trip.phases,
     restaurants: SEED.restaurants || {},
     culture: SEED.culture || [],

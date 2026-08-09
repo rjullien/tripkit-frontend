@@ -110,6 +110,52 @@ var BookingsView = (() => {
     return false;
   }
 
+  /** Documents from people.js (per traveler on this trip). */
+  function renderDocumentsSection(tripData) {
+    if (typeof PeopleHelpers === 'undefined') return '';
+    const folks = PeopleHelpers.withDocuments(tripData);
+    if (!folks.length) return '';
+
+    let html = sectionTitle('🛂', 'Documents');
+    folks.forEach((person) => {
+      (person.documents || []).forEach((doc) => {
+        if (!doc || typeof doc !== 'object') return;
+        const meta = [];
+        if (doc.number) meta.push(`🔖 ${esc(doc.number)}`);
+        if (doc.passport) meta.push(`🛂 Passeport ${esc(doc.passport)}`);
+        if (doc.expiry || doc.passportExpiry) {
+          meta.push(`📅 Exp. ${formatDate(doc.expiry || doc.passportExpiry)}`);
+        }
+        if (doc.approved) meta.push(`✅ Approuvé ${formatDate(doc.approved)}`);
+        if (doc.caseRef) meta.push(`📁 Dossier ${esc(doc.caseRef)}`);
+
+        let details = '';
+        if (doc.fullName) details += `<div>👤 ${esc(doc.fullName)}</div>`;
+        if (doc.note) details += `<div class="booking-note">${esc(doc.note)}</div>`;
+        if (Array.isArray(person.loyalty) && person.loyalty.length && doc.type === 'passport') {
+          person.loyalty.forEach((L) => {
+            if (L && L.program) {
+              details += `<div>✈️ ${esc(L.program)}${L.number ? ' · ' + esc(L.number) : ''}</div>`;
+            }
+          });
+        }
+
+        html += bookingCard({
+          icon: doc.type === 'eta-canada' ? '🇨🇦' : '🛂',
+          title: `${person.emoji || ''} ${esc(person.name || '')} — ${esc(doc.label || doc.type || 'Document')}`.trim(),
+          metaLines: meta,
+          tagsHtml: renderBookingTags({
+            typeLabel: doc.type === 'eta-canada' ? 'AVE' : 'Document',
+            cancellation: doc.note && /🔴|⚠️/.test(doc.note) ? doc.note : null,
+            tags: doc.tags,
+          }),
+          detailsHtml: details,
+        });
+      });
+    });
+    return html;
+  }
+
   function renderFlightsSection(flights) {
     if (!flights) return '';
     const outbound = flights.outbound || flights.aller;
@@ -365,6 +411,7 @@ var BookingsView = (() => {
       <div class="sub">${tripData.trip ? esc(tripData.trip.name) : ''}</div>
     </div>`;
 
+    html += renderDocumentsSection(tripData);
     html += renderFlightsSection(tripData.flights);
     html += renderCarRentalSection(tripData.carRental);
     // ferries[] (multi) preferred; ferry (singular) kept for quebec-style seeds
