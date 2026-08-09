@@ -413,10 +413,12 @@ var API = (() => {
   }
 
   async function leoChat(body) {
+    // Stay under Cloudflare proxy limit (~100s) so we surface a clean timeout
+    // instead of a raw « Fetch is aborted ».
     return requestJSON('/leo/chat', {
       method: 'POST',
       body: JSON.stringify(body || {}),
-      timeoutMs: 120000,
+      timeoutMs: 95000,
     });
   }
 
