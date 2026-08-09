@@ -1183,9 +1183,33 @@ a:visited { color: var(--accent); }
 }
 .leo-compose { display: flex; flex-direction: column; gap: 8px; }
 .leo-compose textarea {
-  width: 100%; resize: vertical; min-height: 72px;
+  width: 100%; resize: vertical; min-height: 56px;
   border-radius: 10px; border: 1px solid rgba(255,255,255,.12);
   background: var(--bg); color: var(--text); padding: 10px 12px; font: inherit;
+}
+.leo-wait {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  font-size: .82em; color: var(--muted); margin: 0 0 8px; padding: 6px 0;
+}
+.leo-wait[hidden] { display: none !important; }
+.leo-msg.error .leo-bubble {
+  background: rgba(210,153,34,.10);
+  border: 1px solid rgba(210,153,34,.35);
+  color: var(--text);
+}
+.leo-hint a { color: var(--sec); }
+.leo-stream-section { margin-top: 28px; padding-top: 8px; border-top: 1px solid rgba(255,255,255,.06); }
+.leo-stream-status {
+  font-size: .78em; color: var(--muted); margin: 0 0 8px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+.leo-msg.leo-live .leo-bubble::after {
+  content: '▍
+  animation: leo-caret 1s step-end infinite;
+  margin-left: 2px; color: var(--sec);
+}
+@keyframes leo-caret {
+  50% { opacity: 0; }
 }
 
 /* ── Weather modal ──────────────────────────────────────────── */
