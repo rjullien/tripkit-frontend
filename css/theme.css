@@ -218,6 +218,29 @@ a:visited { color: var(--accent); }
 
 .section-body.hidden { display: none; }
 
+/* Documents collapse in Plus — title row matches section-title weight */
+.plus-docs-wrap .plus-docs-head {
+  padding: 0 0 10px;
+  background: transparent;
+  gap: 10px;
+}
+.plus-docs-wrap .plus-docs-head .s-title {
+  font-size: 1.1em;
+  font-weight: 700;
+  color: var(--text);
+}
+.plus-docs-wrap .plus-docs-head.collapsed {
+  margin-bottom: 0;
+}
+.plus-docs-body {
+  padding: 4px 0 2px;
+  background: transparent;
+  border-top: none;
+}
+.plus-docs-body .booking-card:last-child {
+  margin-bottom: 10px;
+}
+
 /* ── Checklist Items ── */
 .list-item {
   display: flex;
