@@ -32,6 +32,13 @@ var LeoChat = (() => {
       detail = res.error.trim();
     }
 
+    // Never dump nginx/Cloudflare HTML error pages into the chat bubble.
+    if (detail && /^\s*<(!DOCTYPE|html|head|body)\b/i.test(detail)) {
+      detail = '';
+    } else if (detail && /<!DOCTYPE|<html[\s>]/i.test(detail)) {
+      detail = 'réponse HTML (proxy/gateway) — Hermes ou ingress en 502';
+    }
+
     // requestJSON / fetch fallbacks that are not useful alone
     if (/^(error|failed|Échec)$/i.test(detail)) detail = '';
 
@@ -44,7 +51,7 @@ var LeoChat = (() => {
       401: 'session non authentifiée',
       403: 'accès refusé',
       408: 'délai dépassé',
-      502: 'Hermes injoignable (Bad Gateway)',
+      502: 'gateway / Hermes injoignable (vérifie hermes-leo + hermes-api-key)',
       503: 'Léo indisponible côté serveur',
       504: 'délai dépassé vers Hermes',
     };

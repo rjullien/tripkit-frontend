@@ -351,6 +351,10 @@ var API = (() => {
           if (!errMsg && typeof data.raw === 'string') errMsg = data.raw.slice(0, 200);
         }
         if (!errMsg) errMsg = res.statusText || (res.status ? `HTTP ${res.status}` : 'request failed');
+        // Proxy HTML pages are useless as error strings (Leo chat, etc.).
+        if (/^\s*<(!DOCTYPE|html)\b/i.test(errMsg) || /<!DOCTYPE|<html[\s>]/i.test(errMsg)) {
+          errMsg = res.status ? `HTTP ${res.status} (réponse HTML proxy)` : 'réponse HTML proxy';
+        }
         return {
           ok: false,
           status: res.status,
