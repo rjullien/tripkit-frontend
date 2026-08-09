@@ -341,11 +341,21 @@ var API = (() => {
       }
       if (!res.ok) {
         if (res.status > 0) setReachable(true);
+        let errMsg = '';
+        if (data) {
+          if (typeof data.error === 'string') errMsg = data.error;
+          else if (data.error && typeof data.error === 'object') {
+            errMsg = data.error.message || data.error.msg || '';
+          }
+          if (!errMsg && typeof data.code === 'string') errMsg = data.code;
+          if (!errMsg && typeof data.raw === 'string') errMsg = data.raw.slice(0, 200);
+        }
+        if (!errMsg) errMsg = res.statusText || (res.status ? `HTTP ${res.status}` : 'request failed');
         return {
           ok: false,
           status: res.status,
           data,
-          error: (data && (data.error || data.code)) || res.statusText || 'error',
+          error: errMsg,
         };
       }
       setReachable(true);
