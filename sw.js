@@ -1,10 +1,11 @@
 /**
  * sw.js — TripKit Service Worker
- * Network-first strategy with cache fallback.
- * Bump CACHE_NAME when deploying new versions.
+ * - App shell: network-first online, cache-first when offline
+ * - Trip assets (/api/trips/*/assets/*): cache-first always
+ * Bump CACHE_NAME when deploying new shell versions.
  */
 
-const CACHE_NAME = 'tripkit-76';
+const CACHE_NAME = 'tripkit-77';
 
 const ASSETS = [
   '/',
@@ -34,7 +35,7 @@ const ASSETS = [
   '/js/components/weather.js',
   '/js/components/trip-selector.js',
   '/js/components/publish-panel.js',
-  '/js/components/leo-chat.js',
+  '/js/components/leo-chat-stream.js',
   '/js/components/route-view.js',
   '/js/components/culture-view.js',
   '/js/lib/qrcode-svg.min.js',
@@ -43,12 +44,16 @@ const ASSETS = [
 // ── Install: precache all assets ──────────────────────────────────────────────
 self.addEventListener('install', event => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then(cache => {
-      return cache.addAll(ASSETS).catch(err => {
-        // Don't fail install if some assets are missing (dev mode)
-        console.warn('[SW] Some assets failed to precache:', err);
-      });
-    })
+    caches.open(CACHE_NAME).then(cache =>
+      // One-by-one so a single miss does not abort the whole shell.
+      Promise.all(
+        ASSETS.map(path =>
+          cache.add(path).catch(err => {
+            console.warn('[SW] precache miss:', path, err && err.message);
+          })
+        )
+      )
+    )
   );
   self.skipWaiting();
 });
@@ -67,59 +72,72 @@ self.addEventListener('activate', event => {
   self.clients.claim();
 });
 
-// ── Fetch: network-first (shell), cache-first for trip assets ─────────────────
+function cacheFirst(request) {
+  return caches.open(CACHE_NAME).then(cache =>
+    cache.match(request).then(cached => {
+      if (cached) return cached;
+      return fetch(request)
+        .then(response => {
+          if (response && response.status === 200) {
+            cache.put(request, response.clone());
+          }
+          return response;
+        })
+        .catch(() => new Response('Offline', { status: 503 }));
+    })
+  );
+}
+
+function networkFirstShell(request) {
+  return fetch(request)
+    .then(response => {
+      if (response && response.status === 200) {
+        const clone = response.clone();
+        caches.open(CACHE_NAME).then(cache => {
+          cache.put(request, clone);
+        });
+      }
+      return response;
+    })
+    .catch(() =>
+      caches.match(request).then(cached => {
+        if (cached) return cached;
+        if (request.mode === 'navigate') {
+          return caches.match('/index.html');
+        }
+        return new Response('Offline', { status: 503 });
+      })
+    );
+}
+
+// ── Fetch ─────────────────────────────────────────────────────────────────────
 self.addEventListener('fetch', event => {
-  // Only handle GET requests
   if (event.request.method !== 'GET') return;
 
   const url = new URL(event.request.url);
 
-  // Trip assets: cache-first so the current voyage keeps images offline
-  // after they were loaded once online.
+  // Trip assets: cache-first so the voyage keeps images offline after one online load
   if (/^\/api\/trips\/[^/]+\/assets\//.test(url.pathname)) {
-    event.respondWith(
-      caches.open(CACHE_NAME).then(cache =>
-        cache.match(event.request).then(cached => {
-          const network = fetch(event.request)
-            .then(response => {
-              if (response && response.status === 200) {
-                cache.put(event.request, response.clone());
-              }
-              return response;
-            })
-            .catch(() => cached || new Response('Offline', { status: 503 }));
-          return cached || network;
-        })
-      )
-    );
+    event.respondWith(cacheFirst(event.request));
     return;
   }
 
   // Other API calls: app handles offline (localStorage)
   if (url.pathname.startsWith('/api/')) return;
 
-  event.respondWith(
-    fetch(event.request)
-      .then(response => {
-        // Cache successful responses
-        if (response && response.status === 200) {
-          const clone = response.clone();
-          caches.open(CACHE_NAME).then(cache => {
-            cache.put(event.request, clone);
-          });
+  // Offline: never wait on a hung network for the app shell
+  if (!self.navigator.onLine) {
+    event.respondWith(
+      caches.match(event.request).then(cached => {
+        if (cached) return cached;
+        if (event.request.mode === 'navigate') {
+          return caches.match('/index.html');
         }
-        return response;
+        return new Response('Offline', { status: 503 });
       })
-      .catch(() => {
-        // Network failed — serve from cache
-        return caches.match(event.request).then(cached => {
-          if (cached) return cached;
-          // Last resort: return index.html for navigation requests
-          if (event.request.mode === 'navigate') {
-            return caches.match('/index.html');
-          }
-          return new Response('Offline', { status: 503 });
-        });
-      })
-  );
+    );
+    return;
+  }
+
+  event.respondWith(networkFirstShell(event.request));
 });

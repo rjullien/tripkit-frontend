@@ -209,6 +209,7 @@ var App = (() => {
     Store.setTripData(tripId, tripData);
     Store.set(tripId + '-data-version', ver.version);
     console.log('[App] Backend data refreshed:', tripId, tripData.days?.length, 'days, version:', ver.version);
+    if (typeof API.warmTripAssets === 'function') API.warmTripAssets(tripId, tripData);
     return true;
   }
 
@@ -258,6 +259,9 @@ var App = (() => {
 
     if (typeof API !== 'undefined' && tripId) {
       API.backgroundSyncTrip(tripId);
+      // Even when seed was already up-to-date, warm images for offline Jour/Route
+      const td = Store.getTripData(tripId);
+      if (td && typeof API.warmTripAssets === 'function') API.warmTripAssets(tripId, td);
     }
   }
 
@@ -464,17 +468,6 @@ var App = (() => {
     html += `<div id="plus-trip-selector"></div>`;
     html += `<div id="plus-publish-panel"></div>`;
     html += `<div id="plus-leo-chat-stream"></div>`;
-
-    // ── Checklist valise (standalone page) ──
-    html += `<div class="section-title" style="margin-top:24px">🧳 Valise</div>`;
-    html += `<a href="checklist.html" class="trip-item" style="text-decoration:none;color:var(--text)">
-      <span class="trip-emoji">🧳</span>
-      <div class="trip-info">
-        <div class="trip-name">Checklist Valise interactive</div>
-        <div class="trip-dates">Par personne · Progression sauvegardée</div>
-      </div>
-      <span class="trip-arrow">›</span>
-    </a>`;
 
     // ── Quiz (only if quiz exists for current trip) ──
     const tripsWithQuiz = []; // add trip ids that ship a questions.json quiz // trips that have a questions.json quiz
