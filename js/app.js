@@ -787,6 +787,8 @@ var App = (() => {
   function showToast(msg, type = 'success') {
     const wrap = document.getElementById('toast-wrap');
     if (!wrap) return;
+    // One toast at a time — avoid stacking that fills the screen.
+    wrap.replaceChildren();
     const toast = document.createElement('div');
     toast.className = `toast ${type}`;
     toast.textContent = msg;
@@ -796,8 +798,10 @@ var App = (() => {
     });
     setTimeout(() => {
       toast.classList.remove('show');
-      setTimeout(() => toast.remove(), 300);
-    }, 2500);
+      setTimeout(() => {
+        if (toast.parentNode === wrap) toast.remove();
+      }, 300);
+    }, 2200);
   }
 
   // ── Helpers ───────────────────────────────────────────────────────────────
