@@ -282,6 +282,47 @@ var Store = (() => {
     }
   }
 
+  /**
+   * Reconcile local trip registry with a definitive server ID list.
+   * Call ONLY after a successful GET /trips — never on network failure / null.
+   * - Adds server trips missing locally
+   * - Removes local orphans (gone from BE or no longer in ACL)
+   * - Clears orphan payloads; keeps real trips when BE is unreachable (caller skips)
+   * Empty array is valid (user has zero trips) and clears the registry.
+   * @param {string[]} serverTripIds
+   * @returns {{ kept: string[], removed: string[] }}
+   */
+  function reconcileTripsFromServer(serverTripIds) {
+    if (!Array.isArray(serverTripIds)) {
+      return { kept: getAllTripIds(), removed: [] };
+    }
+    const allowed = new Set(
+      serverTripIds.filter((id) => typeof id === 'string' && id).map(String)
+    );
+    const local = getAllTripIds();
+    const removed = [];
+    local.forEach((id) => {
+      if (!allowed.has(id)) {
+        removed.push(id);
+        clearTripData(id);
+        del(`${id}-data-version`);
+        del(`tk-seed-loaded-${id}`);
+      }
+    });
+    const kept = local.filter((id) => allowed.has(id));
+    allowed.forEach((id) => {
+      if (!kept.includes(id)) kept.push(id);
+    });
+    set('tk-trips', kept);
+
+    const cur = getCurrentTripId();
+    if (cur && !allowed.has(cur)) {
+      if (kept.length) setCurrentTripId(kept[0]);
+      else del('tk-current-trip');
+    }
+    return { kept, removed };
+  }
+
   // ── Seed management ───────────────────────────────────────────────────────
 
   function isSeedLoaded(tripId) {
@@ -349,6 +390,7 @@ var Store = (() => {
     // Trip
     getCurrentTripId, setCurrentTripId,
     getTripData, setTripData, clearTripData, getAllTripIds, registerTrip,
+    reconcileTripsFromServer,
     // Seed
     isSeedLoaded, markSeedLoaded,
     // Lists

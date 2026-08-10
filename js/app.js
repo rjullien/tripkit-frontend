@@ -213,6 +213,32 @@ var App = (() => {
     return true;
   }
 
+  /**
+   * Sync tk-trips with GET /trips. Only when the response is a real array
+   * (including empty). null / network error → leave local cache alone.
+   */
+  async function reconcileTripRegistry() {
+    if (typeof API === 'undefined' || typeof Store.reconcileTripsFromServer !== 'function') {
+      return null;
+    }
+    try {
+      const resp = await API.getTrips();
+      const backendTrips = Array.isArray(resp)
+        ? resp
+        : (resp && Array.isArray(resp.results) ? resp.results : null);
+      if (!backendTrips) return null;
+      const ids = backendTrips.map(t => t && t.id).filter(Boolean);
+      const result = Store.reconcileTripsFromServer(ids);
+      if (result.removed.length) {
+        console.debug('[App] Dropped trips gone from backend:', result.removed.join(', '));
+      }
+      return result;
+    } catch (e) {
+      console.debug('[App] Trip registry sync skipped:', e.message);
+      return null;
+    }
+  }
+
   async function refreshFromBackend() {
     // Prefer a real probe when the device claims to be online
     if (navigator.onLine && typeof API !== 'undefined' && API.probe) {
@@ -225,6 +251,9 @@ var App = (() => {
     } else if (!navigator.onLine) {
       return;
     }
+
+    // Drop deleted / ACL-lost trips from local registry (BE success only).
+    await reconcileTripRegistry();
 
     let tripId = await resolveTripId();
     if (!tripId) return;
