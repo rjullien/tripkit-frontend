@@ -9,28 +9,42 @@
 Une liste = des items intégrés (du seed) + des items custom ajoutés par l'utilisateur.
 Chaque item a un état **coché / masqué** propre à chaque personne.
 
+### Liste partagée Oui / Non (niveau liste)
+
+Chaque liste a un réglage **Liste partagée** (toggle en tête de liste) :
+
+| | Oui (défaut) | Non |
+|--|--------------|-----|
+| Nouveaux items custom | naissent `shared: true` → sync groupe | naissent `shared: false` → local device |
+| Toggle ON | promeut les items locaux existants en partagés | — |
+| Toggle OFF | n’affecte que les **futurs** ajouts (items déjà cloud restent jusqu’à 🔒/🗑) | |
+
+Préférence stockée en localStorage (`{listId}-list-shared`). Défaut = **Oui**.
+
 ### Ce qui reste LOCAL (jamais transmis, par device)
 - **Coche** (fait / pas fait) — chacun la sienne. La coche ne quitte JAMAIS le téléphone.
 - **Masquage** d'un item — par device.
 - **Item custom non partagé** (`shared: false`) — visible seulement par son créateur.
 
-### Ce qui est PARTAGÉ au groupe (seulement sur action explicite)
-- **L'item custom** lui-même (son texte + sa section), via le bouton ☁️.
+### Ce qui est PARTAGÉ au groupe (seulement si item `shared: true`)
+- **L'item custom** lui-même (son texte + sa section), via liste partagée Oui et/ou bouton ☁️.
 - C'est **l'item** qui voyage, **pas** son état coché.
 
 ## Règles
 
-1. Un item custom **naît local** (`shared: false`).
-2. Bouton **☁️ / 🔒** : publie l'item au groupe (☁️) ou le garde local (🔒).
+1. Un item custom naît selon le réglage **Liste partagée** (défaut Oui → `shared: true`).
+2. Bouton **☁️ / 🔒** par item : publie ou garde local (override ponctuel).
    - Publier → l'item apparaît chez les autres au prochain sync ; chacun le coche chez soi.
    - Retirer (un-share) → l'item disparaît chez les autres mais **reste en local** chez le créateur.
 3. **Supprimer (🗑)** un item → suppression propagée à tous (tombstone), **sans résurrection**.
-4. Le **sync ne transporte que** : les items partagés + les suppressions (`deletedCustom`).
+4. **Le sync ne transporte que** : les items partagés + les suppressions (`deletedCustom`).
    Jamais de coches, jamais de masquages.
 5. Le serveur fait **autorité sur les items partagés** uniquement. À la réception, on :
    - ajoute les items partagés publiés par les autres (sauf tombstone local) ;
    - retire les items partagés que le groupe n'a plus (supprimés/retirés par un pair) ;
    - ne touche JAMAIS aux coches ni aux items locaux.
+6. **Pull à l’ouverture** d’une liste : `syncList` puis re-render si merge (sinon l’autre
+   voyageur ne voit les items cloud qu’après une action UI).
 
 ## Conséquence
 
@@ -57,15 +71,10 @@ présentes en base sont ignorées côté client).
 ## Tests (exécutables)
 
 - **Frontend (isolation, mocks)** : `tests/list-spec.test.cjs`
-  Charge le vrai `js/store.js` (localStorage mocké), 2 devices (Alice/Bob),
-  backend mock reproduisant la sémantique serveur. Couvre : coche locale,
-  création locale, partage, coche personnelle d'un item partagé, suppression
-  propagée + anti-résurrection, retrait/re-partage.
   ```bash
   node tests/list-spec.test.cjs
   ```
 - **Backend (Go, SQLite mémoire)** : `internal/handlers/repro_bug_test.go`
-  `TestReproA..F` — dont la non-résurrection des items supprimés (tombstones).
   ```bash
   CGO_ENABLED=1 go test ./internal/handlers/ -run TestRepro -v
   ```

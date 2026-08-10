@@ -224,7 +224,7 @@ var API = (() => {
 
     if (!result) {
       enqueueListSync(tripId, listId);
-      return;
+      return { ok: false, changed: false };
     }
     // Drop this pair from outbox on success
     writeOutbox(readOutbox().filter(x => !(x.tripId === tripId && x.listId === listId)));
@@ -233,11 +233,11 @@ var API = (() => {
     //   • add shared items published by other devices (unless locally tombstoned)
     //   • drop local shared items the group no longer has (deleted/retracted by a peer)
     // Local-only items (shared:false) and ALL checks are left untouched.
+    let changed = false;
     if (result.merged) {
       const serverShared = result.merged.custom || {};
       const tombstones = Store.getCustomDeleted(listId);
       const cur = Store.getCustomItems(listId);
-      let changed = false;
 
       Object.entries(serverShared).forEach(([id, item]) => {
         if (!cur[id] && !tombstones[id]) {
@@ -260,6 +260,7 @@ var API = (() => {
     if (result.serverSyncAt) {
       Store.updateSyncMeta(listId, result.serverSyncAt);
     }
+    return { ok: true, changed };
   }
 
   /**

@@ -85,24 +85,37 @@ const ok = (msg) => { console.log('  ✅', msg); pass++; };
   ok('coche locale: persiste, et ne fuit jamais vers l’autre device');
 }
 
-// ===== Scénario 2 : item créé reste local =====
+// ===== Scénario 2 : liste Non → item créé reste local =====
 {
   const be = makeBackend();
   const alice = makeDevice('alice'); const bob = makeDevice('bob');
+  alice.Store.setListShared(L, false);
   const id = alice.Store.addCustomItem(L, 0, 'Adaptateur UK secours');
-  assert.equal(alice.Store.getCustomItems(L)[id].shared, false, 'créé en local (shared:false)');
+  assert.equal(alice.Store.getCustomItems(L)[id].shared, false, 'liste Non → créé en local');
   syncList(alice, L, be);
   syncList(bob, L, be);
   assert.equal(bob.Store.getCustomItems(L)[id], undefined, 'item non partagé → invisible chez Bob');
-  ok('item créé: local par défaut, invisible des autres tant que non partagé');
+  ok('liste Non: item local, invisible des autres');
 }
 
-// ===== Scénario 3 : partager publie l'ITEM (pas la coche) =====
+// ===== Scénario 2b : liste Oui (défaut) → item naît partagé =====
 {
   const be = makeBackend();
   const alice = makeDevice('alice'); const bob = makeDevice('bob');
+  assert.equal(alice.Store.isListShared(L), true, 'défaut liste partagée = Oui');
   const id = alice.Store.addCustomItem(L, 0, 'Crème solaire 50+');
-  alice.Store.toggleShareItem(L, id);                 // ☁️ publier
+  assert.equal(alice.Store.getCustomItems(L)[id].shared, true, 'liste Oui → shared:true à la création');
+  syncList(alice, L, be);
+  syncList(bob, L, be);
+  assert.ok(bob.Store.getCustomItems(L)[id], 'Bob voit l’item sans toggle ☁️');
+  ok('liste Oui: nouveaux items visibles par le groupe après sync');
+}
+
+// ===== Scénario 3 : partage item + coche personnelle =====
+{
+  const be = makeBackend();
+  const alice = makeDevice('alice'); const bob = makeDevice('bob');
+  const id = alice.Store.addCustomItem(L, 0, 'Chapeau');
   syncList(alice, L, be);
   syncList(bob, L, be);
   assert.ok(bob.Store.getCustomItems(L)[id], 'Bob voit l’item partagé');
@@ -119,7 +132,7 @@ const ok = (msg) => { console.log('  ✅', msg); pass++; };
   const be = makeBackend();
   const alice = makeDevice('alice'); const bob = makeDevice('bob');
   const id = alice.Store.addCustomItem(L, 0, 'Powerbank');
-  alice.Store.toggleShareItem(L, id); syncList(alice, L, be); syncList(bob, L, be);
+  syncList(alice, L, be); syncList(bob, L, be);
   assert.ok(bob.Store.getCustomItems(L)[id], 'Bob a bien reçu l’item');
   alice.Store.deleteCustomItem(L, id); syncList(alice, L, be); // Alice supprime
   syncList(bob, L, be);                                   // Bob (encore l’item) resync
@@ -134,7 +147,7 @@ const ok = (msg) => { console.log('  ✅', msg); pass++; };
   const be = makeBackend();
   const alice = makeDevice('alice'); const bob = makeDevice('bob');
   const id = alice.Store.addCustomItem(L, 0, 'Jumelles');
-  alice.Store.toggleShareItem(L, id); syncList(alice, L, be); syncList(bob, L, be);
+  syncList(alice, L, be); syncList(bob, L, be);
   assert.ok(bob.Store.getCustomItems(L)[id], 'partagé puis reçu par Bob');
   alice.Store.toggleShareItem(L, id); syncList(alice, L, be);  // retrait
   assert.equal(alice.Store.getCustomItems(L)[id].shared, false, 'Alice garde l’item en local après retrait');
@@ -146,4 +159,19 @@ const ok = (msg) => { console.log('  ✅', msg); pass++; };
   ok('retrait/re-partage: réversible et cohérent');
 }
 
-console.log(`\n${pass}/6 scénarios OK — spec respectée.`);
+// ===== Scénario 8 : toggle liste Oui promeut les items locaux =====
+{
+  const be = makeBackend();
+  const alice = makeDevice('alice'); const bob = makeDevice('bob');
+  alice.Store.setListShared(L, false);
+  const id = alice.Store.addCustomItem(L, 0, 'Note perso');
+  assert.equal(alice.Store.getCustomItems(L)[id].shared, false);
+  alice.Store.setListShared(L, true); // Oui → promote
+  assert.equal(alice.Store.getCustomItems(L)[id].shared, true, 'toggle Oui promeut l’item local');
+  syncList(alice, L, be);
+  syncList(bob, L, be);
+  assert.ok(bob.Store.getCustomItems(L)[id], 'Bob reçoit après promotion');
+  ok('liste Oui: promeut les items locaux existants');
+}
+
+console.log(`\n${pass}/7 scénarios OK — spec respectée.`);

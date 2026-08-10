@@ -430,7 +430,13 @@ var App = (() => {
 
     // If viewing a specific list
     if (currentListId && tripData?.lists?.[currentListId]) {
-      ListComponent.render('plus-content', tripData.lists[currentListId]);
+      const list = tripData.lists[currentListId];
+      ListComponent.render('plus-content', list);
+      // Pull shared customs so the other traveler sees cloud items without
+      // needing to tap an action first.
+      if (typeof ListComponent.pullOnOpen === 'function') {
+        ListComponent.pullOnOpen('plus-content', list);
+      }
       return;
     }
 
@@ -447,11 +453,12 @@ var App = (() => {
         });
         const pct = total > 0 ? Math.round((checked / total) * 100) : 0;
         const typeEmoji = list.type === 'shopping' ? '🛒' : list.type === 'packing' ? '🧳' : '📋';
+        const shareHint = Store.isListShared(id) ? '☁️ partagée' : '🔒 locale';
         html += `<div class="trip-item" onclick="App.openList('${escAttr(id)}')">
           <span class="trip-emoji">${typeEmoji}</span>
           <div class="trip-info">
             <div class="trip-name">${esc(list.title)}</div>
-            <div class="trip-dates">${checked}/${total} coché${checked !== 1 ? 's' : ''} — ${pct}%</div>
+            <div class="trip-dates">${checked}/${total} coché${checked !== 1 ? 's' : ''} — ${pct}% · ${shareHint}</div>
           </div>
           <span class="trip-arrow">›</span>
         </div>`;
