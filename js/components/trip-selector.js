@@ -14,15 +14,19 @@ var TripSelector = (() => {
   async function render(container) {
     if (!container) return;
 
-    // Fetch backend trips to discover new ones
+    // Fetch backend trips: discover new + drop orphans (only on success).
+    // Network failure → keep local registry (offline-safe).
     if (navigator.onLine && typeof API !== 'undefined') {
       try {
         const resp = await API.getTrips();
-        const backendTrips = Array.isArray(resp) ? resp : (resp && resp.results ? resp.results : null);
-        if (backendTrips && backendTrips.length) {
+        const backendTrips = Array.isArray(resp)
+          ? resp
+          : (resp && Array.isArray(resp.results) ? resp.results : null);
+        if (backendTrips) {
+          Store.reconcileTripsFromServer(backendTrips.map(t => t && t.id).filter(Boolean));
           backendTrips.forEach(t => {
-            const id = t.id;
-            Store.registerTrip(id);
+            const id = t && t.id;
+            if (!id) return;
             // Store minimal trip metadata if not already cached
             if (!Store.getTripData(id)) {
               const extra = t.data ? (typeof t.data === 'string' ? JSON.parse(t.data) : t.data) : {};
