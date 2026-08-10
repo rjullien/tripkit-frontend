@@ -67,19 +67,27 @@ var Store = (() => {
   }
 
   /**
-   * Set a check directly (used by sync merge).
+   * Set a check from sync merge.
+   * Policy: newer updatedAt wins; on equal ts, checked wins over unchecked.
+   * Grace: never let a remote uncheck overwrite a local check younger than 10s.
    */
   function setCheck(listId, itemId, checked, updatedAt) {
     const checks = getChecks(listId);
     const current = checks[itemId];
-    // Only update if incoming is newer
-    // Never let server uncheck something the user just checked (within 10s)
     if (current && current.checked && !checked) {
       const age = Date.now() - current.updatedAt;
       if (age < 10000) return checks; // protect recent local check
     }
-    if (!current || updatedAt >= current.updatedAt) {
-      checks[itemId] = { checked, updatedAt };
+    if (!current) {
+      checks[itemId] = { checked: !!checked, updatedAt: updatedAt || 0 };
+      set(`${listId}-checks`, checks);
+      return checks;
+    }
+    if (updatedAt > current.updatedAt) {
+      checks[itemId] = { checked: !!checked, updatedAt };
+      set(`${listId}-checks`, checks);
+    } else if (updatedAt === current.updatedAt && checked && !current.checked) {
+      checks[itemId] = { checked: true, updatedAt };
       set(`${listId}-checks`, checks);
     }
     return checks;

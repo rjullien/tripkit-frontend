@@ -105,6 +105,14 @@ test('setCheck: server cannot uncheck item checked <10s ago', () => {
   assert.strictEqual(Store.getChecks('list1')['fresh'].checked, true);
 });
 
+test('setCheck: equal timestamp → checked wins', () => {
+  Store.setCheck('list1', 'tie', false, 9000);
+  Store.setCheck('list1', 'tie', true, 9000);
+  assert.strictEqual(Store.getChecks('list1')['tie'].checked, true);
+  Store.setCheck('list1', 'tie', false, 9000);
+  assert.strictEqual(Store.getChecks('list1')['tie'].checked, true);
+});
+
 console.log('\n══════ Store: Custom Items ══════');
 
 test('addCustomItem follows list shared default (Oui → shared:true)', () => {

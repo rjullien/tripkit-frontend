@@ -208,18 +208,25 @@ var API = (() => {
   async function syncList(tripId, listId) {
     const deviceId = Store.getDeviceId();
     const deletedCustom = Store.getCustomDeleted(listId);
+    const listShared = Store.isListShared(listId);
 
-    // Only SHARED custom items leave the device. Checks and hidden are
-    // strictly local (per device) and are never sent or received.
+    // Shared custom items always sync. Checks sync ONLY when the list is
+    // « Liste partagée Oui ». Hidden stays local forever.
     const allCustom = Store.getCustomItems(listId);
     const sharedCustom = {};
     Object.entries(allCustom).forEach(([id, item]) => {
       if (item.shared) sharedCustom[id] = { text: item.text, section: item.section, createdAt: item.createdAt };
     });
+    const checksPayload = listShared ? Store.getChecks(listId) : {};
 
     const result = await safeFetch(`/trips/${tripId}/lists/${listId}/sync`, {
       method: 'PATCH',
-      body: JSON.stringify({ deviceId, custom: sharedCustom, deletedCustom }),
+      body: JSON.stringify({
+        deviceId,
+        custom: sharedCustom,
+        deletedCustom,
+        checks: checksPayload,
+      }),
     });
 
     if (!result) {
@@ -228,11 +235,8 @@ var API = (() => {
     }
     // Drop this pair from outbox on success
     writeOutbox(readOutbox().filter(x => !(x.tripId === tripId && x.listId === listId)));
-    // The server is authoritative for SHARED items only. Reconcile the local
-    // shared set with the server's merged set:
-    //   • add shared items published by other devices (unless locally tombstoned)
-    //   • drop local shared items the group no longer has (deleted/retracted by a peer)
-    // Local-only items (shared:false) and ALL checks are left untouched.
+    // Reconcile shared customs; when list is shared, also merge checks
+    // (server LWW by updatedAt, checked wins on tie — same as Store.setCheck).
     let changed = false;
     if (result.merged) {
       const serverShared = result.merged.custom || {};
@@ -255,6 +259,19 @@ var API = (() => {
       });
 
       if (changed) Store.set(`${listId}-custom`, cur);
+
+      if (listShared && result.merged.checks) {
+        Object.entries(result.merged.checks).forEach(([id, item]) => {
+          const before = Store.getChecks(listId)[id];
+          Store.setCheck(listId, id, !!item.checked, item.updatedAt || 0);
+          const after = Store.getChecks(listId)[id];
+          if (!before || !after
+            || before.checked !== after.checked
+            || before.updatedAt !== after.updatedAt) {
+            changed = true;
+          }
+        });
+      }
     }
 
     if (result.serverSyncAt) {
