@@ -143,11 +143,21 @@ test('custom items appear after add', () => {
   assert(html.includes('My custom item'), 'Custom item not rendered');
 });
 
-test('custom item shows lock emoji (local by default)', () => {
+test('custom item shows cloud emoji (list shared Oui by default)', () => {
   Store.addCustomItem('test-list', 0, 'Cloud item');
   ListComponent.render('container', testList);
   const html = mockElements['container'].innerHTML;
-  assert(html.includes('🔒'), 'Lock emoji missing for local item');
+  assert(html.includes('☁️'), 'Cloud emoji missing for shared-list item');
+  assert(html.includes('Liste partagée'), 'List share toggle missing');
+});
+
+test('custom item shows lock emoji when list shared Non', () => {
+  Store.setListShared('test-list', false);
+  Store.addCustomItem('test-list', 0, 'Local only');
+  ListComponent.render('container', testList);
+  const html = mockElements['container'].innerHTML;
+  assert(html.includes('🔒'), 'Lock emoji missing for local-list item');
+  Store.setListShared('test-list', true);
 });
 
 test('multiple custom items in same section all render', () => {
