@@ -33,7 +33,7 @@ var ListComponent = (() => {
       // Custom items for this section
       const customForSection = Object.entries(custom)
         .filter(([, c]) => c.section === si)
-        .map(([id, c]) => ({ id: 'custom-' + id, text: c.text, note: null, _customId: id, _isCustom: true, _shared: c.shared !== false }));
+        .map(([id, c]) => ({ id: 'custom-' + id, text: c.text, note: null, _customId: id, _isCustom: true, _shared: !!c.shared }));
 
       const allItems = [...visibleItems, ...customForSection];
       const sectionChecked = allItems.filter(it => checks[it.id]?.checked).length;
@@ -122,12 +122,22 @@ var ListComponent = (() => {
       linksHtml += `</div>`;
     }
 
+    const listShared = Store.isListShared(listId);
+
     // Assemble
     el.innerHTML = `
       <div class="page-header">
         <button class="back-btn" onclick="window.location.hash='plus'">◀ Retour</button>
         <h1>${esc(listData.title)}</h1>
         ${listData.subtitle ? `<div class="sub">${esc(listData.subtitle)}</div>` : ''}
+      </div>
+      <div class="list-share-bar">
+        <span class="list-share-label">Liste partagée</span>
+        <button type="button" class="list-share-toggle${listShared ? ' on' : ''}"
+          data-action="toggle-list-shared"
+          title="${listShared ? 'Les nouveaux items partent au groupe' : 'Les nouveaux items restent sur cet appareil'}">
+          ${listShared ? 'Oui ☁️' : 'Non 🔒'}
+        </button>
       </div>
       ${storeHtml}
       <div class="progress-wrap">
@@ -280,6 +290,17 @@ var ListComponent = (() => {
           }
           break;
         }
+        case 'toggle-list-shared': {
+          e.stopPropagation();
+          const next = !Store.isListShared(listId);
+          Store.setListShared(listId, next);
+          render(el.id, listData);
+          backgroundSync(listData);
+          showToast(next
+            ? '☁️ Liste partagée — nouveaux items visibles par le groupe'
+            : '🔒 Liste locale — nouveaux items restent sur cet appareil');
+          break;
+        }
         case 'export': {
           doExport(listData);
           break;
@@ -370,8 +391,29 @@ var ListComponent = (() => {
   function backgroundSync(listData) {
     const tripId = Store.getCurrentTripId();
     if (tripId && typeof API !== 'undefined') {
-      API.syncList(tripId, listData.id);
+      return API.syncList(tripId, listData.id).then((res) => {
+        if (res && res.changed) {
+          const el = document.getElementById('plus-content');
+          if (el && el._listData && el._listData.id === listData.id) {
+            render('plus-content', listData);
+          }
+        }
+        return res;
+      }).catch(() => null);
     }
+    return Promise.resolve(null);
+  }
+
+  /**
+   * Pull shared customs when opening a list (Nicole sees René's cloud items).
+   * Re-renders if the merge brought new items.
+   */
+  function pullOnOpen(containerId, listData) {
+    const tripId = Store.getCurrentTripId();
+    if (!tripId || typeof API === 'undefined' || !listData) return;
+    API.syncList(tripId, listData.id).then((res) => {
+      if (res && res.changed) render(containerId, listData);
+    }).catch(() => {});
   }
 
   function showToast(msg, type = 'success') {
@@ -386,5 +428,5 @@ var ListComponent = (() => {
       .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   }
 
-  return { render };
+  return { render, pullOnOpen };
 })();

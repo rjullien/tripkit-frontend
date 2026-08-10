@@ -67,22 +67,70 @@ var Store = (() => {
   }
 
   /**
-   * Set a check directly (used by sync merge).
+   * Set a check from sync merge.
+   * Policy: newer updatedAt wins; on equal ts, checked wins over unchecked.
+   * Grace: never let a remote uncheck overwrite a local check younger than 10s.
    */
   function setCheck(listId, itemId, checked, updatedAt) {
     const checks = getChecks(listId);
     const current = checks[itemId];
-    // Only update if incoming is newer
-    // Never let server uncheck something the user just checked (within 10s)
     if (current && current.checked && !checked) {
       const age = Date.now() - current.updatedAt;
       if (age < 10000) return checks; // protect recent local check
     }
-    if (!current || updatedAt >= current.updatedAt) {
-      checks[itemId] = { checked, updatedAt };
+    if (!current) {
+      checks[itemId] = { checked: !!checked, updatedAt: updatedAt || 0 };
+      set(`${listId}-checks`, checks);
+      return checks;
+    }
+    if (updatedAt > current.updatedAt) {
+      checks[itemId] = { checked: !!checked, updatedAt };
+      set(`${listId}-checks`, checks);
+    } else if (updatedAt === current.updatedAt && checked && !current.checked) {
+      checks[itemId] = { checked: true, updatedAt };
       set(`${listId}-checks`, checks);
     }
     return checks;
+  }
+
+  /**
+   * List-level share default (Oui/Non).
+   * Default TRUE — family lists (avant-de-partir, packing…) publish new custom
+   * items to the group unless the user turns the list to local-only.
+   * Stored per device preference key `${listId}-list-shared`.
+   */
+  function isListShared(listId) {
+    const v = get(`${listId}-list-shared`, null);
+    if (v === null) return true;
+    return !!v;
+  }
+
+  /**
+   * Set list-level share. When turning ON, promote all local custom items to
+   * shared (so existing notes join the group). When turning OFF, only affects
+   * future adds — already-shared items stay on the server until unshared/deleted.
+   */
+  function setListShared(listId, shared) {
+    const on = !!shared;
+    set(`${listId}-list-shared`, on);
+    if (on) {
+      const items = getCustomItems(listId);
+      let changed = false;
+      const tombs = getCustomDeleted(listId);
+      Object.keys(items).forEach((id) => {
+        if (!items[id].shared) {
+          items[id].shared = true;
+          items[id].createdAt = Date.now();
+          if (tombs[id]) delete tombs[id];
+          changed = true;
+        }
+      });
+      if (changed) {
+        set(`${listId}-custom`, items);
+        set(`${listId}-custom-deleted`, tombs);
+      }
+    }
+    return on;
   }
 
   /**
@@ -93,13 +141,14 @@ var Store = (() => {
   }
 
   /**
-   * Add a custom item. Starts as local (shared: false).
+   * Add a custom item. shared follows the list-level Oui/Non (default Oui).
    */
   function addCustomItem(listId, sectionIndex, text) {
     const items = getCustomItems(listId);
     const id = 'c' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
     const now = Date.now();
-    items[id] = { text, section: sectionIndex, createdAt: now, shared: false };
+    const shared = isListShared(listId);
+    items[id] = { text, section: sectionIndex, createdAt: now, shared };
     set(`${listId}-custom`, items);
     return id;
   }
@@ -305,6 +354,7 @@ var Store = (() => {
     // Lists
     getChecks, toggleCheck, setCheck,
     getCustomItems, addCustomItem, deleteCustomItem, toggleShareItem, getCustomDeleted,
+    isListShared, setListShared,
     getHidden, hideItem, restoreItem,
     getLastSyncAt, updateSyncMeta,
     resetList,

@@ -105,15 +105,31 @@ test('setCheck: server cannot uncheck item checked <10s ago', () => {
   assert.strictEqual(Store.getChecks('list1')['fresh'].checked, true);
 });
 
+test('setCheck: equal timestamp → checked wins', () => {
+  Store.setCheck('list1', 'tie', false, 9000);
+  Store.setCheck('list1', 'tie', true, 9000);
+  assert.strictEqual(Store.getChecks('list1')['tie'].checked, true);
+  Store.setCheck('list1', 'tie', false, 9000);
+  assert.strictEqual(Store.getChecks('list1')['tie'].checked, true);
+});
+
 console.log('\n══════ Store: Custom Items ══════');
 
-test('addCustomItem creates local item (shared:false)', () => {
+test('addCustomItem follows list shared default (Oui → shared:true)', () => {
+  assert.strictEqual(Store.isListShared('list1'), true);
   const id = Store.addCustomItem('list1', 0, 'Test item');
   const items = Store.getCustomItems('list1');
   assert(items[id]);
   assert.strictEqual(items[id].text, 'Test item');
   assert.strictEqual(items[id].section, 0);
-  assert.strictEqual(items[id].shared, false);
+  assert.strictEqual(items[id].shared, true);
+});
+
+test('addCustomItem local when list shared Non', () => {
+  Store.setListShared('list1', false);
+  const id = Store.addCustomItem('list1', 0, 'Private note');
+  assert.strictEqual(Store.getCustomItems('list1')[id].shared, false);
+  Store.setListShared('list1', true); // restore default for later tests
 });
 
 test('deleteCustomItem removes item', () => {
