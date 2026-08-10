@@ -217,30 +217,32 @@ test('custom items count in progress', () => {
 
 console.log('\n══════ ListComponent: Event binding ══════');
 
-test('events bound only once per list', () => {
+test('events bound only once per container', () => {
   ListComponent.render('container', testList);
   const el = mockElements['container'];
   const handlerCount1 = el._handlers ? el._handlers.length : 0;
-  
+
   ListComponent.render('container', testList);
   const handlerCount2 = el._handlers ? el._handlers.length : 0;
-  
-  assert.strictEqual(handlerCount1, handlerCount2, 
+
+  assert.strictEqual(handlerCount1, handlerCount2,
     `Handlers should not stack: ${handlerCount1} vs ${handlerCount2}`);
+  assert.ok(el._listHandlersBound, 'flag set after first bind');
 });
 
-test('events re-bind for different list', () => {
+test('switching lists does not stack handlers (reads _listData)', () => {
   const list2 = { ...testList, id: 'list-2', sections: [{ title: 'X', items: [{ id: 'x1', text: 'X1' }] }] };
-  
+
   ListComponent.render('container', testList);
   const el = mockElements['container'];
-  const bound1 = el._listBoundId;
-  
+  const handlerCount1 = el._handlers ? el._handlers.length : 0;
+
   ListComponent.render('container', list2);
-  const bound2 = el._listBoundId;
-  
-  assert.strictEqual(bound1, 'test-list');
-  assert.strictEqual(bound2, 'list-2');
+  const handlerCount2 = el._handlers ? el._handlers.length : 0;
+
+  assert.strictEqual(handlerCount1, handlerCount2,
+    `Handlers must not stack when switching lists: ${handlerCount1} → ${handlerCount2}`);
+  assert.strictEqual(el._listData.id, 'list-2');
 });
 
 console.log('\n══════ Simulate: Full user flow ══════');

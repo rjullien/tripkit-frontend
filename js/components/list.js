@@ -181,16 +181,20 @@ var ListComponent = (() => {
   }
 
   function bindEvents(el, listData) {
-    // Store current listData on element for handler access
+    // Always refresh current list data — handlers read from here (no stale closure).
     el._listData = listData;
-    // Prevent stacking event listeners on re-render of same list
-    if (el._listBoundId === listData.id) return;
-    el._listBoundId = listData.id;
-    const listId = listData.id;
+
+    // Bind once per container. Re-render replaces innerHTML; stacking click
+    // listeners used to fire N toasts (and toggle share N times) per tap.
+    if (el._listHandlersBound) return;
+    el._listHandlersBound = true;
 
     el.addEventListener('click', (e) => {
+      const data = el._listData;
+      if (!data) return;
+      const listId = data.id;
       const target = e.target.closest('[data-action]');
-      if (!target) return;
+      if (!target || !el.contains(target)) return;
 
       const action = target.dataset.action;
 
@@ -199,23 +203,23 @@ var ListComponent = (() => {
           const itemId = target.dataset.item;
           if (!itemId) return;
           Store.toggleCheck(listId, itemId);
-          render(el.id, listData);
-          backgroundSync(listData);
+          render(el.id, data);
+          backgroundSync(data);
           break;
         }
         case 'hide': {
           e.stopPropagation();
           const itemId = target.dataset.item;
           Store.hideItem(listId, itemId);
-          render(el.id, listData);
-          backgroundSync(listData);
+          render(el.id, data);
+          backgroundSync(data);
           break;
         }
         case 'restore': {
           const itemId = target.dataset.item;
           Store.restoreItem(listId, itemId);
-          render(el.id, listData);
-          backgroundSync(listData);
+          render(el.id, data);
+          backgroundSync(data);
           break;
         }
         case 'toggle-section': {
@@ -252,8 +256,8 @@ var ListComponent = (() => {
           const input = el.querySelector(`[data-input-field="${si}"]`);
           if (input && input.value.trim()) {
             Store.addCustomItem(listId, si, input.value.trim());
-            render(el.id, listData);
-            backgroundSync(listData);
+            render(el.id, data);
+            backgroundSync(data);
           }
           break;
         }
@@ -270,8 +274,8 @@ var ListComponent = (() => {
           const customId = target.dataset.customId;
           if (customId) {
             Store.deleteCustomItem(listId, customId);
-            render(el.id, listData);
-            backgroundSync(listData);
+            render(el.id, data);
+            backgroundSync(data);
           }
           break;
         }
@@ -279,14 +283,10 @@ var ListComponent = (() => {
           e.stopPropagation();
           const customId = target.dataset.customId;
           if (customId) {
-            const updated = Store.toggleShareItem(listId, customId);
-            render(el.id, listData);
-            backgroundSync(listData); // propage la publication OU le retrait
-            if (updated && updated.shared) {
-              showToast('☁️ Partagé avec le groupe');
-            } else {
-              showToast('🔒 Gardé en local');
-            }
+            Store.toggleShareItem(listId, customId);
+            render(el.id, data);
+            backgroundSync(data);
+            // No toast — ☁️/🔒 on the row is enough feedback.
           }
           break;
         }
@@ -294,25 +294,25 @@ var ListComponent = (() => {
           e.stopPropagation();
           const next = !Store.isListShared(listId);
           Store.setListShared(listId, next);
-          render(el.id, listData);
-          backgroundSync(listData);
+          render(el.id, data);
+          backgroundSync(data);
           showToast(next
-            ? '☁️ Liste partagée — nouveaux items visibles par le groupe'
-            : '🔒 Liste locale — nouveaux items restent sur cet appareil');
+            ? '☁️ Liste partagée'
+            : '🔒 Liste locale');
           break;
         }
         case 'export': {
-          doExport(listData);
+          doExport(data);
           break;
         }
         case 'import': {
-          doImport(el.id, listData);
+          doImport(el.id, data);
           break;
         }
         case 'reset': {
           if (confirm('Réinitialiser toutes les cases ?')) {
             Store.resetList(listId);
-            render(el.id, listData);
+            render(el.id, data);
             showToast('✅ Liste réinitialisée');
           }
           break;
@@ -320,20 +320,20 @@ var ListComponent = (() => {
       }
     });
 
-    // Enter key on add input
-    el.querySelectorAll('[data-input-field]').forEach(input => {
-      input.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') {
-          const si = parseInt(input.dataset.inputField);
-          const btn = el.querySelector(`[data-action="confirm-add"][data-section="${si}"]`);
-          if (btn) btn.click();
-        }
-        if (e.key === 'Escape') {
-          const si = input.dataset.inputField;
-          const btn = el.querySelector(`[data-action="cancel-add"][data-section="${si}"]`);
-          if (btn) btn.click();
-        }
-      });
+    // Delegated — survives innerHTML re-renders (per-input binds used to die).
+    el.addEventListener('keydown', (e) => {
+      const input = e.target.closest('[data-input-field]');
+      if (!input || !el.contains(input)) return;
+      if (e.key === 'Enter') {
+        const si = parseInt(input.dataset.inputField);
+        const btn = el.querySelector(`[data-action="confirm-add"][data-section="${si}"]`);
+        if (btn) btn.click();
+      }
+      if (e.key === 'Escape') {
+        const si = input.dataset.inputField;
+        const btn = el.querySelector(`[data-action="cancel-add"][data-section="${si}"]`);
+        if (btn) btn.click();
+      }
     });
   }
 
