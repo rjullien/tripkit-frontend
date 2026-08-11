@@ -152,6 +152,9 @@ async function main() {
     routeUrl: SEED.trip.routeUrl || null,
     users: SEED.trip.users || {},
     homeTz: SEED.trip.homeTz || 'Europe/Paris',
+    dailyBrief: SEED.trip.dailyBrief,
+    whatsappGroup: SEED.trip.whatsappGroup,
+    briefSendTime: SEED.trip.briefSendTime,
   };
 
   try {
