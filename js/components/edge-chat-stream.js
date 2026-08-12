@@ -228,7 +228,7 @@ var EdgeChatStream = (() => {
     if (!container) return;
     container.innerHTML = `<div class="leo-section edge-chat-section">
       <h3 class="section-title">Local (appareil)</h3>
-      <p class="leo-hint">Petit modèle sur l’appareil, sans réseau. Réponses courtes et lentes (~2&nbsp;tokens/s) — pour les questions live, utilise Bifrost au-dessus.</p>
+      <p class="leo-hint">Smoke-test ~19&nbsp;Mo (self-host). Qualité tips nulle — juste Activer + 1 réponse. Bifrost / Léo au-dessus.</p>
       <div id="edge-model-bar-host">${edgeBarHtml()}</div>
       <div class="leo-thread" id="edge-chat-thread"></div>
       <div class="leo-stream-status" id="edge-chat-status" hidden></div>
@@ -339,6 +339,7 @@ var EdgeChatStream = (() => {
       const hist = _apiHistory.slice(0, -1);
       const reply = await EdgeEngine.generate(text, hist, {
         signal: ac ? ac.signal : undefined,
+        maxTokens: 48,
         onDelta: (delta) => {
           asst.content += delta;
           schedulePaint();

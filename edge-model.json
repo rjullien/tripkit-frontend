@@ -1,13 +1,13 @@
 {
   "enabled": true,
-  "modelUrl": "https://huggingface.co/bartowski/Qwen2.5-0.5B-Instruct-GGUF/resolve/main/Qwen2.5-0.5B-Instruct-Q4_K_M.gguf",
-  "modelVersion": "qwen2.5-0.5b-instruct-q4km-v1",
-  "modelSizeBytes": 397808192,
+  "modelUrl": "models/stories15M-q4_0.gguf",
+  "modelVersion": "stories15m-q4-0-selfhost-v3",
+  "modelSizeBytes": 19077344,
   "runtime": "wllama",
-  "maxTokens": 128,
-  "temperature": 0.7,
+  "maxTokens": 48,
+  "temperature": 0.8,
   "intentClassifier": "keywords-v1",
   "fallbackToBifrost": true,
-  "minRamMB": 1024,
-  "notes": "Copy of rjullien/tripkit/ops/edge-model.json — Qwen2.5 0.5B, correct French unlike SmolLM2 360M."
+  "minRamMB": 512,
+  "notes": "Smoke-test activation after CSP wasm-unsafe-eval fix. Toy English model (~19 Mo, same-origin). Swap to Qwen2.5 0.5B once iPhone Activer works."
 }

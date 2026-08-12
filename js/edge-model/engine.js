@@ -9,8 +9,8 @@ var EdgeEngine = (() => {
   // Safari has no JSPI/Memory64 — Wllama needs Asyncify compat (vendored, NOT jsDelivr).
   const WLLAMA_COMPAT_WASM = 'js/lib/wllama/compat/wllama.wasm';
   const WLLAMA_COMPAT_JS = 'js/lib/wllama/compat/wllama.js';
-  const WARMUP_TIMEOUT_MS = 180000; // 3 min — Safari Asyncify is slow but ~10s in practice
-  const OVERSIZE_BYTES = 700 * 1000 * 1000; // >700 Mo = leftover 1.1 GB Qwen 1.7B
+  const WARMUP_TIMEOUT_MS = 180000; // 3 min — Safari Asyncify; 19 Mo should be well under
+  const OVERSIZE_BYTES = 40 * 1000 * 1000; // >40 Mo = leftover 135M/360M/Qwen during stories15M smoke-test
 
   /** @type {null | 'idle' | 'downloading' | 'ready_disk' | 'loading_ram' | 'ready_ram' | 'error'} */
   let _state = 'idle';
@@ -139,9 +139,9 @@ var EdgeEngine = (() => {
   function hintForElapsed(sec) {
     if (sec < 8) return 'Init runtime WASM (Safari Asyncify)…';
     if (sec < 25) return 'Lecture GGUF OPFS + worker…';
-    if (sec < 60) return 'Allocation mémoire — ~400 Mo à charger';
+    if (sec < 60) return 'Allocation mémoire — stories15M ≈ quelques secondes';
     if (sec < 120) return 'Toujours en cours — laisse tourner ou Annuler';
-    return 'Très long — Annuler, garder l’onglet seul au premier plan, réessayer';
+    return 'Très long — Annuler, vérifier taille ~19 Mo, réessayer';
   }
 
   function startHeartbeat(startedAt) {
@@ -221,7 +221,7 @@ var EdgeEngine = (() => {
     if (/timeout activation/i.test(raw)) {
       const mb = _diskBytes ? Math.round(_diskBytes / 1e6) + ' Mo sur disque. ' : '';
       return mb
-        + 'Activation trop longue. Si >700 Mo → Supprimer puis recharger (~400 Mo). Sinon réessaie.';
+        + 'Activation trop longue. Si >40 Mo → Remplacer par stories15M (~19 Mo). Sinon réessaie.';
     }
     return raw || fallback;
   }
@@ -302,7 +302,7 @@ var EdgeEngine = (() => {
     emit();
 
     const timeoutMs = (opts && opts.timeoutMs) || WARMUP_TIMEOUT_MS;
-    const nCtx = 1024;
+    const nCtx = isMobileSafari() ? 256 : 512;
     const modelUrl = resolveModelUrl(cfg.modelUrl);
 
     try {
@@ -406,7 +406,7 @@ var EdgeEngine = (() => {
       : [{ role: 'user', content: String(userText || '') }];
 
     const w = await getInstance();
-    const maxTokens = (opts && opts.maxTokens) || cfg.maxTokens || 128;
+    const maxTokens = (opts && opts.maxTokens) || cfg.maxTokens || 48;
     const temperature = (opts && opts.temperature) != null ? opts.temperature : (cfg.temperature ?? 0.7);
     const useStream = !(opts && opts.stream === false);
 
@@ -502,7 +502,7 @@ var EdgeEngine = (() => {
       _diskBytes = (typeof EdgeModelConfig !== 'undefined' && EdgeModelConfig.storedSize()) || 0;
       if (_diskBytes >= OVERSIZE_BYTES && !_error) {
         _error = 'Ancien modèle ~' + Math.round(_diskBytes / 1e6)
-          + ' Mo — clique Remplacer (~400 Mo).';
+          + ' Mo — clique Remplacer (~19 Mo self-host).';
       }
     } else {
       _state = 'idle';
