@@ -586,6 +586,10 @@ var App = (() => {
         <button class="btn" style="background:var(--sec);color:#000;font-weight:600;flex:1" onclick="App.clearCache()">🔄 Vider cache</button>
         <button class="btn" style="flex:1;background:#f85149;color:#fff;font-weight:600" onclick="App.confirmClearData()">🗑️ Effacer données</button>
       </div>
+      <p style="font-size:.78em;color:var(--muted);margin:8px 0 0;line-height:1.4">
+        «&nbsp;Vider cache&nbsp;» n’efface pas le modèle hors-ligne (OPFS).
+        «&nbsp;Effacer données&nbsp;» le supprime aussi.
+      </p>
       <div style="display:flex;align-items:center;gap:10px;margin-top:8px;padding:10px 12px;background:var(--card);border-radius:var(--radius)">
         <label style="display:flex;align-items:center;gap:8px;cursor:pointer;flex:1;color:var(--text);font-size:.85em">
           <input type="checkbox" id="nocache-toggle" ${localStorage.getItem('tripkit_nocache') === '1' ? 'checked' : ''} onchange="App.toggleNoCache(this.checked)" style="width:18px;height:18px">
@@ -719,20 +723,28 @@ var App = (() => {
   }
 
   function confirmClearData() {
-    if (!confirm('⚠️ Vider le cache local ?\nLes données seront retéléchargées depuis le serveur.')) return;
-    // Remove cached versions so next reload forces a fresh backend fetch
-    // but do NOT wipe tripkit-trips or user-id — just version markers
-    const keys = Object.keys(localStorage);
-    keys.forEach(k => {
-      if (k.startsWith('tripkit-version-') || k.endsWith('-data-version') || k.startsWith('tripkit-trip-')) {
-        localStorage.removeItem(k);
+    if (!confirm('⚠️ Effacer les données locales ?\nLes données voyage seront retéléchargées.\nLe modèle hors-ligne (OPFS) sera aussi supprimé.')) return;
+    const afterPurge = () => {
+      // Remove cached versions so next reload forces a fresh backend fetch
+      // but do NOT wipe tripkit-trips or user-id — just version markers
+      const keys = Object.keys(localStorage);
+      keys.forEach(k => {
+        if (k.startsWith('tripkit-version-') || k.endsWith('-data-version') || k.startsWith('tripkit-trip-')) {
+          localStorage.removeItem(k);
+        }
+      });
+      // Also clear SW cache (Cache API only — OPFS already purged above)
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.getRegistrations().then(regs => regs.forEach(r => r.unregister()));
       }
-    });
-    // Also clear SW cache
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.getRegistrations().then(regs => regs.forEach(r => r.unregister()));
+      caches.keys().then(keys => Promise.all(keys.map(k => caches.delete(k)))).then(() => location.reload(true));
+    };
+    // Edge GGUF lives in OPFS — must purge explicitly (clearCache does NOT).
+    if (typeof EdgeEngine !== 'undefined' && EdgeEngine.purge) {
+      Promise.resolve(EdgeEngine.purge()).catch(() => {}).then(afterPurge);
+    } else {
+      afterPurge();
     }
-    caches.keys().then(keys => Promise.all(keys.map(k => caches.delete(k)))).then(() => location.reload(true));
   }
 
   // ── Swipe navigation (programme tab) ──────────────────────────────────────
@@ -765,8 +777,9 @@ var App = (() => {
   }
 
   // ── Clear cache (reload button) ───────────────────────────────────────────
+  // Cache API + SW only. Does NOT touch OPFS edge model (SPEC-edge-model.md).
   function clearCache() {
-    if (!confirm('Vider le cache et recharger ?')) return;
+    if (!confirm('Vider le cache et recharger ?\n(Le modèle hors-ligne OPFS est conservé.)')) return;
     if ('serviceWorker' in navigator) navigator.serviceWorker.getRegistrations().then(regs => regs.forEach(r => r.unregister()));
     caches.keys().then(keys => Promise.all(keys.map(k => caches.delete(k)))).then(() => location.reload(true));
   }
