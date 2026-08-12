@@ -161,40 +161,63 @@ var Store = (() => {
   }
 
   /**
-   * Drop the legacy per-device `${listId}-list-shared` flag.
-   *
-   * That flag gated the whole sync: set to Non on one phone, checks were never
-   * sent nor applied and new items stayed local — in both directions, forever,
-   * with no error. It was per device, so two people on the same list could
-   * disagree without any way to see it. Sync is now unconditional; a single
-   * item stays private only via its own 🔒.
-   *
-   * A list left on Non was almost never a deliberate choice, so its items are
-   * promoted back to shared on migration.
-   * @returns {boolean} true when local items were promoted
+   * packing (valise / vêtements) is local by default.
+   * todo (avant-de-partir) and everything else is shared by default.
+   * Explicit `{listId}-list-shared` overrides the default.
    */
-  function migrateLegacyListShare(listId) {
-    const flag = get(`${listId}-list-shared`, null);
-    if (flag === null) return false;
-    del(`${listId}-list-shared`);
-    if (flag) return false;
+  function rememberListType(listId, type) {
+    if (listId && type) set(`${listId}-list-type`, type);
+  }
 
-    const items = getCustomItems(listId);
-    const tombs = getCustomDeleted(listId);
-    let changed = false;
-    Object.keys(items).forEach((id) => {
-      if (!items[id].shared) {
-        items[id].shared = true;
-        items[id].createdAt = Date.now();
-        if (tombs[id]) delete tombs[id];
-        changed = true;
+  function listType(listId) {
+    const remembered = get(`${listId}-list-type`, null);
+    if (remembered) return remembered;
+    const tripId = getCurrentTripId();
+    const data = tripId && getTripData(tripId);
+    const lists = data && data.lists;
+    const list = lists && (lists[listId] || Object.values(lists).find(l => l && l.id === listId));
+    if (list && list.type) return list.type;
+    if (/^checklist-/.test(listId)) return 'packing';
+    if (/^avant-de-partir-/.test(listId)) return 'todo';
+    return '';
+  }
+
+  function defaultListShared(listId) {
+    return listType(listId) !== 'packing';
+  }
+
+  function isListShared(listId) {
+    const v = get(`${listId}-list-shared`, null);
+    if (v === null) return defaultListShared(listId);
+    return !!v;
+  }
+
+  /**
+   * Set list-level share. When turning ON, promote local custom items so they
+   * join the group. When turning OFF, only future adds stay local — already
+   * published items stay on the server until 🔒 / 🗑.
+   */
+  function setListShared(listId, shared) {
+    const on = !!shared;
+    set(`${listId}-list-shared`, on);
+    if (on) {
+      const items = getCustomItems(listId);
+      let changed = false;
+      const tombs = getCustomDeleted(listId);
+      Object.keys(items).forEach((id) => {
+        if (!items[id].shared) {
+          items[id].shared = true;
+          items[id].createdAt = Date.now();
+          if (tombs[id]) delete tombs[id];
+          changed = true;
+        }
+      });
+      if (changed) {
+        set(`${listId}-custom`, items);
+        set(`${listId}-custom-deleted`, tombs);
       }
-    });
-    if (changed) {
-      set(`${listId}-custom`, items);
-      set(`${listId}-custom-deleted`, tombs);
     }
-    return changed;
+    return on;
   }
 
   /**
@@ -218,14 +241,15 @@ var Store = (() => {
   }
 
   /**
-   * Add a custom item. Shared with the group by default; 🔒 on the row keeps
-   * a single item on this device.
+   * Add a custom item. shared follows the list-level Oui/Non
+   * (packing = Non, avant-de-partir = Oui, unless the user toggled).
    */
   function addCustomItem(listId, sectionIndex, text) {
     const items = getCustomItems(listId);
     const id = 'c' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
     const now = Date.now();
-    items[id] = { text, section: sectionIndex, createdAt: now, shared: true };
+    const shared = isListShared(listId);
+    items[id] = { text, section: sectionIndex, createdAt: now, shared };
     set(`${listId}-custom`, items);
     return id;
   }
@@ -475,7 +499,7 @@ var Store = (() => {
     getChecks, toggleCheck, setCheck, applyRemoteChecks,
     getDirtyCheckIds, getDirtyChecks, markCheckDirty, clearDirtyChecks,
     getCustomItems, addCustomItem, deleteCustomItem, toggleShareItem, getCustomDeleted,
-    migrateLegacyListShare,
+    isListShared, setListShared, listType, rememberListType,
     getHidden, hideItem, restoreItem,
     getLastSyncAt, updateSyncMeta, getSyncState, setSyncState,
     resetList,

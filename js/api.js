@@ -237,13 +237,14 @@ var API = (() => {
   async function syncList(tripId, listId, opts) {
     const mode = (opts && opts.mode) === 'pull' ? 'pull' : 'push';
     const deviceId = Store.getDeviceId();
-    Store.migrateLegacyListShare(listId);
     const deletedCustom = Store.getCustomDeleted(listId);
+    const listShared = Store.isListShared(listId);
 
-    // Checks always sync — no per-device opt-out. Custom items sync unless the
-    // user locked that item with 🔒. Hidden stays local forever.
+    // packing (valise) is local by default: checks stay on this phone.
+    // todo (avant-de-partir) is shared: checks + custom items sync.
+    // Hidden stays local forever.
     // Pull: never send checks (avoid stale local LWW wiping peers).
-    // Push: send only dirty checks (items the user toggled since last push).
+    // Push: send only dirty checks, and only when the list is shared.
     const allCustom = Store.getCustomItems(listId);
     const sharedCustom = {};
     Object.entries(allCustom).forEach(([id, item]) => {
@@ -251,7 +252,7 @@ var API = (() => {
     });
     let checksPayload = {};
     let dirtyIds = [];
-    if (mode === 'push') {
+    if (listShared && mode === 'push') {
       dirtyIds = Store.getDirtyCheckIds(listId);
       checksPayload = Store.getDirtyChecks(listId);
     }
@@ -300,12 +301,12 @@ var API = (() => {
 
       if (changed) Store.set(`${listId}-custom`, cur);
 
-      if (result.merged.checks && Store.applyRemoteChecks(listId, result.merged.checks)) {
+      if (listShared && result.merged.checks && Store.applyRemoteChecks(listId, result.merged.checks)) {
         changed = true;
       }
     }
 
-    if (mode === 'push' && dirtyIds.length) {
+    if (listShared && mode === 'push' && dirtyIds.length) {
       Store.clearDirtyChecks(listId, dirtyIds);
     }
 
