@@ -1,11 +1,11 @@
 /**
  * sw.js — TripKit Service Worker
  * - App shell: network-first online, cache-first when offline
- * - Trip assets (/api/trips/*/assets/*): cache-first always
+ * - Trip assets under /api/trips/<id>/assets/: cache-first always
  * Bump CACHE_NAME when deploying new shell versions.
  */
 
-const CACHE_NAME = 'tripkit-96';
+const CACHE_NAME = 'tripkit-97';
 
 
 const ASSETS = [
@@ -126,16 +126,14 @@ self.addEventListener('fetch', event => {
 
   const url = new URL(event.request.url);
 
-  // Never intercept GGUF / HuggingFace model downloads — Wllama stores them in OPFS.
-  // Putting ~1GB into Cache API would break "Vider cache" vs "Effacer données".
-  if (
-    url.pathname.endsWith('.gguf') ||
-    url.hostname.includes('huggingface.co') ||
-    url.hostname.includes('hf.co') ||
-    url.hostname.includes('xethub.hf.co')
-  ) {
-    return;
-  }
+  // Cross-origin (open-meteo, weather.gov, huggingface.co GGUF…) is never part of
+  // the app shell: caching it would serve stale forecasts and put ~1 GB of model
+  // into the Cache API. Let those requests go straight to the network.
+  if (url.origin !== self.location.origin) return;
+
+  // Wllama runtime (7–14 Mo) and any self-hosted GGUF: cloning a response that
+  // large into the Cache API is enough to stall the wasm fetch on iOS Safari.
+  if (url.pathname.endsWith('.gguf') || url.pathname.endsWith('.wasm')) return;
 
   // Trip assets: cache-first so the voyage keeps images offline after one online load
   if (/^\/api\/trips\/[^/]+\/assets\//.test(url.pathname)) {
