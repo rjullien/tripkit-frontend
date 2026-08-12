@@ -5,7 +5,7 @@
  * Bump CACHE_NAME when deploying new shell versions.
  */
 
-const CACHE_NAME = 'tripkit-83';
+const CACHE_NAME = 'tripkit-84';
 
 
 const ASSETS = [
@@ -13,6 +13,7 @@ const ASSETS = [
   '/index.html',
   '/manifest.json',
   '/version.json',
+  '/edge-model.json',
   '/config.js',
   '/icons/juju-icon.svg',
   '/icons/icon-192-v3.png',
@@ -38,9 +39,15 @@ const ASSETS = [
   '/js/components/publish-panel.js',
   '/js/components/leo-chat-stream.js',
   '/js/components/plus-chat-stream.js',
+  '/js/edge-model/config.js',
+  '/js/edge-model/intent.js',
+  '/js/edge-model/prompt-builder.js',
+  '/js/edge-model/engine.js',
   '/js/components/route-view.js',
   '/js/components/culture-view.js',
   '/js/lib/qrcode-svg.min.js',
+  // Wllama JS only in precache — wasm (~7MB) loads on demand when user opts in.
+  '/js/lib/wllama/index.min.js',
 ];
 
 // ── Install: precache all assets ──────────────────────────────────────────────
@@ -117,6 +124,16 @@ self.addEventListener('fetch', event => {
   if (event.request.method !== 'GET') return;
 
   const url = new URL(event.request.url);
+
+  // Never intercept GGUF / HuggingFace model downloads — Wllama stores them in OPFS.
+  // Putting ~1GB into Cache API would break "Vider cache" vs "Effacer données".
+  if (
+    url.pathname.endsWith('.gguf') ||
+    url.hostname.includes('huggingface.co') ||
+    url.hostname.includes('hf.co')
+  ) {
+    return;
+  }
 
   // Trip assets: cache-first so the voyage keeps images offline after one online load
   if (/^\/api\/trips\/[^/]+\/assets\//.test(url.pathname)) {
