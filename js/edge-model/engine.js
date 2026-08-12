@@ -381,7 +381,8 @@ var EdgeEngine = (() => {
   }
 
   /**
-   * Stream a local completion. Calls onDelta(textChunk) then returns full text.
+   * Completion locale. Sur iPhone : non-stream (évite OOM / kill d’onglet).
+   * Desktop : stream + onDelta.
    */
   async function generate(userText, history, opts) {
     const cfg = typeof EdgeModelConfig !== 'undefined' ? EdgeModelConfig.get() : {};
@@ -393,31 +394,61 @@ var EdgeEngine = (() => {
       : [{ role: 'user', content: String(userText || '') }];
 
     const w = await getInstance();
-    let full = '';
-    const stream = await w.createChatCompletion({
-      messages,
-      max_tokens: (opts && opts.maxTokens) || cfg.maxTokens || 300,
-      temperature: (opts && opts.temperature) != null ? opts.temperature : (cfg.temperature ?? 0.7),
-      stream: true,
-    });
-    for await (const chunk of stream) {
-      if (opts && opts.signal && opts.signal.aborted) {
-        await resetInstance();
-        _state = 'ready_disk';
-        emit();
-        throw new DOMException('Aborted', 'AbortError');
+    const maxTokens = (opts && opts.maxTokens) || cfg.maxTokens || 80;
+    const temperature = (opts && opts.temperature) != null ? opts.temperature : (cfg.temperature ?? 0.7);
+    const useStream = !(opts && opts.stream === false) && !isMobileSafari();
+
+    try {
+      if (!useStream) {
+        const response = await w.createChatCompletion({
+          messages,
+          max_tokens: maxTokens,
+          temperature,
+          stream: false,
+        });
+        if (opts && opts.signal && opts.signal.aborted) {
+          throw new DOMException('Aborted', 'AbortError');
+        }
+        const full = (response
+          && response.choices
+          && response.choices[0]
+          && response.choices[0].message
+          && response.choices[0].message.content) || '';
+        if (opts && typeof opts.onDelta === 'function' && full) opts.onDelta(full);
+        return full;
       }
-      const delta = chunk
-        && chunk.choices
-        && chunk.choices[0]
-        && chunk.choices[0].delta
-        && chunk.choices[0].delta.content;
-      if (delta) {
-        full += delta;
-        if (opts && typeof opts.onDelta === 'function') opts.onDelta(delta);
+
+      let full = '';
+      const stream = await w.createChatCompletion({
+        messages,
+        max_tokens: maxTokens,
+        temperature,
+        stream: true,
+      });
+      for await (const chunk of stream) {
+        if (opts && opts.signal && opts.signal.aborted) {
+          await resetInstance();
+          _state = 'ready_disk';
+          emit();
+          throw new DOMException('Aborted', 'AbortError');
+        }
+        const delta = chunk
+          && chunk.choices
+          && chunk.choices[0]
+          && chunk.choices[0].delta
+          && chunk.choices[0].delta.content;
+        if (delta) {
+          full += delta;
+          if (opts && typeof opts.onDelta === 'function') opts.onDelta(delta);
+        }
       }
+      return full;
+    } catch (e) {
+      if (e && e.name === 'AbortError') throw e;
+      // Try to free RAM so the tab stays usable
+      try { await unload(); } catch (_) { /* ignore */ }
+      throw e;
     }
-    return full;
   }
 
   /** Free RAM; keep OPFS. */

@@ -32,8 +32,8 @@ var LeoChatStream = (() => {
     const dash = (_status && _status.dashboardUrl) || 'https://hermes-leo.bapttf.com';
 
     container.innerHTML = `<div class="leo-section leo-stream-section">
-      <h3 class="section-title">Construire le voyage avec Léo</h3>
-      <p class="leo-hint">Demande la création ou modification du seed voyage.</p>
+      <h3 class="section-title">Léo</h3>
+      <p class="leo-hint">Créer / modifier le seed voyage (Hermes).</p>
       <div class="leo-thread" id="leo-stream-thread"></div>
       <div class="leo-stream-status" id="leo-stream-status" hidden></div>
       <div class="leo-wait" id="leo-stream-wait" hidden>

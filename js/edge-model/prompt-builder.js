@@ -1,13 +1,11 @@
 /**
- * Edge prompt builder — system prompt + trip context from Store (local only).
+ * Edge prompt builder — short system prompt (Safari memory).
  */
 var EdgePrompt = (() => {
   const SYSTEM = [
-    'Tu es l’assistant voyage TripKit (mode hors-ligne, modèle embarqué).',
-    'Tu réponds aux questions générales sur les voyages : rythme, culture, conseils pratiques, que voir/faire.',
-    'Tu n’as PAS accès à : météo live, prix, disponibilités, réservations, horaires transports.',
-    'Si la question nécessite des données live, dis : « Pour ça, reconnecte-toi et repose la question — je te redirigerai vers l’assistant complet. »',
-    'Style : français, concis, chaleureux, utile. Pas de jargon technique.',
+    'Assistant voyage TripKit hors-ligne.',
+    'Réponds en français, court, utile (tips culture / rythme / que voir).',
+    'Pas d’accès météo, prix, résas, horaires live — dis de poser ça à Bifrost.',
   ].join(' ');
 
   function tripContext() {
@@ -18,14 +16,11 @@ var EdgePrompt = (() => {
       const data = Store.getTripData && Store.getTripData(tripId);
       if (!data) return '';
       const name = data.name || data.title || tripId;
-      const start = data.startDate || data.start || '';
-      const end = data.endDate || data.end || '';
       const dests = Array.isArray(data.destinations)
         ? data.destinations.map(d => (typeof d === 'string' ? d : (d && d.name) || '')).filter(Boolean)
         : [];
       const parts = [`Voyage : ${name}`];
-      if (start || end) parts.push(`Dates : ${start}${end ? ' → ' + end : ''}`);
-      if (dests.length) parts.push(`Destinations : ${dests.slice(0, 8).join(', ')}`);
+      if (dests.length) parts.push(`Destinations : ${dests.slice(0, 4).join(', ')}`);
       return parts.join('. ') + '.';
     } catch (_) {
       return '';
@@ -38,16 +33,17 @@ var EdgePrompt = (() => {
    * @returns {{role:string,content:string}[]}
    */
   function buildMessages(userText, history) {
-    const sys = SYSTEM + (tripContext() ? '\n\nContexte trip : ' + tripContext() : '');
+    const sys = SYSTEM + (tripContext() ? ' ' + tripContext() : '');
     const msgs = [{ role: 'system', content: sys }];
-    const hist = Array.isArray(history) ? history.slice(-6) : [];
+    const hist = Array.isArray(history) ? history.slice(-2) : [];
     for (const m of hist) {
       if (!m || !m.content) continue;
       if (m.role === 'user' || m.role === 'assistant') {
-        msgs.push({ role: m.role, content: String(m.content) });
+        // Cap length to limit KV / memory on iPhone
+        msgs.push({ role: m.role, content: String(m.content).slice(0, 400) });
       }
     }
-    msgs.push({ role: 'user', content: String(userText || '') });
+    msgs.push({ role: 'user', content: String(userText || '').slice(0, 500) });
     return msgs;
   }
 

@@ -1,6 +1,6 @@
 /**
- * plus-chat-stream.js — Plus « Assistant voyage » (SSE via BE → Bifrost).
- * Edge path (Wllama) when modèle en RAM + intent=local. Spec: SPEC-edge-model.md.
+ * plus-chat-stream.js — Plus « Assistant Bifrost » (SSE via BE → Bifrost).
+ * Always remote. Local edge has its own box (edge-chat-stream.js).
  */
 var PlusChatStream = (() => {
   let _status = null;
@@ -8,19 +8,11 @@ var PlusChatStream = (() => {
   let _apiHistory = [];
   let _busy = false;
   let _abort = null;
-  let _edgeUnsub = null;
 
   function escapeHtml(s) {
     return String(s ?? '').replace(/[&<>"']/g, c => ({
       '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
     }[c]));
-  }
-
-  function fmtSize(bytes) {
-    const n = Number(bytes) || 0;
-    if (n >= 1e9) return (n / 1e9).toFixed(1) + ' GB';
-    if (n >= 1e6) return Math.round(n / 1e6) + ' MB';
-    return n + ' o';
   }
 
   async function loadStatus() {
@@ -33,210 +25,14 @@ var PlusChatStream = (() => {
     return _status;
   }
 
-  function edgeStatus() {
-    if (typeof EdgeEngine === 'undefined') return null;
-    return EdgeEngine.status();
-  }
-
-  function edgeBarHtml() {
-    if (typeof EdgeEngine === 'undefined' || typeof EdgeModelConfig === 'undefined') return '';
-    const cfg = EdgeModelConfig.get();
-    if (cfg.enabled === false) return '';
-    const st = EdgeEngine.status();
-    const size = fmtSize(st.sizeBytes || cfg.modelSizeBytes);
-
-    if (st.state === 'downloading') {
-      const pct = Math.round((st.progress || 0) * 100);
-      return `<div class="edge-bar" id="edge-model-bar">
-        <div class="edge-bar-title">Téléchargement modèle hors-ligne… ${pct}%</div>
-        <div class="edge-progress"><div class="edge-progress-fill" style="width:${pct}%"></div></div>
-        <p class="leo-hint" style="margin:8px 0 0">Le chat reste sur le serveur pendant le téléchargement.</p>
-      </div>`;
-    }
-    if (st.state === 'loading_ram') {
-      const pct = Math.round((st.progress || 0) * 100);
-      const elapsed = st.elapsedSec || 0;
-      const phase = st.phase || 'Activation…';
-      const detail = st.detail || '';
-      const hint = st.hint || '';
-      const known = pct > 0;
-      return `<div class="edge-bar" id="edge-model-bar">
-        <div class="edge-bar-title">${escapeHtml(phase)}${known ? ' · ' + pct + '%' : ''}</div>
-        <div class="edge-progress${known ? '' : ' indeterminate'}">
-          <div class="edge-progress-fill" style="${known ? 'width:' + pct + '%' : ''}"></div>
-        </div>
-        <p class="leo-hint" style="margin:8px 0 0">
-          <strong style="color:var(--text)">${elapsed}s</strong>
-          ${hint ? ' — ' + escapeHtml(hint) : ''}
-        </p>
-        ${detail ? `<p class="leo-hint" style="margin:6px 0 0;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.78em;overflow-wrap:anywhere">${escapeHtml(detail)}</p>` : ''}
-        <button type="button" class="btn edge-btn-secondary" id="edge-cancel-warmup-btn" style="margin-top:10px">Annuler</button>
-      </div>`;
-    }
-    if (st.inRam) {
-      return `<div class="edge-bar edge-ready" id="edge-model-bar">
-        <span class="edge-badge">⚡ local</span>
-        <span class="leo-hint">Réponses instantanées hors-ligne (tips généraux).</span>
-        <button type="button" class="btn edge-btn-secondary" id="edge-unload-btn">Libérer la mémoire</button>
-      </div>`;
-    }
-    if (st.onDisk) {
-      return `<div class="edge-bar" id="edge-model-bar">
-        <span class="edge-badge">💾 prêt</span>
-        <span class="leo-hint">Modèle sur l’appareil (${escapeHtml(size)})${st.needsUpdate ? ' — <strong style="color:var(--orange)">nouvelle version 135M (~88&nbsp;Mo)</strong>' : ''}.</span>
-        <div class="edge-actions">
-          ${st.needsUpdate
-            ? '<button type="button" class="btn btn-primary" id="edge-update-btn">Remplacer par 135M (~88 Mo)</button>'
-            : '<button type="button" class="btn btn-primary" id="edge-warmup-btn">Activer maintenant</button>'}
-          <button type="button" class="btn edge-btn-danger" id="edge-purge-btn">Supprimer le modèle</button>
-        </div>
-        ${st.error ? `<p class="leo-hint" style="color:var(--orange);margin:10px 0 0;white-space:normal;overflow-wrap:anywhere">${escapeHtml(st.error)}</p>` : ''}
-        ${st.needsUpdate ? '<p class="leo-hint" style="margin:8px 0 0">Test activation iPhone : modèle plus petit (~88&nbsp;Mo). Remplace l’ancien fichier.</p>' : ''}
-      </div>`;
-    }
-    // idle / error — load button
-    return `<div class="edge-bar" id="edge-model-bar">
-      <button type="button" class="btn" id="edge-download-btn">Charger le modèle hors-ligne (~${escapeHtml(size)})</button>
-      <p class="leo-hint" style="margin:8px 0 0">Optionnel. Sans ça, l’assistant reste 100&nbsp;% serveur. Survit à «&nbsp;Vider le cache&nbsp;».</p>
-      ${st.error ? `<p class="leo-hint" style="color:var(--orange);margin:6px 0 0">${escapeHtml(st.error)}</p>` : ''}
-    </div>`;
-  }
-
-  function bindEdgeBar() {
-    const dl = document.getElementById('edge-download-btn');
-    if (dl) {
-      dl.addEventListener('click', async () => {
-        const cfg = EdgeModelConfig.get();
-        const size = fmtSize(cfg.modelSizeBytes);
-        if (!confirm(`Télécharger ~${size} ?\nPréférer Wi‑Fi.`)) return;
-        dl.disabled = true;
-        try {
-          await EdgeEngine.download();
-          if (typeof App !== 'undefined' && App.showToast) App.showToast('✅ Modèle téléchargé');
-        } catch (e) {
-          // Error already in edge bar via EdgeEngine.status().error
-          if (typeof App !== 'undefined' && App.showToast) {
-            App.showToast('❌ Téléchargement échoué', 'error');
-          }
-        }
-        refreshEdgeBar();
-      });
-    }
-    const warm = document.getElementById('edge-warmup-btn');
-    if (warm) {
-      warm.addEventListener('click', async () => {
-        warm.disabled = true;
-        warm.textContent = 'Activation…';
-        try {
-          await EdgeEngine.warmUp();
-          if (typeof App !== 'undefined' && App.showToast) App.showToast('⚡ Modèle actif');
-        } catch (e) {
-          if (typeof App !== 'undefined' && App.showToast) {
-            App.showToast('❌ Activation échouée', 'error');
-          }
-        }
-        refreshEdgeBar();
-      });
-    }
-    const upd = document.getElementById('edge-update-btn');
-    if (upd) {
-      upd.addEventListener('click', async () => {
-        if (!confirm('Remplacer par SmolLM2 135M (~88 Mo) pour tester l’activation iPhone ?\nL’ancien fichier OPFS sera effacé.')) return;
-        upd.disabled = true;
-        try {
-          await EdgeEngine.download();
-          if (typeof App !== 'undefined' && App.showToast) App.showToast('✅ Modèle mis à jour');
-        } catch (e) {
-          if (typeof App !== 'undefined' && App.showToast) {
-            App.showToast('❌ Mise à jour échouée', 'error');
-          }
-        }
-        refreshEdgeBar();
-      });
-    }
-    const purge = document.getElementById('edge-purge-btn');
-    if (purge) {
-      purge.addEventListener('click', async () => {
-        if (!confirm('Supprimer le modèle hors-ligne ?')) return;
-        await EdgeEngine.purge();
-        if (typeof App !== 'undefined' && App.showToast) App.showToast('🗑️ Modèle supprimé');
-        refreshEdgeBar();
-      });
-    }
-    const unload = document.getElementById('edge-unload-btn');
-    if (unload) {
-      unload.addEventListener('click', async () => {
-        await EdgeEngine.unload();
-        refreshEdgeBar();
-      });
-    }
-    const cancelWarm = document.getElementById('edge-cancel-warmup-btn');
-    if (cancelWarm) {
-      cancelWarm.addEventListener('click', async () => {
-        cancelWarm.disabled = true;
-        cancelWarm.textContent = 'Annulation…';
-        await EdgeEngine.cancelWarmUp();
-        refreshEdgeBar();
-      });
-    }
-  }
-
-  function refreshEdgeBar() {
-    const host = document.getElementById('edge-model-bar-host');
-    if (!host) return;
-    host.innerHTML = edgeBarHtml();
-    bindEdgeBar();
-  }
-
-  /** Update loading_ram UI without full rebuild (keeps indeterminate animation alive). */
-  function patchEdgeLoading(st) {
-    const bar = document.getElementById('edge-model-bar');
-    if (!bar || !st || st.state !== 'loading_ram') return false;
-    const title = bar.querySelector('.edge-bar-title');
-    const hints = bar.querySelectorAll('.leo-hint');
-    const pct = Math.round((st.progress || 0) * 100);
-    const phase = st.phase || 'Activation…';
-    if (title) title.textContent = phase + (pct > 0 ? ' · ' + pct + '%' : '');
-    if (hints[0]) {
-      hints[0].innerHTML = `<strong style="color:var(--text)">${st.elapsedSec || 0}s</strong>`
-        + (st.hint ? ' — ' + escapeHtml(st.hint) : '');
-    }
-    if (st.detail) {
-      let det = hints[1];
-      if (!det || !det.classList.contains('edge-detail')) {
-        det = document.createElement('p');
-        det.className = 'leo-hint edge-detail';
-        det.style.cssText = 'margin:6px 0 0;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.78em;overflow-wrap:anywhere';
-        hints[0] ? hints[0].after(det) : bar.appendChild(det);
-      }
-      det.textContent = st.detail;
-    }
-    const fill = bar.querySelector('.edge-progress-fill');
-    const prog = bar.querySelector('.edge-progress');
-    if (pct > 0 && fill && prog) {
-      prog.classList.remove('indeterminate');
-      fill.style.width = pct + '%';
-    }
-    return true;
-  }
-
-  function onEdgeChange() {
-    const st = edgeStatus();
-    if (st && st.state === 'loading_ram' && document.getElementById('edge-model-bar')) {
-      if (patchEdgeLoading(st)) return;
-    }
-    refreshEdgeBar();
-  }
-
   function renderSection(container) {
     if (!container) return;
     const ready = !!(_status && _status.ready);
     const model = (_status && _status.model) || '';
 
     container.innerHTML = `<div class="leo-section plus-chat-section">
-      <h3 class="section-title">Assistant voyage</h3>
-      <p class="leo-hint">Questions sur aujourd’hui / demain (météo, hôtel, codes, bookings). Pour modifier un seed → Léo.${model ? ` · <code class="plus-chat-model">${escapeHtml(model)}</code>` : ''}</p>
-      <div id="edge-model-bar-host">${edgeBarHtml()}</div>
+      <h3 class="section-title">Assistant Bifrost</h3>
+      <p class="leo-hint">Aujourd’hui / demain : météo, hôtel, codes, bookings (serveur). Seed → Léo. Tips hors-ligne → Local.${model ? ` · <code class="plus-chat-model">${escapeHtml(model)}</code>` : ''}</p>
       <div class="leo-thread" id="plus-chat-thread"></div>
       <div class="leo-stream-status" id="plus-chat-status" hidden></div>
       <div class="leo-wait" id="plus-chat-wait" hidden>
@@ -254,13 +50,6 @@ var PlusChatStream = (() => {
     </div>`;
 
     paintThread();
-    bindEdgeBar();
-
-    if (_edgeUnsub) { try { _edgeUnsub(); } catch (_) {} _edgeUnsub = null; }
-    if (typeof EdgeEngine !== 'undefined') {
-      _edgeUnsub = EdgeEngine.onChange(() => refreshEdgeBar());
-      EdgeEngine.refreshFromDisk().then(() => refreshEdgeBar());
-    }
 
     const form = document.getElementById('plus-chat-compose');
     if (form) {
@@ -278,13 +67,11 @@ var PlusChatStream = (() => {
       });
     }
 
-    // Offline: allow send if edge in RAM (local tips only)
-    const st = edgeStatus();
-    if (st && st.inRam) {
+    if (!navigator.onLine) {
       const input = document.getElementById('plus-chat-input');
       const btn = document.getElementById('plus-chat-send');
-      if (input) input.disabled = false;
-      if (btn) btn.disabled = false;
+      if (input) input.disabled = true;
+      if (btn) btn.disabled = true;
     }
   }
 
@@ -298,103 +85,36 @@ var PlusChatStream = (() => {
     el.innerHTML = _history.map(m => {
       const err = m.kind === 'error';
       const cls = m.role === 'user' ? 'leo-msg user' : (err ? 'leo-msg assistant error' : 'leo-msg assistant');
-      const who = m.role === 'user' ? 'Toi' : (err ? 'Erreur' : (m.source === 'edge' ? 'Assistant (local)' : 'Assistant'));
-      const live = m.live ? ' leo-live' : '';
-      return `<div class="${cls}${live}" data-id="${escapeHtml(m.id || '')}">
-        <div class="leo-who">${who}</div>
-        <div class="leo-bubble">${escapeHtml(m.content)}</div>
-      </div>`;
+      const who = m.role === 'user' ? 'Toi' : (err ? 'Erreur' : 'Bifrost');
+      return `<div class="${cls}"><div class="leo-msg-who">${who}</div><div class="leo-msg-body">${escapeHtml(m.content)}${m.live ? ' ▍' : ''}</div></div>`;
     }).join('');
     el.scrollTop = el.scrollHeight;
   }
 
   function setBusy(on) {
-    _busy = on;
+    _busy = !!on;
     const btn = document.getElementById('plus-chat-send');
     const input = document.getElementById('plus-chat-input');
     const wait = document.getElementById('plus-chat-wait');
-    const st = edgeStatus();
-    const canOffline = !!(st && st.inRam);
-    const gate = !(_status && _status.ready) && !canOffline;
-    if (btn) {
-      btn.disabled = on || gate || (!navigator.onLine && !canOffline);
-      btn.textContent = on ? 'Assistant…' : 'Envoyer';
-    }
-    if (input) input.disabled = on || gate || (!navigator.onLine && !canOffline);
-    if (wait) wait.hidden = !on;
+    if (btn) btn.disabled = _busy || !navigator.onLine || !(_status && _status.ready);
+    if (input) input.disabled = _busy || !navigator.onLine || !(_status && _status.ready);
+    if (wait) wait.hidden = !_busy;
   }
 
   function setStatus(text) {
     const el = document.getElementById('plus-chat-status');
     const label = document.getElementById('plus-chat-wait-label');
-    if (label) label.textContent = text || 'Assistant…';
+    if (label) label.textContent = text || 'Bifrost…';
     if (!el) return;
     if (!text) { el.hidden = true; el.textContent = ''; return; }
     el.hidden = false;
     el.textContent = text;
   }
 
-  async function generateLocal(text, asst, ac) {
-    setStatus('Réponse locale…');
-    const hist = _apiHistory.slice(0, -1); // exclude current user msg already pushed
-    const reply = await EdgeEngine.generate(text, hist, {
-      signal: ac ? ac.signal : undefined,
-      onDelta: (delta) => {
-        asst.content += delta;
-        asst.source = 'edge';
-        paintThread();
-      },
-    });
-    asst.content = reply || asst.content || '(réponse vide)';
-    asst.source = 'edge';
-    asst.live = false;
-    paintThread();
-    return asst.content;
-  }
-
-  async function generateRemote(text, asst, ac) {
-    setStatus('Réponse serveur…');
-    const tripId = (typeof Store !== 'undefined' && Store.getCurrentTripId)
-      ? Store.getCurrentTripId()
-      : '';
-    let finalReply = '';
-    let sawError = false;
-
-    for await (const ev of API.plusChatStream({
-      tripId: tripId || undefined,
-      messages: _apiHistory.slice(),
-      signal: ac ? ac.signal : undefined,
-    })) {
-      const event = ev.event;
-      const data = ev.data || {};
-      if (event === 'delta' && data.text) {
-        asst.content += data.text;
-        finalReply = asst.content;
-        setStatus('Réponse serveur…');
-        paintThread();
-      } else if (event === 'done') {
-        finalReply = (data.reply != null && data.reply !== '') ? data.reply : asst.content;
-        asst.content = finalReply || '(réponse vide)';
-        asst.live = false;
-        paintThread();
-      } else if (event === 'error') {
-        sawError = true;
-        asst.live = false;
-        _history.pop();
-        const code = data.code || '';
-        let msg = data.error || 'Échec stream';
-        if (code === 'cancelled') msg = 'Annulé.';
-        _history.push({ role: 'assistant', kind: 'error', content: msg });
-        paintThread();
-      }
-    }
-    return { finalReply, sawError };
-  }
-
   async function send() {
     if (_busy) return;
     const input = document.getElementById('plus-chat-input');
-    const text = input ? String(input.value || '').trim() : '';
+    const text = String((input && input.value) || '').trim();
     if (!text) return;
 
     const userMsg = { role: 'user', content: text };
@@ -403,45 +123,47 @@ var PlusChatStream = (() => {
     if (_apiHistory.length > 12) _apiHistory = _apiHistory.slice(-12);
     if (input) input.value = '';
 
-    const asstId = 'p' + Date.now();
-    const asst = { role: 'assistant', content: '', id: asstId, live: true };
+    const asst = { role: 'assistant', content: '', id: 'p' + Date.now(), live: true };
     _history.push(asst);
     paintThread();
     setBusy(true);
-    setStatus('Connexion…');
+    setStatus('Réponse serveur…');
 
     const ac = typeof AbortController !== 'undefined' ? new AbortController() : null;
     _abort = ac;
 
     let finalReply = '';
     let sawError = false;
-
-    const intent = (typeof EdgeIntent !== 'undefined') ? EdgeIntent.classify(text) : 'remote';
-    const wantEdge = intent === 'local'
-      && typeof EdgeEngine !== 'undefined'
-      && (EdgeEngine.isLoaded() || EdgeEngine.hasOnDisk());
+    const tripId = (typeof Store !== 'undefined' && Store.getCurrentTripId)
+      ? Store.getCurrentTripId()
+      : '';
 
     try {
-      if (wantEdge) {
-        try {
-          if (!EdgeEngine.isLoaded()) {
-            setStatus('Activation modèle…');
-            await EdgeEngine.warmUp();
-          }
-          finalReply = await generateLocal(text, asst, ac);
-        } catch (edgeErr) {
-          if (ac && ac.signal && ac.signal.aborted) throw edgeErr;
-          console.warn('[plus-chat] edge fallback → bifrost', edgeErr);
-          asst.content = '';
-          asst.source = undefined;
-          const remote = await generateRemote(text, asst, ac);
-          finalReply = remote.finalReply;
-          sawError = remote.sawError;
+      for await (const ev of API.plusChatStream({
+        tripId: tripId || undefined,
+        messages: _apiHistory.slice(),
+        signal: ac ? ac.signal : undefined,
+      })) {
+        const event = ev.event;
+        const data = ev.data || {};
+        if (event === 'delta' && data.text) {
+          asst.content += data.text;
+          finalReply = asst.content;
+          paintThread();
+        } else if (event === 'done') {
+          finalReply = (data.reply != null && data.reply !== '') ? data.reply : asst.content;
+          asst.content = finalReply || '(réponse vide)';
+          asst.live = false;
+          paintThread();
+        } else if (event === 'error') {
+          sawError = true;
+          asst.live = false;
+          _history.pop();
+          let msg = data.error || 'Échec stream';
+          if (data.code === 'cancelled') msg = 'Annulé.';
+          _history.push({ role: 'assistant', kind: 'error', content: msg });
+          paintThread();
         }
-      } else {
-        const remote = await generateRemote(text, asst, ac);
-        finalReply = remote.finalReply;
-        sawError = remote.sawError;
       }
     } catch (e) {
       sawError = true;
@@ -466,5 +188,5 @@ var PlusChatStream = (() => {
     setBusy(false);
   }
 
-  return { loadStatus, renderSection, refreshEdgeBar };
+  return { loadStatus, renderSection };
 })();

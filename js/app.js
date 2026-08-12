@@ -505,6 +505,7 @@ var App = (() => {
     html += `<div id="plus-publish-panel"></div>`;
     html += `<div id="plus-leo-chat-stream"></div>`;
     html += `<div id="plus-chat-stream"></div>`;
+    html += `<div id="plus-edge-chat-stream"></div>`;
 
     // ── Quiz (only if quiz exists for current trip) ──
     const tripsWithQuiz = []; // add trip ids that ship a questions.json quiz // trips that have a questions.json quiz
@@ -617,17 +618,20 @@ var App = (() => {
       });
     }
 
-    // Chat with Hermes Léo (BE proxy; shows fallback if key missing)
-    // Sync LeoChat UI removed — stream only (BE POST /leo/chat kept for curl).
+    // Order: Léo → Bifrost → Local (edge)
     const leoStreamEl = document.getElementById('plus-leo-chat-stream');
     if (leoStreamEl && typeof LeoChatStream !== 'undefined') {
       LeoChatStream.loadStatus().then(() => LeoChatStream.renderSection(leoStreamEl));
     }
 
-    // Plus Assistant — Bifrost direct (ops/plus-chat.json model).
     const plusChatEl = document.getElementById('plus-chat-stream');
     if (plusChatEl && typeof PlusChatStream !== 'undefined') {
       PlusChatStream.loadStatus().then(() => PlusChatStream.renderSection(plusChatEl));
+    }
+
+    const edgeChatEl = document.getElementById('plus-edge-chat-stream');
+    if (edgeChatEl && typeof EdgeChatStream !== 'undefined') {
+      EdgeChatStream.renderSection(edgeChatEl);
     }
 
     // If /health hasn't resolved yet (or failed earlier), retry now that the

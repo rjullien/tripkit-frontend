@@ -4,7 +4,7 @@
   "modelVersion": "smollm2-135m-instruct-q3ks-v1",
   "modelSizeBytes": 88202080,
   "runtime": "wllama",
-  "maxTokens": 200,
+  "maxTokens": 80,
   "temperature": 0.7,
   "intentClassifier": "keywords-v1",
   "fallbackToBifrost": true,

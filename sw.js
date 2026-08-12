@@ -5,7 +5,7 @@
  * Bump CACHE_NAME when deploying new shell versions.
  */
 
-const CACHE_NAME = 'tripkit-93';
+const CACHE_NAME = 'tripkit-94';
 
 
 const ASSETS = [
@@ -39,6 +39,7 @@ const ASSETS = [
   '/js/components/publish-panel.js',
   '/js/components/leo-chat-stream.js',
   '/js/components/plus-chat-stream.js',
+  '/js/components/edge-chat-stream.js',
   '/js/edge-model/config.js',
   '/js/edge-model/intent.js',
   '/js/edge-model/prompt-builder.js',
