@@ -215,6 +215,9 @@ var EdgeEngine = (() => {
     if (/load failed|failed to fetch/i.test(raw)) {
       return 'Réseau bloqué (CSP/CORS) ou URL modèle injoignable.';
     }
+    if (/exceeds the available context size|n_ctx|context size/i.test(raw)) {
+      return 'Prompt trop long pour la fenêtre actuelle. Libère la mémoire puis Activer (fenêtre 2048).';
+    }
     if (/already initialized/i.test(raw)) {
       return 'Runtime déjà initialisé — réessaie (Annuler puis Activer).';
     }
@@ -302,7 +305,7 @@ var EdgeEngine = (() => {
     emit();
 
     const timeoutMs = (opts && opts.timeoutMs) || WARMUP_TIMEOUT_MS;
-    const nCtx = 1024;
+    const nCtx = 2048;
     const modelUrl = resolveModelUrl(cfg.modelUrl);
 
     try {
