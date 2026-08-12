@@ -54,9 +54,16 @@ var PlusChatStream = (() => {
       </div>`;
     }
     if (st.state === 'loading_ram') {
+      const pct = Math.round((st.progress || 0) * 100);
+      const elapsed = st.elapsedSec || 0;
+      const phase = st.phase || 'Activation…';
       return `<div class="edge-bar" id="edge-model-bar">
-        <div class="edge-bar-title">Activation du modèle en mémoire…</div>
-        <p class="leo-hint" style="margin:8px 0 0">Quelques secondes — une seule fois par session.</p>
+        <div class="edge-bar-title">${escapeHtml(phase)}${pct > 0 ? ' · ' + pct + '%' : ''}</div>
+        <div class="edge-progress"><div class="edge-progress-fill" style="width:${pct > 0 ? pct : Math.min(95, 8 + elapsed * 2)}%"></div></div>
+        <p class="leo-hint" style="margin:8px 0 0">
+          ${elapsed}s écoulées — sur iPhone ça peut prendre 1–3&nbsp;min (chargement ~1&nbsp;GB en mémoire).
+        </p>
+        <button type="button" class="btn edge-btn-secondary" id="edge-cancel-warmup-btn" style="margin-top:10px">Annuler</button>
       </div>`;
     }
     if (st.inRam) {
@@ -151,6 +158,15 @@ var PlusChatStream = (() => {
     if (unload) {
       unload.addEventListener('click', async () => {
         await EdgeEngine.unload();
+        refreshEdgeBar();
+      });
+    }
+    const cancelWarm = document.getElementById('edge-cancel-warmup-btn');
+    if (cancelWarm) {
+      cancelWarm.addEventListener('click', async () => {
+        cancelWarm.disabled = true;
+        cancelWarm.textContent = 'Annulation…';
+        await EdgeEngine.cancelWarmUp();
         refreshEdgeBar();
       });
     }
