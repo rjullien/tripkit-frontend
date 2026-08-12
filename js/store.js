@@ -161,43 +161,53 @@ var Store = (() => {
   }
 
   /**
-   * List-level share default (Oui/Non).
-   * Default TRUE — family lists (avant-de-partir, packing…) publish new custom
-   * items to the group unless the user turns the list to local-only.
-   * Stored per device preference key `${listId}-list-shared`.
+   * Drop the legacy per-device `${listId}-list-shared` flag.
+   *
+   * That flag gated the whole sync: set to Non on one phone, checks were never
+   * sent nor applied and new items stayed local — in both directions, forever,
+   * with no error. It was per device, so two people on the same list could
+   * disagree without any way to see it. Sync is now unconditional; a single
+   * item stays private only via its own 🔒.
+   *
+   * A list left on Non was almost never a deliberate choice, so its items are
+   * promoted back to shared on migration.
+   * @returns {boolean} true when local items were promoted
    */
-  function isListShared(listId) {
-    const v = get(`${listId}-list-shared`, null);
-    if (v === null) return true;
-    return !!v;
+  function migrateLegacyListShare(listId) {
+    const flag = get(`${listId}-list-shared`, null);
+    if (flag === null) return false;
+    del(`${listId}-list-shared`);
+    if (flag) return false;
+
+    const items = getCustomItems(listId);
+    const tombs = getCustomDeleted(listId);
+    let changed = false;
+    Object.keys(items).forEach((id) => {
+      if (!items[id].shared) {
+        items[id].shared = true;
+        items[id].createdAt = Date.now();
+        if (tombs[id]) delete tombs[id];
+        changed = true;
+      }
+    });
+    if (changed) {
+      set(`${listId}-custom`, items);
+      set(`${listId}-custom-deleted`, tombs);
+    }
+    return changed;
   }
 
   /**
-   * Set list-level share. When turning ON, promote all local custom items to
-   * shared (so existing notes join the group). When turning OFF, only affects
-   * future adds — already-shared items stay on the server until unshared/deleted.
+   * Last sync outcome for a list — surfaced in the list header so a failing
+   * sync is visible instead of silently swallowed.
+   * { state: 'ok'|'offline'|'error', at, status, message }
    */
-  function setListShared(listId, shared) {
-    const on = !!shared;
-    set(`${listId}-list-shared`, on);
-    if (on) {
-      const items = getCustomItems(listId);
-      let changed = false;
-      const tombs = getCustomDeleted(listId);
-      Object.keys(items).forEach((id) => {
-        if (!items[id].shared) {
-          items[id].shared = true;
-          items[id].createdAt = Date.now();
-          if (tombs[id]) delete tombs[id];
-          changed = true;
-        }
-      });
-      if (changed) {
-        set(`${listId}-custom`, items);
-        set(`${listId}-custom-deleted`, tombs);
-      }
-    }
-    return on;
+  function getSyncState(listId) {
+    return get(`${listId}-sync-state`, null);
+  }
+
+  function setSyncState(listId, state) {
+    set(`${listId}-sync-state`, state);
   }
 
   /**
@@ -208,14 +218,14 @@ var Store = (() => {
   }
 
   /**
-   * Add a custom item. shared follows the list-level Oui/Non (default Oui).
+   * Add a custom item. Shared with the group by default; 🔒 on the row keeps
+   * a single item on this device.
    */
   function addCustomItem(listId, sectionIndex, text) {
     const items = getCustomItems(listId);
     const id = 'c' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
     const now = Date.now();
-    const shared = isListShared(listId);
-    items[id] = { text, section: sectionIndex, createdAt: now, shared };
+    items[id] = { text, section: sectionIndex, createdAt: now, shared: true };
     set(`${listId}-custom`, items);
     return id;
   }
@@ -465,9 +475,9 @@ var Store = (() => {
     getChecks, toggleCheck, setCheck, applyRemoteChecks,
     getDirtyCheckIds, getDirtyChecks, markCheckDirty, clearDirtyChecks,
     getCustomItems, addCustomItem, deleteCustomItem, toggleShareItem, getCustomDeleted,
-    isListShared, setListShared,
+    migrateLegacyListShare,
     getHidden, hideItem, restoreItem,
-    getLastSyncAt, updateSyncMeta,
+    getLastSyncAt, updateSyncMeta, getSyncState, setSyncState,
     resetList,
     exportList, importList,
   };

@@ -108,8 +108,20 @@ var API = (() => {
    * Stale magic-link JWTs otherwise block the whole boot (infinite « Chargement… »).
    */
   async function safeFetch(path, options = {}, _retried = false) {
+    const res = await request(path, options, _retried);
+    return res.ok ? res.data : null;
+  }
+
+  /**
+   * Same transport as safeFetch but keeps the outcome: { ok, status, data, error }.
+   * Sync needs the reason (offline / 403 / 404) — a silent null is what let a
+   * broken list sync go unnoticed for weeks.
+   */
+  async function request(path, options = {}, _retried = false) {
     // Device offline → skip. Device "online" is not enough; failures mark unreachable.
-    if (!navigator.onLine) return null;
+    if (!navigator.onLine) {
+      return { ok: false, status: 0, data: null, error: 'offline' };
+    }
     try {
       const token = getToken();
       const headers = {
@@ -125,21 +137,21 @@ var API = (() => {
       if (res.status === 401 && token && !_retried) {
         console.debug('[API] 401 with Bearer — clearing stale token, retry via Authelia:', path);
         clearToken();
-        return safeFetch(path, options, true);
+        return request(path, options, true);
       }
       if (!res.ok) {
         console.debug('[API] non-OK:', res.status, path);
         // HTTP from our host ⇒ path exists; treat as reachable unless 0/network.
         if (res.status > 0) setReachable(true);
-        return null;
+        return { ok: false, status: res.status, data: null, error: 'http' };
       }
       setReachable(true);
-      return await res.json();
+      return { ok: true, status: res.status, data: await res.json(), error: null };
     } catch (e) {
       // Network error, CORS, timeout — backend not really usable
       console.debug('[API] error:', e.message, path);
       setReachable(false);
-      return null;
+      return { ok: false, status: 0, data: null, error: 'network' };
     }
   }
 
@@ -205,14 +217,31 @@ var API = (() => {
     writeOutbox(box);
   }
 
+  /** Human-readable reason, stored so the list header can show why sync failed. */
+  function syncFailure(res) {
+    if (res.error === 'offline' || res.error === 'network') {
+      return { state: 'offline', at: Date.now(), status: res.status, message: 'Hors ligne — reprise auto' };
+    }
+    if (res.status === 403) {
+      return { state: 'error', at: Date.now(), status: 403, message: 'Liste perso d’un autre compte (403)' };
+    }
+    if (res.status === 404) {
+      return { state: 'error', at: Date.now(), status: 404, message: 'Liste absente du serveur (404)' };
+    }
+    if (res.status === 401) {
+      return { state: 'error', at: Date.now(), status: 401, message: 'Session expirée — recharge l’app' };
+    }
+    return { state: 'error', at: Date.now(), status: res.status, message: 'Erreur serveur ' + res.status };
+  }
+
   async function syncList(tripId, listId, opts) {
     const mode = (opts && opts.mode) === 'pull' ? 'pull' : 'push';
     const deviceId = Store.getDeviceId();
+    Store.migrateLegacyListShare(listId);
     const deletedCustom = Store.getCustomDeleted(listId);
-    const listShared = Store.isListShared(listId);
 
-    // Shared custom items always sync. Checks sync ONLY when the list is
-    // « Liste partagée Oui ». Hidden stays local forever.
+    // Checks always sync — no per-device opt-out. Custom items sync unless the
+    // user locked that item with 🔒. Hidden stays local forever.
     // Pull: never send checks (avoid stale local LWW wiping peers).
     // Push: send only dirty checks (items the user toggled since last push).
     const allCustom = Store.getCustomItems(listId);
@@ -222,12 +251,12 @@ var API = (() => {
     });
     let checksPayload = {};
     let dirtyIds = [];
-    if (listShared && mode === 'push') {
+    if (mode === 'push') {
       dirtyIds = Store.getDirtyCheckIds(listId);
       checksPayload = Store.getDirtyChecks(listId);
     }
 
-    const result = await safeFetch(`/trips/${tripId}/lists/${listId}/sync`, {
+    const res = await request(`/trips/${tripId}/lists/${listId}/sync`, {
       method: 'PATCH',
       body: JSON.stringify({
         deviceId,
@@ -237,13 +266,16 @@ var API = (() => {
       }),
     });
 
-    if (!result) {
+    if (!res.ok) {
+      const failure = syncFailure(res);
+      Store.setSyncState(listId, failure);
       enqueueListSync(tripId, listId);
-      return { ok: false, changed: false };
+      return { ok: false, changed: false, status: res.status, message: failure.message };
     }
+    const result = res.data || {};
     // Drop this pair from outbox on success
     writeOutbox(readOutbox().filter(x => !(x.tripId === tripId && x.listId === listId)));
-    // Reconcile shared customs; when list is shared, also merge checks
+    // Reconcile shared customs + checks
     // (server LWW by updatedAt, checked wins on tie — same as Store.setCheck).
     let changed = false;
     if (result.merged) {
@@ -268,21 +300,20 @@ var API = (() => {
 
       if (changed) Store.set(`${listId}-custom`, cur);
 
-      if (listShared && result.merged.checks) {
-        if (Store.applyRemoteChecks(listId, result.merged.checks)) {
-          changed = true;
-        }
+      if (result.merged.checks && Store.applyRemoteChecks(listId, result.merged.checks)) {
+        changed = true;
       }
     }
 
-    if (listShared && mode === 'push' && dirtyIds.length) {
+    if (mode === 'push' && dirtyIds.length) {
       Store.clearDirtyChecks(listId, dirtyIds);
     }
 
     if (result.serverSyncAt) {
       Store.updateSyncMeta(listId, result.serverSyncAt);
     }
-    return { ok: true, changed };
+    Store.setSyncState(listId, { state: 'ok', at: Date.now(), status: 200, message: '' });
+    return { ok: true, changed, status: 200, message: '' };
   }
 
   /**
