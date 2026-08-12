@@ -308,6 +308,9 @@ var App = (() => {
         if (typeof PublishPanel !== 'undefined' && PublishPanel.resumeIfNeeded) {
           PublishPanel.resumeIfNeeded();
         }
+        if (typeof LeoChatStream !== 'undefined' && LeoChatStream.resumeIfNeeded) {
+          LeoChatStream.resumeIfNeeded();
+        }
         // If a shared list is open, re-pull so Nicole sees René's ticks after
         // unlocking the phone / coming back to Safari.
         if (currentListId && typeof ListComponent !== 'undefined') {

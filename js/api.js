@@ -521,8 +521,9 @@ var API = (() => {
    * @param {string} path API path under /api
    * @param {object} body
    * @param {string} failCode default error code when HTTP fails
+   * @param {string} [method='POST']
    */
-  async function* chatSSE(path, body = {}, failCode = 'chat_failed') {
+  async function* chatSSE(path, body = {}, failCode = 'chat_failed', method = 'POST') {
     if (!navigator.onLine) {
       yield { event: 'error', data: { code: 'network', error: 'offline' } };
       return;
@@ -530,18 +531,20 @@ var API = (() => {
     const { signal, ...payload } = body || {};
     const token = getToken();
     const headers = {
-      'Content-Type': 'application/json',
       Accept: 'text/event-stream',
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
     };
+    const verb = method || 'POST';
+    if (verb !== 'GET' && verb !== 'HEAD') {
+      headers['Content-Type'] = 'application/json';
+    }
     let res;
     try {
-      res = await fetch(url(path), {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(payload),
-        signal,
-      });
+      const init = { method: verb, headers, signal };
+      if (verb !== 'GET' && verb !== 'HEAD') {
+        init.body = JSON.stringify(payload);
+      }
+      res = await fetch(url(path), init);
     } catch (e) {
       const cancelled = !!(signal && signal.aborted);
       yield {
@@ -631,6 +634,30 @@ var API = (() => {
     yield* chatSSE('/leo/chat/stream', body, 'leo_chat_failed');
   }
 
+  /**
+   * Reconnect to a detached Léo job (catch-up after `after` + live).
+   * @param {string} jobId
+   * @param {number} [after=0]
+   * @param {{ signal?: AbortSignal }} [extra]
+   */
+  async function* leoJobStream(jobId, after = 0, extra = {}) {
+    const { signal } = extra || {};
+    const q = `after=${encodeURIComponent(String(Number(after) || 0))}`;
+    yield* chatSSE(
+      `/leo/jobs/${encodeURIComponent(jobId)}/stream?${q}`,
+      { signal },
+      'leo_chat_failed',
+      'GET',
+    );
+  }
+
+  async function cancelLeoJob(jobId) {
+    return requestJSON(`/leo/jobs/${encodeURIComponent(jobId)}/cancel`, {
+      method: 'POST',
+      body: '{}',
+    });
+  }
+
   async function getPlusChatStatus() {
     return requestJSON('/plus/chat/status');
   }
@@ -693,7 +720,7 @@ var API = (() => {
     getLists, getList, syncList, backgroundSyncTrip, flushOutbox,
     checkVersion, checkVersionStatus, fetchSeed,
     requestJSON, getPublishSources, createPublishJob, getPublishJob,
-    getLeoStatus, leoChat, leoChatStream, netFailMessage,
+    getLeoStatus, leoChat, leoChatStream, leoJobStream, cancelLeoJob, netFailMessage,
     getPlusChatStatus, plusChatStream,
     assetUrl, getBaseUrl, warmTripAssets,
     probe, isReachable, getReachability, onReachabilityChange,
