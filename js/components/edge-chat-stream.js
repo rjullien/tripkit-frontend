@@ -74,7 +74,7 @@ var EdgeChatStream = (() => {
     if (st.inRam) {
       return `<div class="edge-bar edge-ready" id="edge-model-bar">
         <span class="edge-badge">⚡ actif</span>
-        <span class="leo-hint">Tips généraux hors-ligne (pas de météo / bookings).</span>
+        <span class="leo-hint">Aujourd’hui / demain / hôtel / codes depuis le voyage sur l’appareil. Météo live → Bifrost.</span>
         <button type="button" class="btn edge-btn-secondary" id="edge-unload-btn">Libérer la mémoire</button>
       </div>`;
     }
@@ -228,7 +228,7 @@ var EdgeChatStream = (() => {
     if (!container) return;
     container.innerHTML = `<div class="leo-section edge-chat-section">
       <h3 class="section-title">Local (appareil)</h3>
-      <p class="leo-hint">Petit modèle sur l’appareil, sans réseau. Réponses courtes et lentes (~2&nbsp;tokens/s) — pour les questions live, utilise Bifrost au-dessus.</p>
+      <p class="leo-hint">Même contexte que Bifrost (programme, hôtel, codes), calculé sur l’appareil. Lent (~2&nbsp;tokens/s). Météo live → Bifrost au-dessus.</p>
       <div id="edge-model-bar-host">${edgeBarHtml()}</div>
       <div class="leo-thread" id="edge-chat-thread"></div>
       <div class="leo-stream-status" id="edge-chat-status" hidden></div>
