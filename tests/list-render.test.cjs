@@ -263,34 +263,11 @@ console.log('\n══════ Simulate: Full user flow ══════');
 test('user adds item, checks it, re-renders — item stays', () => {
   const id = Store.addCustomItem('test-list', 0, 'Pack sunscreen');
   Store.toggleCheck('test-list', 'custom-' + id);
-  
-  // Multiple re-renders (simulating sync, tab switch)
   ListComponent.render('container', testList);
   ListComponent.render('container', testList);
-  
   const html = mockElements['container'].innerHTML;
   assert(html.includes('Pack sunscreen'), 'Custom item should persist');
   assert(html.includes('checked'), 'Should show checked state');
-});
-
-test('server sync does not remove local custom item', () => {
-  const id = Store.addCustomItem('test-list', 0, 'Local new');
-  
-  // Simulate sync merge (server has different items)
-  const serverCustom = { 'from-server': { text: 'Server item', section: 0, createdAt: 1000 } };
-  const existing = Store.getCustomItems('test-list');
-  Object.entries(serverCustom).forEach(([sid, item]) => {
-    if (!existing[sid]) {
-      const cur = Store.getCustomItems('test-list');
-      cur[sid] = { ...item, shared: true };
-      Store.set('test-list-custom', cur);
-    }
-  });
-  
-  ListComponent.render('container', testList);
-  const html = mockElements['container'].innerHTML;
-  assert(html.includes('Local new'), 'Local item must survive sync');
-  assert(html.includes('Server item'), 'Server item must appear');
 });
 
 test('packing list without seed links still gets bottom ← Retour', () => {

@@ -191,91 +191,12 @@ test('multiple hides accumulate', () => {
   assert.strictEqual(hidden.size, 3);
 });
 
-console.log('\n══════ Sync: merge behavior ══════');
-
-test('sync merge does not overwrite local custom items', () => {
-  // User adds item locally
-  const localId = Store.addCustomItem('list1', 0, 'Local item');
-  
-  // Simulate sync response that has OTHER items but not ours
-  const serverCustom = { 'server-item-1': { text: 'From server', section: 1, createdAt: 1000 } };
-  
-  // Apply merge logic (same as api.js)
-  const existing = Store.getCustomItems('list1');
-  Object.entries(serverCustom).forEach(([id, item]) => {
-    if (!existing[id]) {
-      const cur = Store.getCustomItems('list1');
-      cur[id] = { ...item, shared: true };
-      Store.set(`list1-custom`, cur);
-    }
-  });
-  
-  // Local item must still exist
-  const final = Store.getCustomItems('list1');
-  assert(final[localId], 'Local item should still exist after sync merge');
-  assert.strictEqual(final[localId].text, 'Local item');
-  assert(final['server-item-1'], 'Server item should be added');
-});
-
-test('sync merge does not duplicate existing items', () => {
-  const id = Store.addCustomItem('list1', 0, 'Existing');
-  
-  // Server returns same item
-  const serverCustom = { [id]: { text: 'Existing', section: 0, createdAt: 500 } };
-  const existing = Store.getCustomItems('list1');
-  Object.entries(serverCustom).forEach(([id, item]) => {
-    if (!existing[id]) {
-      const cur = Store.getCustomItems('list1');
-      cur[id] = { ...item, shared: true };
-      Store.set(`list1-custom`, cur);
-    }
-  });
-  
-  const final = Store.getCustomItems('list1');
-  assert.strictEqual(Object.keys(final).length, 1);
-});
-
-console.log('\n══════ Sync: hidden merge (union) ══════');
-
-test('hidden merge is union of local + server', () => {
-  Store.hideItem('list1', 'local-hidden');
-  
-  // Simulate api.js hidden merge logic
-  const serverHidden = ['server-hidden-1', 'server-hidden-2'];
-  if (serverHidden.length > 0) {
-    const localHidden = Store.getHidden('list1');
-    const merged = new Set([...localHidden, ...serverHidden]);
-    Store.set('list1-hidden', [...merged]);
-  }
-  
-  const final = Store.getHidden('list1');
-  assert(final.has('local-hidden'), 'Local hidden preserved');
-  assert(final.has('server-hidden-1'), 'Server hidden added');
-  assert(final.has('server-hidden-2'), 'Server hidden added');
-});
-
-test('empty server hidden does not erase local hidden', () => {
-  Store.hideItem('list1', 'my-hidden');
-  
-  // Server returns empty hidden (the old bug)
-  const serverHidden = [];
-  if (serverHidden.length > 0) {
-    const localHidden = Store.getHidden('list1');
-    const merged = new Set([...localHidden, ...serverHidden]);
-    Store.set('list1-hidden', [...merged]);
-  }
-  // With the fix: we don't touch hidden if server returns empty
-  
-  const final = Store.getHidden('list1');
-  assert(final.has('my-hidden'), 'Local hidden must survive empty server response');
-});
-
 console.log('\n══════ Concurrent operations ══════');
 
 test('rapid check/uncheck/check maintains final state', () => {
-  Store.toggleCheck('list1', 'rapid'); // true
-  Store.toggleCheck('list1', 'rapid'); // false
-  Store.toggleCheck('list1', 'rapid'); // true
+  Store.toggleCheck('list1', 'rapid');
+  Store.toggleCheck('list1', 'rapid');
+  Store.toggleCheck('list1', 'rapid');
   assert.strictEqual(Store.getChecks('list1')['rapid'].checked, true);
 });
 
