@@ -6,14 +6,19 @@
 var EdgeEngine = (() => {
   const WLLAMA_JS = 'js/lib/wllama/index.min.js';
   const WLLAMA_WASM = 'js/lib/wllama/wasm/wllama.wasm';
+  const WARMUP_TIMEOUT_MS = 180000; // 3 min — 1GB→RAM on iPhone can be slow
 
   /** @type {null | 'idle' | 'downloading' | 'ready_disk' | 'loading_ram' | 'ready_ram' | 'error'} */
   let _state = 'idle';
-  let _progress = 0; // 0..1 while downloading
+  let _progress = 0; // 0..1
   let _error = '';
+  let _phase = '';
+  let _elapsedSec = 0;
   let _wllama = null;
   let _WllamaClass = null;
   let _listeners = [];
+  let _heartbeat = null;
+  let _warmupGen = 0; // bump to invalidate in-flight warm-up
 
   function absUrl(path) {
     try {
@@ -21,6 +26,12 @@ var EdgeEngine = (() => {
     } catch (_) {
       return path;
     }
+  }
+
+  function isMobileSafari() {
+    const ua = navigator.userAgent || '';
+    return /iPhone|iPad|iPod/.test(ua)
+      || (/Safari/.test(ua) && !/Chrom(e|ium)|CriOS|FxiOS|Edg/.test(ua));
   }
 
   function emit() {
@@ -44,6 +55,8 @@ var EdgeEngine = (() => {
       state: _state,
       progress: _progress,
       error: _error,
+      phase: _phase,
+      elapsedSec: _elapsedSec,
       onDisk,
       inRam: isLoaded(),
       enabled: cfg.enabled !== false,
@@ -71,8 +84,42 @@ var EdgeEngine = (() => {
     }
   }
 
+  function setPhase(phase) {
+    _phase = phase || '';
+    emit();
+  }
+
+  function startHeartbeat(startedAt) {
+    stopHeartbeat();
+    _elapsedSec = 0;
+    _heartbeat = setInterval(() => {
+      _elapsedSec = Math.floor((Date.now() - startedAt) / 1000);
+      emit();
+    }, 1000);
+  }
+
+  function stopHeartbeat() {
+    if (_heartbeat) {
+      clearInterval(_heartbeat);
+      _heartbeat = null;
+    }
+  }
+
+  async function exitWllama() {
+    if (_wllama) {
+      try { await _wllama.exit(); } catch (_) { /* ignore */ }
+    }
+    _wllama = null;
+  }
+
+  async function resetInstance() {
+    stopHeartbeat();
+    await exitWllama();
+  }
+
   async function loadWllamaClass() {
     if (_WllamaClass) return _WllamaClass;
+    setPhase('Chargement runtime…');
     const mod = await import(absUrl(WLLAMA_JS));
     _WllamaClass = mod.Wllama || (mod.default && mod.default.Wllama) || mod.default;
     if (!_WllamaClass) throw new Error('Wllama export introuvable');
@@ -83,6 +130,8 @@ var EdgeEngine = (() => {
     if (_wllama) return _wllama;
     const Wllama = await loadWllamaClass();
     const paths = { default: absUrl(WLLAMA_WASM) };
+    // CPU-only WASM. Do NOT call setCompat('default') — that pulls WebGPU compat
+    // from jsDelivr and can hang forever on iOS for our n_gpu_layers:0 path.
     _wllama = new Wllama(paths, {
       allowOffline: true,
       logger: {
@@ -92,18 +141,18 @@ var EdgeEngine = (() => {
         error: (...a) => console.error('[edge]', ...a),
       },
     });
-    // iOS Safari needs compat worker (WebGPU path / SharedArrayBuffer gaps).
-    try {
-      if (typeof _wllama.setCompat === 'function') {
-        const ua = navigator.userAgent || '';
-        if (/iPhone|iPad|iPod|Safari/.test(ua) && !/Chrom(e|ium)|CriOS/.test(ua)) {
-          _wllama.setCompat('default');
-        }
-      }
-    } catch (e) {
-      console.warn('[edge] setCompat failed', e);
-    }
     return _wllama;
+  }
+
+  function formatErr(e, fallback) {
+    const raw = (e && e.message) || String(e || fallback);
+    if (/load failed|failed to fetch/i.test(raw)) {
+      return 'Réseau bloqué (CSP/CORS) ou URL modèle injoignable.';
+    }
+    if (/already initialized/i.test(raw)) {
+      return 'Runtime déjà initialisé — réessaie (Annuler puis Activer).';
+    }
+    return raw || fallback;
   }
 
   /**
@@ -118,6 +167,7 @@ var EdgeEngine = (() => {
     _state = 'downloading';
     _progress = 0;
     _error = '';
+    _phase = 'Téléchargement…';
     emit();
 
     try {
@@ -125,6 +175,7 @@ var EdgeEngine = (() => {
       await w.cacheManager.download(cfg.modelUrl, {
         progressCallback: ({ loaded, total }) => {
           _progress = total > 0 ? loaded / total : 0;
+          _phase = 'Téléchargement… ' + Math.round(_progress * 100) + '%';
           emit();
           if (opts && typeof opts.onProgress === 'function') {
             opts.onProgress(_progress, loaded, total);
@@ -135,27 +186,21 @@ var EdgeEngine = (() => {
       EdgeModelConfig.setStoredVersion(cfg.modelVersion, cfg.modelSizeBytes);
       _state = 'ready_disk';
       _progress = 1;
+      _phase = '';
       emit();
       return true;
     } catch (e) {
       _error = formatErr(e, 'téléchargement échoué');
       _state = hasOnDisk() ? 'ready_disk' : 'error';
+      _phase = '';
       emit();
       throw new Error(_error);
     }
   }
 
-  function formatErr(e, fallback) {
-    const raw = (e && e.message) || String(e || fallback);
-    // Safari often surfaces CSP / CORS / network blocks as opaque "Load failed".
-    if (/load failed|failed to fetch/i.test(raw)) {
-      return 'Réseau bloqué (CSP/CORS) ou URL modèle injoignable. Vérifie connect-src + edge-model.json.';
-    }
-    return raw || fallback;
-  }
-
   /**
    * Load GGUF from OPFS into RAM (lazy warm-up).
+   * Uses cacheManager.open + loadModel (no network) + n_threads:1 (no COOP/COEP).
    */
   async function warmUp(opts) {
     await ensureConfig();
@@ -164,34 +209,92 @@ var EdgeEngine = (() => {
       throw new Error('Modèle non téléchargé — utilise Charger d’abord');
     }
 
+    const gen = ++_warmupGen;
+    const startedAt = Date.now();
     _state = 'loading_ram';
+    _progress = 0;
     _error = '';
+    _phase = 'Démarrage…';
+    _elapsedSec = 0;
+    startHeartbeat(startedAt);
     emit();
 
+    const timeoutMs = (opts && opts.timeoutMs) || WARMUP_TIMEOUT_MS;
+
     try {
+      // Fresh instance — avoids "already initialized" after a failed attempt
+      await resetInstance();
+      if (gen !== _warmupGen) throw new Error('Annulé');
+
       const w = await getInstance();
-      await w.loadModelFromUrl(cfg.modelUrl, {
-        useCache: true,
-        n_ctx: 2048,
-        n_gpu_layers: 0,
-        progressCallback: ({ loaded, total }) => {
-          _progress = total > 0 ? loaded / total : 0;
-          emit();
-        },
-      });
+      if (gen !== _warmupGen) throw new Error('Annulé');
+
+      setPhase('Lecture du modèle (OPFS)…');
+      let blob = await w.cacheManager.open(cfg.modelUrl);
+      if (!blob || !blob.size) {
+        // Fallback: maybe metadata key differs — try download-from-cache via URL
+        setPhase('Rechargement cache…');
+        await w.loadModelFromUrl(cfg.modelUrl, {
+          useCache: true,
+          n_ctx: isMobileSafari() ? 1024 : 2048,
+          n_gpu_layers: 0,
+          n_threads: 1,
+          progressCallback: ({ loaded, total }) => {
+            _progress = total > 0 ? loaded / total : 0;
+            emit();
+          },
+        });
+      } else {
+        setPhase('Chargement en mémoire (~1 GB, patience)…');
+        const loadPromise = w.loadModel([blob], {
+          n_ctx: isMobileSafari() ? 1024 : 2048,
+          n_gpu_layers: 0,
+          n_threads: 1, // no SharedArrayBuffer / COOP-COEP required
+        });
+        const timeoutPromise = new Promise((_, reject) => {
+          setTimeout(() => reject(new Error(
+            'Timeout activation (' + Math.round(timeoutMs / 1000) + 's). Réessaie ou reste sur le serveur.'
+          )), timeoutMs);
+        });
+        await Promise.race([loadPromise, timeoutPromise]);
+      }
+
+      if (gen !== _warmupGen) {
+        await resetInstance();
+        throw new Error('Annulé');
+      }
+
       if (!EdgeModelConfig.storedVersion()) {
         EdgeModelConfig.setStoredVersion(cfg.modelVersion, cfg.modelSizeBytes);
       }
+      stopHeartbeat();
       _state = 'ready_ram';
       _progress = 1;
+      _phase = '';
+      _elapsedSec = Math.floor((Date.now() - startedAt) / 1000);
       emit();
       return true;
     } catch (e) {
-      _error = (e && e.message) || String(e);
+      stopHeartbeat();
+      await resetInstance();
+      _error = formatErr(e, 'activation échouée');
       _state = hasOnDisk() ? 'ready_disk' : 'error';
+      _phase = '';
       emit();
-      throw e;
+      throw new Error(_error);
     }
+  }
+
+  /** Cancel in-flight warm-up / free partial init. */
+  async function cancelWarmUp() {
+    _warmupGen += 1;
+    stopHeartbeat();
+    await resetInstance();
+    _state = hasOnDisk() ? 'ready_disk' : 'idle';
+    _progress = 0;
+    _phase = '';
+    _error = 'Activation annulée';
+    emit();
   }
 
   async function ensureReadyForLocal() {
@@ -223,9 +326,8 @@ var EdgeEngine = (() => {
     });
     for await (const chunk of stream) {
       if (opts && opts.signal && opts.signal.aborted) {
-        try { await w.exit(); } catch (_) {}
+        await resetInstance();
         _state = 'ready_disk';
-        _wllama = null;
         emit();
         throw new DOMException('Aborted', 'AbortError');
       }
@@ -244,11 +346,10 @@ var EdgeEngine = (() => {
 
   /** Free RAM; keep OPFS. */
   async function unload() {
-    if (_wllama) {
-      try { await _wllama.exit(); } catch (_) { /* ignore */ }
-    }
-    _wllama = null;
+    await resetInstance();
     _state = hasOnDisk() ? 'ready_disk' : 'idle';
+    _phase = '';
+    _error = '';
     emit();
   }
 
@@ -262,14 +363,12 @@ var EdgeEngine = (() => {
     } catch (e) {
       console.warn('[edge] purge cacheManager', e);
     }
-    try {
-      if (_wllama) await _wllama.exit();
-    } catch (_) { /* ignore */ }
-    _wllama = null;
+    await resetInstance();
     if (typeof EdgeModelConfig !== 'undefined') EdgeModelConfig.clearStoredMeta();
     _state = 'idle';
     _progress = 0;
     _error = '';
+    _phase = '';
     emit();
   }
 
@@ -294,6 +393,7 @@ var EdgeEngine = (() => {
     hasOnDisk,
     download,
     warmUp,
+    cancelWarmUp,
     ensureReadyForLocal,
     generate,
     unload,
