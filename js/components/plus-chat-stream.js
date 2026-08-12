@@ -75,6 +75,7 @@ var PlusChatStream = (() => {
           ${st.needsUpdate ? '<button type="button" class="btn" id="edge-update-btn">Mettre à jour</button>' : ''}
           <button type="button" class="btn edge-btn-danger" id="edge-purge-btn">Supprimer le modèle</button>
         </div>
+        ${st.error ? `<p class="leo-hint" style="color:var(--orange);margin:10px 0 0;white-space:normal;overflow-wrap:anywhere">${escapeHtml(st.error)}</p>` : ''}
       </div>`;
     }
     // idle / error — load button
