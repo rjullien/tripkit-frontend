@@ -1,8 +1,8 @@
 # TripKit — Spec listes & sync (source de vérité)
 
 > Spec produit — ne pas modifier sans revue explicite.
-> Toute PR sur les listes doit faire passer `tests/list-spec.test.cjs` (frontend)
-> et les `TestSync_*` / `TestRepro*` (backend).
+> Toute PR sur les listes doit faire passer `tests/list-sync-two-devices.test.cjs`
+> (frontend — le vrai `api.js`) et les `TestSync_*` / `TestRepro*` (backend).
 
 ## Modèle
 
@@ -64,13 +64,12 @@ Un échec ne doit **jamais** être avalé silencieusement.
 
 ## Tests
 
-`list-spec.test.cjs` recopie la logique de `syncList` : il valide les règles,
-pas le code livré. `list-sync-two-devices.test.cjs` pilote le **vrai** `api.js`
-de deux appareils contre un mock HTTP du backend — c’est lui qui attrape les
-régressions de transport (gate silencieux, 403/404 avalés).
+`tests/list-sync-two-devices.test.cjs` pilote le **vrai** `js/api.js` + `js/store.js`
+depuis deux appareils contre un stub HTTP du contrat `PATCH .../sync`.
+Pas de copie de `syncList` dans le test — c’est ce qui a laissé passer le
+gate silencieux « Liste partagée Non ».
 
 ```bash
-node tests/list-spec.test.cjs
 node tests/list-sync-two-devices.test.cjs
 npm run test:unit
 # BE

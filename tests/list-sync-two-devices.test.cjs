@@ -1,12 +1,9 @@
 /**
  * tests/list-sync-two-devices.test.cjs
  *
- * Drives the REAL js/api.js + js/store.js from two device contexts against an
- * HTTP mock that mirrors the Go SyncList merge rules.
- *
- * list-spec.test.cjs re-implements syncList instead of calling it, so a bug in
- * api.js itself (a per-device flag that silently disabled sync) stayed invisible.
- * This test calls the shipped code path.
+ * Drives the shipped js/api.js + js/store.js from two isolated devices against
+ * an HTTP stub of PATCH /lists/:id/sync. The stub is the other side of the
+ * wire (store + LWW), not a copy of the frontend.
  */
 const fs = require('fs');
 const path = require('path');
@@ -199,6 +196,48 @@ test('a successful sync clears a previous error state', async (state, base) => {
   dev.Store.setSyncState(L, { state: 'error', at: Date.now(), status: 500, message: 'Erreur serveur 500' });
   await dev.API.syncList(TRIP, L, { mode: 'pull' });
   assert.strictEqual(dev.Store.getSyncState(L).state, 'ok');
+});
+
+test('deleting an item on one device removes it on the other', async (state, base) => {
+  const rene = makeDevice(base, TRIP);
+  const nicole = makeDevice(base, TRIP);
+  const id = rene.Store.addCustomItem(L, 0, 'Powerbank');
+  await rene.API.syncList(TRIP, L, { mode: 'push' });
+  await nicole.API.syncList(TRIP, L, { mode: 'pull' });
+  assert.ok(nicole.Store.getCustomItems(L)[id]);
+  rene.Store.deleteCustomItem(L, id);
+  await rene.API.syncList(TRIP, L, { mode: 'push' });
+  await nicole.API.syncList(TRIP, L, { mode: 'pull' });
+  assert.ok(!nicole.Store.getCustomItems(L)[id], 'deleted item still on peer');
+});
+
+test('unshare then reshare an item via 🔒 / ☁️', async (state, base) => {
+  const rene = makeDevice(base, TRIP);
+  const nicole = makeDevice(base, TRIP);
+  const id = rene.Store.addCustomItem(L, 0, 'Jumelles');
+  await rene.API.syncList(TRIP, L, { mode: 'push' });
+  await nicole.API.syncList(TRIP, L, { mode: 'pull' });
+  rene.Store.toggleShareItem(L, id); // 🔒
+  await rene.API.syncList(TRIP, L, { mode: 'push' });
+  await nicole.API.syncList(TRIP, L, { mode: 'pull' });
+  assert.ok(!nicole.Store.getCustomItems(L)[id], 'unshared item still on peer');
+  rene.Store.toggleShareItem(L, id); // ☁️
+  await rene.API.syncList(TRIP, L, { mode: 'push' });
+  await nicole.API.syncList(TRIP, L, { mode: 'pull' });
+  assert.ok(nicole.Store.getCustomItems(L)[id], 'reshared item missing on peer');
+});
+
+test('a pull applies the server check even if local timestamp is in the future', async (state, base) => {
+  const rene = makeDevice(base, TRIP);
+  const nicole = makeDevice(base, TRIP);
+  rene.Store.toggleCheck(L, 'galets');
+  await rene.API.syncList(TRIP, L, { mode: 'push' });
+  nicole.Store.set(`${L}-checks`, { galets: { checked: false, updatedAt: 9999999999999 } });
+  const pull = await nicole.API.syncList(TRIP, L, { mode: 'pull' });
+  assert.strictEqual(pull.ok, true);
+  assert.strictEqual(nicole.Store.getChecks(L).galets.checked, true, 'stale local ts blocked the peer tick');
+  await nicole.API.syncList(TRIP, L, { mode: 'push' });
+  assert.strictEqual(state.lists[L].checks.galets.checked, true, 'non-dirty push wiped the server');
 });
 
 (async () => {
