@@ -115,8 +115,7 @@ test('setCheck: equal timestamp → checked wins', () => {
 
 console.log('\n══════ Store: Custom Items ══════');
 
-test('addCustomItem follows list shared default (Oui → shared:true)', () => {
-  assert.strictEqual(Store.isListShared('list1'), true);
+test('addCustomItem is shared by default', () => {
   const id = Store.addCustomItem('list1', 0, 'Test item');
   const items = Store.getCustomItems('list1');
   assert(items[id]);
@@ -125,11 +124,30 @@ test('addCustomItem follows list shared default (Oui → shared:true)', () => {
   assert.strictEqual(items[id].shared, true);
 });
 
-test('addCustomItem local when list shared Non', () => {
-  Store.setListShared('list1', false);
+test('an item stays local only when locked with 🔒', () => {
   const id = Store.addCustomItem('list1', 0, 'Private note');
+  Store.toggleShareItem('list1', id);
   assert.strictEqual(Store.getCustomItems('list1')[id].shared, false);
-  Store.setListShared('list1', true); // restore default for later tests
+});
+
+test('legacy list-shared Non is dropped and its items promoted', () => {
+  const id = Store.addCustomItem('legacy-list', 0, 'Bloqué');
+  const items = Store.getCustomItems('legacy-list');
+  items[id].shared = false;
+  Store.set('legacy-list-custom', items);
+  Store.set('legacy-list-list-shared', false);
+  assert.strictEqual(Store.migrateLegacyListShare('legacy-list'), true);
+  assert.strictEqual(Store.getCustomItems('legacy-list')[id].shared, true);
+  assert.strictEqual(Store.get('legacy-list-list-shared', null), null);
+  assert.strictEqual(Store.migrateLegacyListShare('legacy-list'), false);
+});
+
+test('legacy list-shared Oui keeps per-item locks', () => {
+  const id = Store.addCustomItem('legacy-oui', 0, 'Perso');
+  Store.toggleShareItem('legacy-oui', id);
+  Store.set('legacy-oui-list-shared', true);
+  Store.migrateLegacyListShare('legacy-oui');
+  assert.strictEqual(Store.getCustomItems('legacy-oui')[id].shared, false);
 });
 
 test('deleteCustomItem removes item', () => {

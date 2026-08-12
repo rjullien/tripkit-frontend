@@ -15,6 +15,7 @@ var ListComponent = (() => {
     if (!el || !listData) return;
 
     const listId = listData.id;
+    Store.migrateLegacyListShare(listId);
     const checks = Store.getChecks(listId);
     const custom = Store.getCustomItems(listId);
     const hidden = Store.getHidden(listId);
@@ -128,8 +129,6 @@ var ListComponent = (() => {
       linksHtml += `</div>`;
     }
 
-    const listShared = Store.isListShared(listId);
-
     // Assemble
     el.innerHTML = `
       <div class="page-header">
@@ -137,13 +136,8 @@ var ListComponent = (() => {
         <h1>${esc(listData.title)}</h1>
         ${listData.subtitle ? `<div class="sub">${esc(listData.subtitle)}</div>` : ''}
       </div>
-      <div class="list-share-bar">
-        <span class="list-share-label">Liste partagée</span>
-        <button type="button" class="list-share-toggle${listShared ? ' on' : ''}"
-          data-action="toggle-list-shared"
-          title="${listShared ? 'Les nouveaux items partent au groupe' : 'Les nouveaux items restent sur cet appareil'}">
-          ${listShared ? 'Oui ☁️' : 'Non 🔒'}
-        </button>
+      <div class="list-sync-bar ${syncClass(listId)}" data-sync-bar="${esc(listId)}">
+        <span class="list-sync-text">${esc(syncLabel(listId))}</span>
       </div>
       ${storeHtml}
       <div class="progress-wrap">
@@ -296,17 +290,6 @@ var ListComponent = (() => {
           }
           break;
         }
-        case 'toggle-list-shared': {
-          e.stopPropagation();
-          const next = !Store.isListShared(listId);
-          Store.setListShared(listId, next);
-          render(el.id, data);
-          backgroundSync(data);
-          showToast(next
-            ? '☁️ Liste partagée'
-            : '🔒 Liste locale');
-          break;
-        }
         case 'export': {
           doExport(data);
           break;
@@ -394,15 +377,49 @@ var ListComponent = (() => {
     input.click();
   }
 
+  /** Sync status shown in the list header — a failing sync must be visible. */
+  function syncLabel(listId) {
+    const s = Store.getSyncState(listId);
+    if (!s) return '⏳ Synchro…';
+    if (s.state === 'ok') return '☁️ Synchronisé ' + ago(s.at);
+    if (s.state === 'offline') return '🔌 ' + s.message;
+    return '⚠️ ' + s.message;
+  }
+
+  function syncClass(listId) {
+    const s = Store.getSyncState(listId);
+    return s ? 'sync-' + s.state : 'sync-pending';
+  }
+
+  function ago(ts) {
+    const sec = Math.max(0, Math.round((Date.now() - ts) / 1000));
+    if (sec < 10) return 'à l’instant';
+    if (sec < 60) return 'il y a ' + sec + ' s';
+    const min = Math.round(sec / 60);
+    if (min < 60) return 'il y a ' + min + ' min';
+    return 'il y a ' + Math.round(min / 60) + ' h';
+  }
+
+  /** Repaint the status bar only — a full re-render steals taps mid-list. */
+  function paintSync(containerId, listId) {
+    const el = document.getElementById(containerId);
+    const bar = el && el.querySelector('.list-sync-bar');
+    if (!bar || bar.dataset.syncBar !== listId) return;
+    bar.className = 'list-sync-bar ' + syncClass(listId);
+    const text = bar.querySelector('.list-sync-text');
+    if (text) text.textContent = syncLabel(listId);
+  }
+
   function backgroundSync(listData) {
     const tripId = Store.getCurrentTripId();
     if (tripId && typeof API !== 'undefined') {
       return API.syncList(tripId, listData.id, { mode: 'push' }).then((res) => {
-        if (res && res.changed) {
-          const el = document.getElementById('plus-content');
-          if (el && el._listData && el._listData.id === listData.id) {
-            render('plus-content', listData);
-          }
+        const el = document.getElementById('plus-content');
+        const onList = el && el._listData && el._listData.id === listData.id;
+        if (res && res.changed && onList) {
+          render('plus-content', listData);
+        } else if (onList) {
+          paintSync('plus-content', listData.id);
         }
         return res;
       }).catch(() => null);
@@ -420,6 +437,7 @@ var ListComponent = (() => {
     if (!tripId || typeof API === 'undefined' || !listData) return;
     API.syncList(tripId, listData.id, { mode: 'pull' }).then((res) => {
       if (res && res.changed) render(containerId, listData);
+      else paintSync(containerId, listData.id);
     }).catch(() => {});
   }
 
@@ -444,7 +462,7 @@ var ListComponent = (() => {
       if (!_pullCtx) return;
       // Only if still viewing this list in the DOM
       const el = document.getElementById(_pullCtx.containerId);
-      if (!el || !el.querySelector('.list-share-bar')) {
+      if (!el || !el.querySelector('.list-sync-bar')) {
         stopPullWhileOpen();
         return;
       }
@@ -464,5 +482,5 @@ var ListComponent = (() => {
       .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   }
 
-  return { render, pullOnOpen, startPullWhileOpen, stopPullWhileOpen };
+  return { render, pullOnOpen, startPullWhileOpen, stopPullWhileOpen, paintSync };
 })();

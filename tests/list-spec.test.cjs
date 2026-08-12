@@ -1,4 +1,4 @@
-// Spec listes : items partagés, coches selon Liste partagée Oui/Non.
+// Spec listes : items et coches synchronisés d'office ; 🔒 par item seulement.
 const fs = require('fs');
 let _clock = 1700000000000; Date.now = () => (_clock += 1000);
 const assert = require('assert');
@@ -58,7 +58,7 @@ function makeBackend() {
 /** Miroir de api.js syncList (checks dirty-only en push ; vides en pull). */
 function syncList(dev, listId, backend, opts) {
   const mode = (opts && opts.mode) === 'pull' ? 'pull' : 'push';
-  const listShared = dev.Store.isListShared(listId);
+  dev.Store.migrateLegacyListShare(listId);
   const deletedCustom = dev.Store.getCustomDeleted(listId);
   const all = dev.Store.getCustomItems(listId);
   const sharedCustom = {};
@@ -67,7 +67,7 @@ function syncList(dev, listId, backend, opts) {
   }
   let checksPayload = {};
   let dirtyIds = [];
-  if (listShared && mode === 'push') {
+  if (mode === 'push') {
     dirtyIds = typeof dev.Store.getDirtyCheckIds === 'function'
       ? dev.Store.getDirtyCheckIds(listId)
       : Object.keys(dev.Store.getChecks(listId));
@@ -82,7 +82,6 @@ function syncList(dev, listId, backend, opts) {
     checks: checksPayload,
   };
   assert.ok(!('hidden' in body), 'hidden ne doit pas partir');
-  if (!listShared) assert.deepEqual(body.checks, {}, 'liste Non → checks vides');
   if (mode === 'pull') assert.deepEqual(body.checks, {}, 'pull → checks vides');
 
   const result = backend.sync(body);
@@ -100,7 +99,7 @@ function syncList(dev, listId, backend, opts) {
   }
   if (changed) dev.Store.set(`${listId}-custom`, cur);
 
-  if (listShared && result.merged.checks) {
+  if (result.merged.checks) {
     if (typeof dev.Store.applyRemoteChecks === 'function') {
       dev.Store.applyRemoteChecks(listId, result.merged.checks);
     } else {
@@ -109,7 +108,7 @@ function syncList(dev, listId, backend, opts) {
       }
     }
   }
-  if (listShared && mode === 'push' && dirtyIds.length && typeof dev.Store.clearDirtyChecks === 'function') {
+  if (mode === 'push' && dirtyIds.length && typeof dev.Store.clearDirtyChecks === 'function') {
     dev.Store.clearDirtyChecks(listId, dirtyIds);
   }
   return body;
@@ -119,21 +118,22 @@ const L = 'avant-de-partir-test';
 let pass = 0;
 const ok = (msg) => { console.log('  ✅', msg); pass++; };
 
-// 1) Liste Non → coches locales
+// 1) Ancien flag « Liste partagée Non » : ne bloque plus rien (régression 2.31.4)
 {
   const be = makeBackend();
   const alice = makeDevice('alice'); const bob = makeDevice('bob');
-  alice.Store.setListShared(L, false);
-  bob.Store.setListShared(L, false);
+  alice.Store.set(`${L}-list-shared`, false); // état laissé par une version < 2.31.4
+  bob.Store.set(`${L}-list-shared`, false);
   alice.Store.toggleCheck(L, 'div-1');
   const body = syncList(alice, L, be);
-  assert.deepEqual(body.checks, {});
+  assert.equal(body.checks['div-1'].checked, true, 'la coche part quand même');
   syncList(bob, L, be);
-  assert.deepEqual(bob.Store.getChecks(L), {}, 'Bob ne reçoit pas les coches (liste Non)');
-  ok('liste Non: coches locales, jamais transmises');
+  assert.equal(bob.Store.getChecks(L)['div-1'].checked, true, 'Bob reçoit la coche');
+  assert.equal(alice.ls.getItem(`${L}-list-shared`), null, 'le flag est supprimé');
+  ok('vieux flag Non: coches synchronisées quand même');
 }
 
-// 2) Liste Oui → coches partagées (LWW)
+// 2) Coches partagées (LWW)
 {
   const be = makeBackend();
   const alice = makeDevice('alice'); const bob = makeDevice('bob');
@@ -163,19 +163,20 @@ const ok = (msg) => { console.log('  ✅', msg); pass++; };
   ok('tie-break local: coché > non coché');
 }
 
-// 4) Item liste Non reste invisible
+// 4) Item verrouillé 🔒 reste invisible pour le groupe
 {
   const be = makeBackend();
   const alice = makeDevice('alice'); const bob = makeDevice('bob');
-  alice.Store.setListShared(L, false);
   const id = alice.Store.addCustomItem(L, 0, 'Note perso');
+  alice.Store.toggleShareItem(L, id); // 🔒
+  assert.equal(alice.Store.getCustomItems(L)[id].shared, false);
   syncList(alice, L, be);
   syncList(bob, L, be);
   assert.equal(bob.Store.getCustomItems(L)[id], undefined);
-  ok('liste Non: item local invisible');
+  ok('item 🔒: reste local');
 }
 
-// 5) Liste Oui → item + coche partagés
+// 5) Item + coche partagés
 {
   const be = makeBackend();
   const alice = makeDevice('alice'); const bob = makeDevice('bob');
@@ -215,17 +216,18 @@ const ok = (msg) => { console.log('  ✅', msg); pass++; };
   ok('retrait/re-partage item');
 }
 
-// 8) Toggle liste Oui promeut items
+// 8) Migration : les items restés locaux à cause du vieux flag repartent au groupe
 {
   const be = makeBackend();
   const alice = makeDevice('alice'); const bob = makeDevice('bob');
-  alice.Store.setListShared(L, false);
-  const id = alice.Store.addCustomItem(L, 0, 'Note');
-  alice.Store.setListShared(L, true);
+  const id = 'c-legacy-1';
+  alice.Store.set(`${L}-custom`, { [id]: { text: 'Note', section: 0, createdAt: Date.now(), shared: false } });
+  alice.Store.set(`${L}-list-shared`, false);
+  assert.equal(alice.Store.migrateLegacyListShare(L), true);
   assert.equal(alice.Store.getCustomItems(L)[id].shared, true);
   syncList(alice, L, be); syncList(bob, L, be);
   assert.ok(bob.Store.getCustomItems(L)[id]);
-  ok('toggle Oui promeut items locaux');
+  ok('migration: items bloqués par le vieux flag repartent');
 }
 
 // 9) Pull force : ts local périmé/futur n’empêche plus de voir la coche du peer
