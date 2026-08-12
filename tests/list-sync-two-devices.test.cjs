@@ -103,6 +103,12 @@ function makeDevice(base, tripId) {
   vm.runInContext(fs.readFileSync(path.join(ROOT, 'js', 'store.js'), 'utf8'), ctx);
   vm.runInContext(fs.readFileSync(path.join(ROOT, 'js', 'api.js'), 'utf8'), ctx);
   ctx.Store.setCurrentTripId(tripId);
+  ctx.Store.setTripData(tripId, {
+    lists: {
+      [L]: { id: L, type: 'todo', title: 'Avant de partir' },
+      [PACK]: { id: PACK, type: 'packing', title: 'Valise' },
+    },
+  });
   return ctx;
 }
 
@@ -112,6 +118,7 @@ function test(name, fn) { tests.push([name, fn]); }
 
 const TRIP = 'trip-test';
 const L = 'avant-de-partir-test';
+const PACK = 'checklist-test';
 
 test('a check made by one device reaches the other', async (state, base) => {
   const rene = makeDevice(base, TRIP);
@@ -132,24 +139,28 @@ test('a custom item added by one device reaches the other', async (state, base) 
   assert.ok(rene.Store.getCustomItems(L)[id], 'peer item missing');
 });
 
-test('a device left on the legacy « Liste partagée Non » still syncs', async (state, base) => {
+test('packing / valise checks stay on the device that ticked them', async (state, base) => {
   const rene = makeDevice(base, TRIP);
   const nicole = makeDevice(base, TRIP);
-  nicole.Store.set(`${L}-list-shared`, false); // state left by versions < 2.31.4
+  assert.strictEqual(rene.Store.isListShared(PACK), false);
+  rene.Store.toggleCheck(PACK, 'chaussettes');
+  const id = rene.Store.addCustomItem(PACK, 0, 'Pull marin');
+  await rene.API.syncList(TRIP, PACK, { mode: 'push' });
+  await nicole.API.syncList(TRIP, PACK, { mode: 'pull' });
+  assert.ok(!nicole.Store.getChecks(PACK).chaussettes, 'packing check leaked to peer');
+  assert.ok(!nicole.Store.getCustomItems(PACK)[id], 'packing item leaked to peer');
+  assert.ok(!state.lists[PACK].checks.chaussettes, 'packing check reached the server');
+});
 
-  rene.Store.toggleCheck(L, 'visa');
-  await rene.API.syncList(TRIP, L, { mode: 'push' });
-  await nicole.API.syncList(TRIP, L, { mode: 'pull' });
-  assert.strictEqual(nicole.Store.getChecks(L).visa.checked, true, 'peer check not applied');
-
-  const id = nicole.Store.addCustomItem(L, 0, 'Chapeau');
-  await nicole.API.syncList(TRIP, L, { mode: 'push' });
-  await rene.API.syncList(TRIP, L, { mode: 'pull' });
-  assert.ok(rene.Store.getCustomItems(L)[id], 'item from legacy-Non device not shared');
-
-  nicole.Store.toggleCheck(L, 'visa');
-  await nicole.API.syncList(TRIP, L, { mode: 'push' });
-  assert.strictEqual(state.lists[L].checks.visa.checked, false, 'check never reached the server');
+test('turning a packing list to Oui starts sharing checks', async (state, base) => {
+  const rene = makeDevice(base, TRIP);
+  const nicole = makeDevice(base, TRIP);
+  rene.Store.setListShared(PACK, true);
+  nicole.Store.setListShared(PACK, true);
+  rene.Store.toggleCheck(PACK, 'passeport');
+  await rene.API.syncList(TRIP, PACK, { mode: 'push' });
+  await nicole.API.syncList(TRIP, PACK, { mode: 'pull' });
+  assert.strictEqual(nicole.Store.getChecks(PACK).passeport.checked, true);
 });
 
 test('an item locked with 🔒 stays on its device', async (state, base) => {
@@ -243,7 +254,7 @@ test('a pull applies the server check even if local timestamp is in the future',
 (async () => {
   console.log('\n── List sync, two devices, real api.js ────────────────────');
   for (const [name, fn] of tests) {
-    const state = { currentUser: 'rene', lists: { [L]: newList() } };
+    const state = { currentUser: 'rene', lists: { [L]: newList(), [PACK]: newList() } };
     const server = await startServer(state);
     const base = `http://127.0.0.1:${server.address().port}`;
     try {

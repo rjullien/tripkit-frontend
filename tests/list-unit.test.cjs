@@ -115,39 +115,34 @@ test('setCheck: equal timestamp → checked wins', () => {
 
 console.log('\n══════ Store: Custom Items ══════');
 
-test('addCustomItem is shared by default', () => {
-  const id = Store.addCustomItem('list1', 0, 'Test item');
-  const items = Store.getCustomItems('list1');
+test('addCustomItem is shared on avant-de-partir (todo)', () => {
+  const id = Store.addCustomItem('avant-de-partir-test', 0, 'Test item');
+  const items = Store.getCustomItems('avant-de-partir-test');
   assert(items[id]);
-  assert.strictEqual(items[id].text, 'Test item');
-  assert.strictEqual(items[id].section, 0);
   assert.strictEqual(items[id].shared, true);
+  assert.strictEqual(Store.isListShared('avant-de-partir-test'), true);
+});
+
+test('addCustomItem is local on packing / valise', () => {
+  Store.rememberListType('valise-test', 'packing');
+  const id = Store.addCustomItem('valise-test', 0, 'Chaussettes');
+  assert.strictEqual(Store.isListShared('valise-test'), false);
+  assert.strictEqual(Store.getCustomItems('valise-test')[id].shared, false);
 });
 
 test('an item stays local only when locked with 🔒', () => {
-  const id = Store.addCustomItem('list1', 0, 'Private note');
-  Store.toggleShareItem('list1', id);
-  assert.strictEqual(Store.getCustomItems('list1')[id].shared, false);
+  const id = Store.addCustomItem('avant-de-partir-test', 0, 'Private note');
+  Store.toggleShareItem('avant-de-partir-test', id);
+  assert.strictEqual(Store.getCustomItems('avant-de-partir-test')[id].shared, false);
 });
 
-test('legacy list-shared Non is dropped and its items promoted', () => {
-  const id = Store.addCustomItem('legacy-list', 0, 'Bloqué');
-  const items = Store.getCustomItems('legacy-list');
-  items[id].shared = false;
-  Store.set('legacy-list-custom', items);
-  Store.set('legacy-list-list-shared', false);
-  assert.strictEqual(Store.migrateLegacyListShare('legacy-list'), true);
-  assert.strictEqual(Store.getCustomItems('legacy-list')[id].shared, true);
-  assert.strictEqual(Store.get('legacy-list-list-shared', null), null);
-  assert.strictEqual(Store.migrateLegacyListShare('legacy-list'), false);
-});
-
-test('legacy list-shared Oui keeps per-item locks', () => {
-  const id = Store.addCustomItem('legacy-oui', 0, 'Perso');
-  Store.toggleShareItem('legacy-oui', id);
-  Store.set('legacy-oui-list-shared', true);
-  Store.migrateLegacyListShare('legacy-oui');
-  assert.strictEqual(Store.getCustomItems('legacy-oui')[id].shared, false);
+test('turning a packing list to Oui promotes local items', () => {
+  Store.rememberListType('valise-test', 'packing');
+  const id = Store.addCustomItem('valise-test', 0, 'Note');
+  assert.strictEqual(Store.getCustomItems('valise-test')[id].shared, false);
+  Store.setListShared('valise-test', true);
+  assert.strictEqual(Store.isListShared('valise-test'), true);
+  assert.strictEqual(Store.getCustomItems('valise-test')[id].shared, true);
 });
 
 test('deleteCustomItem removes item', () => {

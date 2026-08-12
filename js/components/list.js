@@ -15,7 +15,7 @@ var ListComponent = (() => {
     if (!el || !listData) return;
 
     const listId = listData.id;
-    Store.migrateLegacyListShare(listId);
+    Store.rememberListType(listId, listData.type);
     const checks = Store.getChecks(listId);
     const custom = Store.getCustomItems(listId);
     const hidden = Store.getHidden(listId);
@@ -129,12 +129,22 @@ var ListComponent = (() => {
       linksHtml += `</div>`;
     }
 
+    const listShared = Store.isListShared(listId);
+
     // Assemble
     el.innerHTML = `
       <div class="page-header">
         <button class="back-btn" onclick="window.location.hash='plus'">◀ Retour</button>
         <h1>${esc(listData.title)}</h1>
         ${listData.subtitle ? `<div class="sub">${esc(listData.subtitle)}</div>` : ''}
+      </div>
+      <div class="list-share-bar">
+        <span class="list-share-label">Liste partagée</span>
+        <button type="button" class="list-share-toggle${listShared ? ' on' : ''}"
+          data-action="toggle-list-shared"
+          title="${listShared ? 'Les coches et nouveaux items partent au groupe' : 'Les coches restent sur cet appareil'}">
+          ${listShared ? 'Oui ☁️' : 'Non 🔒'}
+        </button>
       </div>
       <div class="list-sync-bar ${syncClass(listId)}" data-sync-bar="${esc(listId)}">
         <span class="list-sync-text">${esc(syncLabel(listId))}</span>
@@ -290,6 +300,17 @@ var ListComponent = (() => {
           }
           break;
         }
+        case 'toggle-list-shared': {
+          e.stopPropagation();
+          const next = !Store.isListShared(listId);
+          Store.setListShared(listId, next);
+          render(el.id, data);
+          backgroundSync(data);
+          showToast(next
+            ? '☁️ Liste partagée — coches et items au groupe'
+            : '🔒 Liste locale — coches sur cet appareil');
+          break;
+        }
         case 'export': {
           doExport(data);
           break;
@@ -380,6 +401,11 @@ var ListComponent = (() => {
   /** Sync status shown in the list header — a failing sync must be visible. */
   function syncLabel(listId) {
     const s = Store.getSyncState(listId);
+    if (!Store.isListShared(listId)) {
+      if (s && s.state === 'error') return '⚠️ ' + s.message;
+      if (s && s.state === 'offline') return '🔌 ' + s.message;
+      return '🔒 Coches sur cet appareil';
+    }
     if (!s) return '⏳ Synchro…';
     if (s.state === 'ok') return '☁️ Synchronisé ' + ago(s.at);
     if (s.state === 'offline') return '🔌 ' + s.message;

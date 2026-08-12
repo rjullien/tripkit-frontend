@@ -490,6 +490,7 @@ var App = (() => {
     if (tripData?.lists && Object.keys(tripData.lists).length > 0) {
       html += `<div class="section-title">📋 Listes</div>`;
       Object.entries(tripData.lists).forEach(([id, list]) => {
+        Store.rememberListType(id, list.type);
         const checks = Store.getChecks(id);
         let total = 0, checked = 0;
         (list.sections || []).forEach(s => {
@@ -497,11 +498,11 @@ var App = (() => {
         });
         const pct = total > 0 ? Math.round((checked / total) * 100) : 0;
         const typeEmoji = list.type === 'shopping' ? '🛒' : list.type === 'packing' ? '🧳' : '📋';
+        const shared = Store.isListShared(id);
         const sync = Store.getSyncState(id);
-        const shareHint = !sync ? '☁️ partagée'
-          : sync.state === 'ok' ? '☁️ synchronisée'
-          : sync.state === 'offline' ? '🔌 hors ligne'
-          : '⚠️ ' + sync.message;
+        const shareHint = sync && sync.state === 'error' ? '⚠️ ' + sync.message
+          : sync && sync.state === 'offline' ? '🔌 hors ligne'
+          : shared ? '☁️ partagée' : '🔒 locale';
         html += `<div class="trip-item" onclick="App.openList('${escAttr(id)}')">
           <span class="trip-emoji">${typeEmoji}</span>
           <div class="trip-info">

@@ -143,26 +143,39 @@ test('custom items appear after add', () => {
   assert(html.includes('My custom item'), 'Custom item not rendered');
 });
 
-test('custom item is shared by default', () => {
-  Store.addCustomItem('test-list', 0, 'Cloud item');
+test('packing list is local: toggle Non and new items 🔒', () => {
+  Store.rememberListType('test-list', 'packing');
+  Store.addCustomItem('test-list', 0, 'Chaussettes');
   ListComponent.render('container', testList);
   const html = mockElements['container'].innerHTML;
-  assert(html.includes('☁️'), 'Cloud emoji missing for shared item');
+  assert(html.includes('🔒'), 'Lock emoji missing for packing item');
+  assert(html.includes('toggle-list-shared'), 'Share toggle missing');
+  assert(html.includes('Non'), 'Packing list should default to Non');
 });
 
-test('custom item shows lock emoji once locked', () => {
-  const id = Store.addCustomItem('test-list', 0, 'Local only');
-  Store.toggleShareItem('test-list', id);
-  ListComponent.render('container', testList);
+test('avant-de-partir is shared: toggle Oui and new items ☁️', () => {
+  const todo = { ...testList, id: 'avant-de-partir-test', type: 'todo', title: 'Avant de partir' };
+  Store.addCustomItem(todo.id, 0, 'Arroser');
+  ListComponent.render('container', todo);
+  const html = mockElements['container'].innerHTML;
+  assert(html.includes('☁️'), 'Cloud emoji missing for shared item');
+  assert(html.includes('Oui'), 'Avant de partir should default to Oui');
+});
+
+test('custom item shows lock emoji once locked on a shared list', () => {
+  const todo = { ...testList, id: 'avant-de-partir-test', type: 'todo', title: 'Avant de partir' };
+  const id = Store.addCustomItem(todo.id, 0, 'Local only');
+  Store.toggleShareItem(todo.id, id);
+  ListComponent.render('container', todo);
   const html = mockElements['container'].innerHTML;
   assert(html.includes('🔒'), 'Lock emoji missing for locked item');
 });
 
-test('sync status bar replaces the share toggle', () => {
+test('share toggle and sync status both render', () => {
   ListComponent.render('container', testList);
   const html = mockElements['container'].innerHTML;
   assert(html.includes('list-sync-bar'), 'Sync status bar missing');
-  assert(!html.includes('toggle-list-shared'), 'Legacy share toggle still rendered');
+  assert(html.includes('toggle-list-shared'), 'Share toggle missing');
 });
 
 test('failed sync is shown, not swallowed', () => {

@@ -377,6 +377,35 @@ a:visited { color: var(--accent); }
 .list-item .item-share-btn.shared { opacity: 1; color: var(--accent); }
 .list-item .item-share-btn.local { opacity: 0.5; }
 
+/* ── List-level shared Oui/Non ── */
+.list-share-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 16px 0;
+}
+.list-share-label {
+  font-size: .85em;
+  color: var(--muted);
+  font-weight: 600;
+}
+.list-share-toggle {
+  border: 1px solid var(--border);
+  background: var(--card, var(--bg));
+  color: var(--text);
+  border-radius: 8px;
+  padding: 6px 12px;
+  font-size: .85em;
+  font-weight: 600;
+  cursor: pointer;
+}
+.list-share-toggle.on {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
 /* ── Sync status (silent failures used to look like "nothing syncs") ── */
 .list-sync-bar {
   display: flex;

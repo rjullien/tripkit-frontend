@@ -8,43 +8,55 @@
 
 Une liste = items seed + items custom.
 
-### Synchro : pas d’interrupteur global
+### Liste partagée Oui / Non
 
-Les **coches** et les **items custom** d’une liste du voyage se synchronisent
-toujours. Un item reste privé uniquement si l’utilisateur le verrouille avec
-**🔒** sur sa ligne.
+Bouton en haut de chaque liste. Défaut selon le **type seed**, pas un flag
+aveugle à `true` :
 
-> Historique : jusqu’à 2.31.3 un réglage par appareil `{listId}-list-shared`
-> coupait *toute* la synchro (coches **et** items, dans les deux sens) dès qu’il
-> passait à Non — sans message, et sans que l’autre téléphone puisse le voir.
-> Le réglage est supprimé ; `Store.migrateLegacyListShare()` l’efface et
-> repromeut les items qu’il avait bloqués.
+| Type | Exemple | Défaut |
+|------|---------|--------|
+| `packing` | Checklist valise / vêtements (`checklist-*`) | **Non** — coches sur cet appareil |
+| `todo` | Avant de partir (`avant-de-partir-*`) | **Oui** — coches et items au groupe |
+| autre (`shopping`…) | Courses | **Oui** |
+
+| | Oui | Non |
+|--|-----|-----|
+| Nouveaux items custom | `shared: true` → sync | `shared: false` → local |
+| **Coches** | **partagées** (merge serveur) | **locales** (jamais envoyées ni appliquées) |
+| Toggle Oui | promeut les items locaux | — |
+| Toggle Non | futurs ajouts locaux ; cloud déjà publié reste jusqu’à 🔒/🗑 | |
+
+Préférence : `{listId}-list-shared`. Si absente → défaut ci-dessus.
+
+Un item peut encore être forcé local/cloud avec 🔒 / ☁️ sur sa ligne.
 
 ### Toujours local
 - Masquage d’items
-- Items verrouillés 🔒 (`shared: false`)
+- Items `shared: false`
+- Coches si liste **Non** (valise par défaut)
 
 ### État de synchro visible
 
-Chaque liste affiche son dernier résultat de sync (`{listId}-sync-state`) :
-`☁️ Synchronisé il y a 12 s`, `🔌 Hors ligne — reprise auto`,
-`⚠️ Liste absente du serveur (404)`, `⚠️ Liste perso d’un autre compte (403)`.
+Sous le bouton, le dernier résultat de sync (`{listId}-sync-state`) :
+`☁️ Synchronisé il y a 12 s`, `🔒 Coches sur cet appareil`,
+`🔌 Hors ligne — reprise auto`, `⚠️ Liste absente du serveur (404)`.
 Un échec ne doit **jamais** être avalé silencieusement.
 
-## Règles coches
+## Règles coches (listes partagées Oui seulement)
 
 1. État `{ checked, updatedAt }`
 2. **`updatedAt` le plus récent gagne** (sur le serveur, et pour les coches *dirty* locales)
 3. À ts égal : **coché gagne** sur non coché
 4. Pull à l’ouverture + **re-pull ~12 s** tant que la liste est ouverte + re-pull au resume (visibility/online)
 5. Garde FE : un uncheck distant n’écrase pas une coche locale < 10 s (**dirty** seulement)
-6. **Push** : n’envoie que les coches **dirty** (togglées localement depuis le dernier push réussi) — évite qu’un téléphone avec des `updatedAt` locaux périmés/futurs écrase les coches des autres
-7. **Pull** : envoie `checks: {}`, puis applique `merged.checks` en **force** pour tout item non dirty (le serveur fait foi)
+6. Liste Non → client envoie `checks: {}` et ignore `merged.checks`
+7. **Push** : n’envoie que les coches **dirty**
+8. **Pull** : envoie `checks: {}`, puis applique `merged.checks` en **force** pour tout item non dirty
 
 ## Règles items custom
 
-1. Naissance partagée (`shared: true`)
-2. 🔒 sur la ligne = privé ; ☁️ = republié
+1. Naissance selon Liste partagée (packing = Non, avant-de-partir = Oui)
+2. ☁️ / 🔒 override ponctuel
 3. 🗑 → tombstone, anti-résurrection
 4. Pull à l’ouverture + re-render si merge
 5. Re-pull périodique (~12 s) tant que la liste reste ouverte ; aussi au resume app
@@ -60,14 +72,12 @@ Un échec ne doit **jamais** être avalé silencieusement.
 }
 ```
 
-`checks` rempli en push (dirty only), vide en pull.
+`checks` rempli seulement si Liste partagée Oui, sinon `{}`.
 
 ## Tests
 
 `tests/list-sync-two-devices.test.cjs` pilote le **vrai** `js/api.js` + `js/store.js`
-depuis deux appareils contre un stub HTTP du contrat `PATCH .../sync`.
-Pas de copie de `syncList` dans le test — c’est ce qui a laissé passer le
-gate silencieux « Liste partagée Non ».
+depuis deux appareils contre un stub HTTP. Pas de copie de `syncList`.
 
 ```bash
 node tests/list-sync-two-devices.test.cjs
