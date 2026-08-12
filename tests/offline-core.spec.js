@@ -51,8 +51,40 @@ test.describe('SW precache list', () => {
     expect(text).toContain('plus-chat-stream.js');
     expect(text).toContain('edge-chat-stream.js');
     expect(text).toContain('edge-model/engine.js');
-    expect(text).toContain('tripkit-96');
-    expect(text).toContain('huggingface.co');
+    expect(text).toContain('tripkit-98');
+    expect(text).toContain("url.origin !== self.location.origin");
     expect(text).not.toContain('/js/components/leo-chat.js');
+  });
+
+  // A stray `*/` inside the header comment once ended it early and turned the
+  // rest into code, so registration failed and the app had no SW for days.
+  test('sw.js actually registers and activates', async ({ page }) => {
+    await page.goto('/');
+    const state = await page.evaluate(async () => {
+      try {
+        await navigator.serviceWorker.register('/sw.js');
+      } catch (e) {
+        return 'register-error: ' + e.message;
+      }
+      const reg = await Promise.race([
+        navigator.serviceWorker.ready,
+        new Promise(r => setTimeout(() => r(null), 8000)),
+      ]);
+      return reg && reg.active ? 'active' : 'not-active';
+    });
+    expect(state).toBe('active');
+  });
+});
+
+test.describe('Edge model CSP', () => {
+  // Without 'wasm-unsafe-eval' the Wllama worker cannot compile its wasm and
+  // activation hangs until the 180s timeout with no usable error.
+  test('nginx CSP allows WebAssembly compilation', async ({ request }) => {
+    const res = await request.get('/nginx.conf');
+    if (!res.ok()) test.skip(true, 'nginx.conf not served statically');
+    const text = await res.text();
+    const csp = text.split('\n').find(l => l.includes('Content-Security-Policy'));
+    expect(csp).toBeTruthy();
+    expect(csp).toContain("'wasm-unsafe-eval'");
   });
 });

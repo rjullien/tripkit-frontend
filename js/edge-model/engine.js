@@ -9,8 +9,8 @@ var EdgeEngine = (() => {
   // Safari has no JSPI/Memory64 — Wllama needs Asyncify compat (vendored, NOT jsDelivr).
   const WLLAMA_COMPAT_WASM = 'js/lib/wllama/compat/wllama.wasm';
   const WLLAMA_COMPAT_JS = 'js/lib/wllama/compat/wllama.js';
-  const WARMUP_TIMEOUT_MS = 180000; // 3 min — Safari Asyncify; 135M should be well under
-  const OVERSIZE_BYTES = 40 * 1000 * 1000; // >40 Mo = leftover 135M/360M during stories15M smoke-test
+  const WARMUP_TIMEOUT_MS = 180000; // 3 min — Safari Asyncify; 19 Mo should be well under
+  const OVERSIZE_BYTES = 40 * 1000 * 1000; // >40 Mo = leftover 135M/360M/Qwen during stories15M smoke-test
 
   /** @type {null | 'idle' | 'downloading' | 'ready_disk' | 'loading_ram' | 'ready_ram' | 'error'} */
   let _state = 'idle';
@@ -26,6 +26,30 @@ var EdgeEngine = (() => {
   let _listeners = [];
   let _heartbeat = null;
   let _warmupGen = 0; // bump to invalidate in-flight warm-up
+
+  // Empty but valid wasm module — compiling it proves CSP allows WebAssembly.
+  const WASM_PROBE = new Uint8Array([0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00]);
+
+  /**
+   * Wllama compiles its wasm inside a blob worker. When the page CSP lacks
+   * 'wasm-unsafe-eval' the compile is refused there, the worker aborts, and the
+   * load promise never settles — activation just hangs until the timeout. Probe
+   * first so the real reason surfaces immediately.
+   */
+  async function assertWasmAllowed() {
+    try {
+      await WebAssembly.instantiate(WASM_PROBE);
+    } catch (e) {
+      const msg = (e && e.message) || String(e);
+      if (/content security policy|unsafe-eval/i.test(msg)) {
+        throw new Error(
+          'WebAssembly bloqué par le CSP du serveur (wasm-unsafe-eval manquant). '
+          + 'Recharge l’app après mise à jour.'
+        );
+      }
+      throw new Error('WebAssembly indisponible sur ce navigateur : ' + msg);
+    }
+  }
 
   function absUrl(path) {
     try {
@@ -278,10 +302,11 @@ var EdgeEngine = (() => {
     emit();
 
     const timeoutMs = (opts && opts.timeoutMs) || WARMUP_TIMEOUT_MS;
-    const nCtx = isMobileSafari() ? 512 : 1024;
+    const nCtx = isMobileSafari() ? 256 : 512;
     const modelUrl = resolveModelUrl(cfg.modelUrl);
 
     try {
+      await assertWasmAllowed();
       await exitWllama();
       if (gen !== _warmupGen) throw new Error('Annulé');
 
@@ -368,8 +393,8 @@ var EdgeEngine = (() => {
   }
 
   /**
-   * Completion locale. Sur iPhone : non-stream (évite OOM / kill d’onglet).
-   * Desktop : stream + onDelta.
+   * Completion locale, en streaming. Asyncify plafonne à ~2-3 tokens/s sur
+   * iPhone : sans onDelta l’utilisateur attend une minute devant un écran figé.
    */
   async function generate(userText, history, opts) {
     const cfg = typeof EdgeModelConfig !== 'undefined' ? EdgeModelConfig.get() : {};
@@ -381,9 +406,9 @@ var EdgeEngine = (() => {
       : [{ role: 'user', content: String(userText || '') }];
 
     const w = await getInstance();
-    const maxTokens = (opts && opts.maxTokens) || cfg.maxTokens || 80;
+    const maxTokens = (opts && opts.maxTokens) || cfg.maxTokens || 48;
     const temperature = (opts && opts.temperature) != null ? opts.temperature : (cfg.temperature ?? 0.7);
-    const useStream = !(opts && opts.stream === false) && !isMobileSafari();
+    const useStream = !(opts && opts.stream === false);
 
     try {
       if (!useStream) {

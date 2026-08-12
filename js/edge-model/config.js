@@ -9,7 +9,7 @@ var EdgeModelConfig = (() => {
   const DEFAULTS = {
     enabled: true,
     modelUrl: 'models/stories15M-q4_0.gguf',
-    modelVersion: 'stories15m-q4-0-selfhost-v2',
+    modelVersion: 'stories15m-q4-0-selfhost-v3',
     modelSizeBytes: 19077344,
     runtime: 'wllama',
     maxTokens: 48,
