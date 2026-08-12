@@ -49,7 +49,7 @@ test.describe('SW precache list', () => {
     const text = await res.text();
     expect(text).toContain('leo-chat-stream.js');
     expect(text).toContain('plus-chat-stream.js');
-    expect(text).toContain('tripkit-82');
+    expect(text).toContain('tripkit-83');
     expect(text).not.toContain('/js/components/leo-chat.js');
   });
 });
