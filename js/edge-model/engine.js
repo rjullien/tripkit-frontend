@@ -147,9 +147,9 @@ var EdgeEngine = (() => {
 
   function formatErr(e, fallback) {
     const raw = (e && e.message) || String(e || fallback);
-    // Wllama often surfaces opaque "Load failed" on HTTP 404 — hint the URL.
-    if (/load failed/i.test(raw)) {
-      return 'Échec téléchargement modèle (URL / réseau). Vérifie edge-model.json.';
+    // Safari often surfaces CSP / CORS / network blocks as opaque "Load failed".
+    if (/load failed|failed to fetch/i.test(raw)) {
+      return 'Réseau bloqué (CSP/CORS) ou URL modèle injoignable. Vérifie connect-src + edge-model.json.';
     }
     return raw || fallback;
   }
