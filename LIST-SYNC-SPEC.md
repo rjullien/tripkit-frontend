@@ -29,8 +29,9 @@ Préférence localStorage : `{listId}-list-shared`. Défaut = **Oui**.
 1. État `{ checked, updatedAt }`
 2. **`updatedAt` le plus récent gagne**
 3. À ts égal : **coché gagne** sur non coché
-4. Garde FE : un uncheck distant n’écrase pas une coche locale < 10 s
-5. Liste Non → client envoie `checks: {}` et ignore `merged.checks`
+4. Pull à l’ouverture + **re-pull ~12 s** tant que la liste est ouverte + re-pull au resume (visibility/online)
+5. Garde FE : un uncheck distant n’écrase pas une coche locale < 10 s
+6. Liste Non → client envoie `checks: {}` et ignore `merged.checks`
 
 ## Règles items custom
 
@@ -38,6 +39,7 @@ Préférence localStorage : `{listId}-list-shared`. Défaut = **Oui**.
 2. ☁️ / 🔒 override ponctuel
 3. 🗑 → tombstone, anti-résurrection
 4. Pull à l’ouverture + re-render si merge
+5. Re-pull périodique (~12 s) tant que la liste reste ouverte ; aussi au resume app
 
 ## Contrat sync
 

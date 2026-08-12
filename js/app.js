@@ -308,6 +308,15 @@ var App = (() => {
         if (typeof PublishPanel !== 'undefined' && PublishPanel.resumeIfNeeded) {
           PublishPanel.resumeIfNeeded();
         }
+        // If a shared list is open, re-pull so Nicole sees René's ticks after
+        // unlocking the phone / coming back to Safari.
+        if (currentListId && typeof ListComponent !== 'undefined') {
+          const td = Store.getTripData(Store.getCurrentTripId());
+          const list = td && td.lists && td.lists[currentListId];
+          if (list && ListComponent.pullOnOpen) {
+            ListComponent.pullOnOpen('plus-content', list);
+          }
+        }
       }, 400);
     };
     window.addEventListener('online', kick);
@@ -461,12 +470,18 @@ var App = (() => {
     if (currentListId && tripData?.lists?.[currentListId]) {
       const list = tripData.lists[currentListId];
       ListComponent.render('plus-content', list);
-      // Pull shared customs so the other traveler sees cloud items without
-      // needing to tap an action first.
-      if (typeof ListComponent.pullOnOpen === 'function') {
+      // Pull shared customs + checks; keep pulling while open so peer ticks
+      // appear without leaving the list (iPhone resume / wait on same screen).
+      if (typeof ListComponent.startPullWhileOpen === 'function') {
+        ListComponent.startPullWhileOpen('plus-content', list);
+      } else if (typeof ListComponent.pullOnOpen === 'function') {
         ListComponent.pullOnOpen('plus-content', list);
       }
       return;
+    }
+
+    if (typeof ListComponent !== 'undefined' && ListComponent.stopPullWhileOpen) {
+      ListComponent.stopPullWhileOpen();
     }
 
     let html = `<div class="page-header"><h1>⚙️ Plus</h1></div>`;

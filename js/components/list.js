@@ -405,8 +405,8 @@ var ListComponent = (() => {
   }
 
   /**
-   * Pull shared customs when opening a list (Nicole sees René's cloud items).
-   * Re-renders if the merge brought new items.
+   * Pull shared customs + checks when opening a list (Nicole sees René's ticks).
+   * Re-renders if the merge brought new state.
    */
   function pullOnOpen(containerId, listData) {
     const tripId = Store.getCurrentTripId();
@@ -414,6 +414,35 @@ var ListComponent = (() => {
     API.syncList(tripId, listData.id).then((res) => {
       if (res && res.changed) render(containerId, listData);
     }).catch(() => {});
+  }
+
+  /** While a list is open, re-pull periodically so peer ticks appear without leaving. */
+  let _pullTimer = null;
+  let _pullCtx = null; // { containerId, listId }
+
+  function stopPullWhileOpen() {
+    if (_pullTimer) {
+      clearInterval(_pullTimer);
+      _pullTimer = null;
+    }
+    _pullCtx = null;
+  }
+
+  function startPullWhileOpen(containerId, listData) {
+    stopPullWhileOpen();
+    if (!listData || !listData.id) return;
+    _pullCtx = { containerId, listId: listData.id, listData };
+    pullOnOpen(containerId, listData);
+    _pullTimer = setInterval(() => {
+      if (!_pullCtx) return;
+      // Only if still viewing this list in the DOM
+      const el = document.getElementById(_pullCtx.containerId);
+      if (!el || !el.querySelector('.list-share-bar')) {
+        stopPullWhileOpen();
+        return;
+      }
+      pullOnOpen(_pullCtx.containerId, _pullCtx.listData);
+    }, 12000);
   }
 
   function showToast(msg, type = 'success') {
@@ -428,5 +457,5 @@ var ListComponent = (() => {
       .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   }
 
-  return { render, pullOnOpen };
+  return { render, pullOnOpen, startPullWhileOpen, stopPullWhileOpen };
 })();
