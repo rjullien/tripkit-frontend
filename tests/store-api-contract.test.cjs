@@ -86,3 +86,16 @@ for (const [name, mod] of Object.entries(MODULES)) {
 }
 
 console.log(`\n${pass}/2 checks passed (${calls} call sites)\n`);
+
+console.log('── Safari stream error copy ────────────────────────────────');
+try {
+  assert.strictEqual(typeof API.netFailMessage, 'function');
+  assert.strictEqual(API.netFailMessage({ message: 'Load failed' }, false), 'Connexion coupée. Réessaie.');
+  assert.strictEqual(API.netFailMessage({ message: 'Failed to fetch' }, false), 'Connexion coupée. Réessaie.');
+  assert.strictEqual(API.netFailMessage({ message: 'Load failed' }, true), 'Annulé.');
+  assert.strictEqual(API.netFailMessage({ message: 'Hermes injoignable. Réessaie plus tard.' }, false), 'Hermes injoignable. Réessaie plus tard.');
+  console.log('  ✅ netFailMessage maps Safari Load failed\n');
+} catch (e) {
+  console.log(`  ❌ ${e.message}\n`);
+  process.exitCode = 1;
+}
