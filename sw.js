@@ -5,7 +5,7 @@
  * Bump CACHE_NAME when deploying new shell versions.
  */
 
-const CACHE_NAME = 'tripkit-84';
+const CACHE_NAME = 'tripkit-85';
 
 
 const ASSETS = [
@@ -130,7 +130,8 @@ self.addEventListener('fetch', event => {
   if (
     url.pathname.endsWith('.gguf') ||
     url.hostname.includes('huggingface.co') ||
-    url.hostname.includes('hf.co')
+    url.hostname.includes('hf.co') ||
+    url.hostname.includes('xethub.hf.co')
   ) {
     return;
   }
