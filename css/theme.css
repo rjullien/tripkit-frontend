@@ -949,7 +949,12 @@ a:visited { color: var(--accent); }
   border-radius: 10px;
   padding: 10px 18px;
   font-size: 0.85em;
-  white-space: nowrap;
+  color: var(--text);
+  max-width: min(92vw, 420px);
+  white-space: normal;
+  overflow-wrap: anywhere;
+  text-align: center;
+  line-height: 1.35;
   opacity: 0;
   transform: translateY(10px);
   transition: all 0.25s;
