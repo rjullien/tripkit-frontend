@@ -83,13 +83,15 @@ var PlusChatStream = (() => {
     if (st.onDisk) {
       return `<div class="edge-bar" id="edge-model-bar">
         <span class="edge-badge">💾 prêt</span>
-        <span class="leo-hint">Modèle sur l’appareil (${escapeHtml(size)})${st.needsUpdate ? ' — nouvelle version dispo' : ''}.</span>
+        <span class="leo-hint">Modèle sur l’appareil (${escapeHtml(size)})${st.needsUpdate ? ' — <strong style="color:var(--orange)">nouvelle version 360M (~270&nbsp;Mo)</strong>' : ''}.</span>
         <div class="edge-actions">
-          <button type="button" class="btn btn-primary" id="edge-warmup-btn">Activer maintenant</button>
-          ${st.needsUpdate ? '<button type="button" class="btn" id="edge-update-btn">Mettre à jour</button>' : ''}
+          ${st.needsUpdate
+            ? '<button type="button" class="btn btn-primary" id="edge-update-btn">Remplacer par 360M (~270 Mo)</button>'
+            : '<button type="button" class="btn btn-primary" id="edge-warmup-btn">Activer maintenant</button>'}
           <button type="button" class="btn edge-btn-danger" id="edge-purge-btn">Supprimer le modèle</button>
         </div>
         ${st.error ? `<p class="leo-hint" style="color:var(--orange);margin:10px 0 0;white-space:normal;overflow-wrap:anywhere">${escapeHtml(st.error)}</p>` : ''}
+        ${st.needsUpdate ? '<p class="leo-hint" style="margin:8px 0 0">Le 1.7B (~1.1&nbsp;Go) timeout sur iPhone. Remplace-le par le 360M plus léger.</p>' : ''}
       </div>`;
     }
     // idle / error — load button
@@ -139,7 +141,7 @@ var PlusChatStream = (() => {
     const upd = document.getElementById('edge-update-btn');
     if (upd) {
       upd.addEventListener('click', async () => {
-        if (!confirm('Mettre à jour le modèle ?')) return;
+        if (!confirm('Remplacer l’ancien modèle par SmolLM2 360M (~270 Mo) ?\nL’ancien 1.1 Go sera effacé.')) return;
         upd.disabled = true;
         try {
           await EdgeEngine.download();

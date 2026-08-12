@@ -6,7 +6,7 @@
 var EdgeEngine = (() => {
   const WLLAMA_JS = 'js/lib/wllama/index.min.js';
   const WLLAMA_WASM = 'js/lib/wllama/wasm/wllama.wasm';
-  const WARMUP_TIMEOUT_MS = 180000; // 3 min — 1GB→RAM on iPhone can be slow
+  const WARMUP_TIMEOUT_MS = 120000; // 2 min — 360M should load well under this on iPhone
 
   /** @type {null | 'idle' | 'downloading' | 'ready_disk' | 'loading_ram' | 'ready_ram' | 'error'} */
   let _state = 'idle';
@@ -167,6 +167,9 @@ var EdgeEngine = (() => {
     if (/already initialized/i.test(raw)) {
       return 'Runtime déjà initialisé — réessaie (Annuler puis Activer).';
     }
+    if (/timeout activation/i.test(raw)) {
+      return 'Activation trop longue. Supprime l’ancien modèle 1.1 Go si présent, charge le 360M (~270 Mo), réessaie.';
+    }
     return raw || fallback;
   }
 
@@ -187,6 +190,11 @@ var EdgeEngine = (() => {
 
     try {
       const w = await getInstance();
+      // Free previous GGUF (e.g. 1.7B → 360M) before download
+      if (typeof EdgeModelConfig !== 'undefined' && EdgeModelConfig.needsUpdate()) {
+        setPhase('Nettoyage ancien modèle…');
+        try { await w.cacheManager.clear(); } catch (_) { /* ignore */ }
+      }
       await w.cacheManager.download(cfg.modelUrl, {
         progressCallback: ({ loaded, total }) => {
           _progress = total > 0 ? loaded / total : 0;
@@ -269,7 +277,7 @@ var EdgeEngine = (() => {
         const mb = (blob.size / 1e6).toFixed(0);
         setPhase(
           '4/4 Inférence WASM (n_threads=1, n_ctx=' + nCtx + ')…',
-          'Fichier OPFS : ' + mb + ' Mo — pas de % pendant cette étape (Wllama ne le rapporte pas)'
+          'Fichier OPFS : ' + mb + ' Mo — étape sans % (Wllama). 360M ≈ 20–60s sur iPhone.'
         );
         const loadPromise = w.loadModel([blob], {
           n_ctx: nCtx,
