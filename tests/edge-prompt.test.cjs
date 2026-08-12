@@ -91,11 +91,67 @@ test('tomorrow is the next seed day', () => {
   assert.ok(sys.includes('City exploration'), sys);
 });
 
-test('calendar lists J1–J3', () => {
+test('calendar lists nearby days only', () => {
   const sys = EdgePrompt.buildMessages('x', [], { nowISO: '2026-06-16' })[0].content;
   assert.ok(sys.includes('Calendrier'), sys);
   assert.ok(sys.includes('J1'), sys);
   assert.ok(sys.includes('J3'), sys);
+});
+
+test('same hotel is not repeated on DEMAIN', () => {
+  const sys = EdgePrompt.buildMessages('Wifi ?', [], { nowISO: '2026-06-15' })[0].content;
+  const i = sys.indexOf('DEMAIN');
+  assert.ok(i > 0, sys);
+  const demain = sys.slice(i);
+  assert.ok(!demain.includes('Grand Hotel'), demain);
+  assert.ok(!demain.includes('GrandGuest'), demain);
+  assert.ok(sys.includes('GrandGuest'), sys);
+});
+
+test('prompt stays small enough for leftover n_ctx 1024', () => {
+  const fatDays = [];
+  for (let i = 1; i <= 20; i++) {
+    fatDays.push({
+      day: i,
+      label: 'Very long sightseeing day with museums parks and boats ' + i,
+      hotelId: 'city-hotel',
+      timeline: [
+        { t: '09:00', d: 'Long activity description that would bloat the prompt ' + i },
+        { t: '12:00', d: 'Lunch reservation at a fancy place downtown ' + i },
+        { t: '15:00', d: 'Another long visit that should be truncated ' + i },
+        { t: '18:00', d: 'Evening walk along the river with photos ' + i },
+        { t: '20:00', d: 'Dinner notes and extra padding text ' + i },
+        { t: '22:00', d: 'Should not appear — beyond MAX_TIMELINE' },
+      ],
+      highlights: ['A', 'B', 'C', 'D'],
+    });
+  }
+  const prev = global.Store;
+  global.Store = {
+    getCurrentTripId: () => 'test-trip-2026',
+    getTripData: () => Object.assign({}, TRIP, {
+      trip: Object.assign({}, TRIP.trip, { endDate: '2026-07-04' }),
+      days: fatDays,
+    }),
+  };
+  const hist = [
+    { role: 'user', content: 'x'.repeat(400) },
+    { role: 'assistant', content: 'y'.repeat(400) },
+    { role: 'user', content: 'z'.repeat(400) },
+  ];
+  const msgs = EdgePrompt.buildMessages('Tu sais quoi sur mon voyage', hist, { nowISO: '2026-06-20' });
+  global.Store = prev;
+  const total = msgs.reduce((n, m) => n + String(m.content).length, 0);
+  assert.ok(total <= 1800, 'prompt too large: ' + total);
+  const sys = msgs[0].content;
+  assert.ok(!sys.includes('J20'), sys);
+  assert.ok(!sys.includes('beyond MAX_TIMELINE'), sys);
+  assert.strictEqual(msgs.filter(m => m.role !== 'system').length, 2);
+});
+
+test('engine warm-up uses n_ctx 2048', () => {
+  const src = fs.readFileSync('js/edge-model/engine.js', 'utf8');
+  assert.ok(src.includes('const nCtx = 2048'), src.slice(300, 340));
 });
 
 test('user message appended', () => {

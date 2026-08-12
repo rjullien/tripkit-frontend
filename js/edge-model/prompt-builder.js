@@ -1,19 +1,18 @@
 /**
  * Edge prompt builder — system prompt + trip context from local Store
- * (same facts as Bifrost today/tomorrow, compact for n_ctx 1024).
+ * (same facts as Bifrost today/tomorrow, compact for n_ctx 2048 / leftover 1024).
  */
 var EdgePrompt = (() => {
-  const MAX_CONTEXT_CHARS = 2200;
-  const MAX_TIMELINE = 8;
-  const MAX_CALENDAR = 16;
+  const MAX_CONTEXT_CHARS = 1200;
+  const MAX_TIMELINE = 5;
+  const MAX_CALENDAR = 6;
+  const MAX_HISTORY = 1;
+  const MAX_TURN_CHARS = 240;
 
   const SYSTEM = [
-    'Tu es l’assistant voyage TripKit hors-ligne (lecture seule).',
-    'Réponds en français, court, utile.',
-    'Utilise le bloc CONTEXTE ci-dessous comme source de vérité (aujourd’hui, demain, hôtel, codes, programme).',
-    'N’invente pas un code wifi, pin, adresse ou horaire s’il n’y est pas.',
-    'Pas de météo live ni de prix en ligne — pour ça, Bifrost au-dessus.',
-    'Pour modifier le voyage → Léo.',
+    'Assistant voyage TripKit hors-ligne. Français, court.',
+    'CONTEXTE = vérité (aujourd’hui, demain, hôtel, codes). N’invente pas wifi/pin/adresse.',
+    'Météo live / prix → Bifrost. Modifier le voyage → Léo.',
   ].join(' ');
 
   function str(v) {
@@ -140,16 +139,14 @@ var EdgePrompt = (() => {
     return 'Notes: ' + hs.map(h => str(h)).filter(Boolean).join(' · ');
   }
 
-  function formatDayBlock(role, day, tripData) {
+  function formatDayBlock(role, day, tripData, opts) {
     if (!day) return '';
     const en = enrich(day, tripData);
-    const trip = (tripData && tripData.trip) || {};
-    const iso = isoForDay(day, trip);
     const head = [
       role,
       'J' + (day.day != null ? day.day : '?'),
       str(en.dow),
-      str(en.date) || iso,
+      str(en.date) || isoForDay(day, (tripData && tripData.trip) || {}),
       str(day.label),
     ].filter(Boolean).join(' ');
     const parts = [head];
@@ -158,8 +155,10 @@ var EdgePrompt = (() => {
     }
     const tl = formatTimeline(en);
     if (tl) parts.push(tl);
-    const hotel = formatHotel(resolveHotel(day, tripData));
-    if (hotel) parts.push(hotel);
+    if (!(opts && opts.skipHotel)) {
+      const hotel = formatHotel(resolveHotel(day, tripData));
+      if (hotel) parts.push(hotel);
+    }
     const resto = formatResto(day, tripData);
     if (resto) parts.push(resto);
     const hi = formatHighlights(day);
@@ -167,9 +166,12 @@ var EdgePrompt = (() => {
     return parts.join('\n');
   }
 
-  function formatCalendar(days, trip) {
+  function formatCalendar(days, trip, aroundDay) {
     if (!Array.isArray(days) || !days.length) return '';
-    const rows = days.slice(0, MAX_CALENDAR).map(d => {
+    const center = aroundDay != null ? aroundDay : days[0].day;
+    const nearby = days.filter(d => d.day >= center - 1 && d.day <= center + 2);
+    const slice = (nearby.length ? nearby : days).slice(0, MAX_CALENDAR);
+    const rows = slice.map(d => {
       const en = enrich(d, { trip: trip, days: days });
       const iso = isoForDay(d, trip);
       return 'J' + d.day + ' ' + (en.dow || '') + ' ' + (iso || en.date || '') + ' — ' + str(d.label);
@@ -229,11 +231,12 @@ var EdgePrompt = (() => {
       parts.push('Voyage: ' + name
         + (trip.startDate ? ' (' + trip.startDate + (trip.endDate ? ' → ' + trip.endDate : '') + ')' : ''));
       parts.push('Maintenant: ' + nowISO + (state ? ' (' + state + ')' : '') + ' TZ ' + tz);
-      const cal = formatCalendar(days, trip);
+      const cal = formatCalendar(days, trip, todayDay && todayDay.day);
       if (cal) parts.push(cal);
       const todayBlock = formatDayBlock('AUJOURD’HUI', todayDay, data);
       if (todayBlock) parts.push(todayBlock);
-      const tomBlock = formatDayBlock('DEMAIN', tomorrowDay, data);
+      const sameHotel = !!(todayDay && tomorrowDay && todayDay.hotelId && todayDay.hotelId === tomorrowDay.hotelId);
+      const tomBlock = formatDayBlock('DEMAIN', tomorrowDay, data, { skipHotel: sameHotel });
       if (tomBlock) parts.push(tomBlock);
       const flights = formatFlights(data, nowISO,
         tomorrowDay ? isoForDay(tomorrowDay, trip) : '');
@@ -257,14 +260,14 @@ var EdgePrompt = (() => {
     const ctx = tripContext(opts);
     const sys = SYSTEM + (ctx ? '\n\nCONTEXTE\n' + ctx : '\n\n(Pas de voyage chargé.)');
     const msgs = [{ role: 'system', content: sys }];
-    const hist = Array.isArray(history) ? history.slice(-2) : [];
+    const hist = Array.isArray(history) ? history.slice(-MAX_HISTORY) : [];
     for (const m of hist) {
       if (!m || !m.content) continue;
       if (m.role === 'user' || m.role === 'assistant') {
-        msgs.push({ role: m.role, content: String(m.content).slice(0, 400) });
+        msgs.push({ role: m.role, content: String(m.content).slice(0, MAX_TURN_CHARS) });
       }
     }
-    msgs.push({ role: 'user', content: String(userText || '').slice(0, 500) });
+    msgs.push({ role: 'user', content: String(userText || '').slice(0, MAX_TURN_CHARS) });
     return msgs;
   }
 
