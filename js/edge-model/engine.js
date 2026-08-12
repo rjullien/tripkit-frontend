@@ -9,8 +9,8 @@ var EdgeEngine = (() => {
   // Safari has no JSPI/Memory64 — Wllama needs Asyncify compat (vendored, NOT jsDelivr).
   const WLLAMA_COMPAT_WASM = 'js/lib/wllama/compat/wllama.wasm';
   const WLLAMA_COMPAT_JS = 'js/lib/wllama/compat/wllama.js';
-  const WARMUP_TIMEOUT_MS = 180000; // 3 min — Safari Asyncify + 360M can need 1–2 min
-  const OVERSIZE_BYTES = 400 * 1000 * 1000; // >400 Mo = leftover 1.7B, refuse warm-up
+  const WARMUP_TIMEOUT_MS = 180000; // 3 min — Safari Asyncify; 135M should be well under
+  const OVERSIZE_BYTES = 150 * 1000 * 1000; // >150 Mo = leftover 360M/1.7B, refuse warm-up
 
   /** @type {null | 'idle' | 'downloading' | 'ready_disk' | 'loading_ram' | 'ready_ram' | 'error'} */
   let _state = 'idle';
@@ -108,11 +108,11 @@ var EdgeEngine = (() => {
   }
 
   function hintForElapsed(sec) {
-    if (sec < 10) return 'Init runtime WASM (Safari = build Asyncify)…';
-    if (sec < 30) return 'Lecture GGUF OPFS + démarrage worker…';
-    if (sec < 90) return 'Allocation mémoire — normal sur iPhone (360M ≈ 30–90s)';
-    if (sec < 150) return 'Toujours en cours — laisse tourner ou Annuler';
-    return 'Très long — Annuler, vérifier taille ~270 Mo, réessayer';
+    if (sec < 8) return 'Init runtime WASM (Safari Asyncify)…';
+    if (sec < 25) return 'Lecture GGUF OPFS + worker…';
+    if (sec < 60) return 'Allocation mémoire — 135M ≈ 10–40s sur iPhone';
+    if (sec < 120) return 'Toujours en cours — laisse tourner ou Annuler';
+    return 'Très long — Annuler, vérifier taille ~88 Mo, réessayer';
   }
 
   function startHeartbeat(startedAt) {
@@ -192,7 +192,7 @@ var EdgeEngine = (() => {
     if (/timeout activation/i.test(raw)) {
       const mb = _diskBytes ? Math.round(_diskBytes / 1e6) + ' Mo sur disque. ' : '';
       return mb
-        + 'Activation trop longue. Si >400 Mo → Supprimer puis charger le 360M (~270 Mo). Sinon réessaie (Wi‑Fi, onglet seul).';
+        + 'Activation trop longue. Si >150 Mo → Remplacer par 135M (~88 Mo). Sinon réessaie (Wi‑Fi, onglet seul).';
     }
     return raw || fallback;
   }
@@ -270,7 +270,7 @@ var EdgeEngine = (() => {
     emit();
 
     const timeoutMs = (opts && opts.timeoutMs) || WARMUP_TIMEOUT_MS;
-    const nCtx = isMobileSafari() ? 1024 : 2048;
+    const nCtx = isMobileSafari() ? 512 : 1024;
 
     try {
       // Fresh instance — do NOT call resetInstance() here (it kills the heartbeat).
@@ -289,7 +289,7 @@ var EdgeEngine = (() => {
       if (blob && blob.size >= OVERSIZE_BYTES) {
         const mb = Math.round(blob.size / 1e6);
         throw new Error(
-          'Modèle trop gros (' + mb + ' Mo). Supprime-le puis charge le 360M (~270 Mo).'
+          'Modèle trop gros (' + mb + ' Mo). Supprime-le puis charge le 135M (~88 Mo).'
         );
       }
       if (!blob || !blob.size) {
@@ -313,7 +313,7 @@ var EdgeEngine = (() => {
         const mb = (blob.size / 1e6).toFixed(0);
         setPhase(
           '4/4 Inférence WASM (n_threads=1, n_ctx=' + nCtx + ')…',
-          'OPFS ' + mb + ' Mo — Asyncify Safari sans %. Compte 30–120s.'
+          'OPFS ' + mb + ' Mo — Asyncify Safari sans %. 135M ≈ 10–40s.'
         );
         const loadPromise = w.loadModel([blob], {
           n_ctx: nCtx,
@@ -463,7 +463,7 @@ var EdgeEngine = (() => {
         _diskBytes = blob && blob.size ? blob.size : 0;
         if (_diskBytes >= OVERSIZE_BYTES && !_error) {
           _error = 'Ancien modèle ~' + Math.round(_diskBytes / 1e6)
-            + ' Mo détecté — remplace par 360M (~270 Mo).';
+            + ' Mo détecté — remplace par 135M (~88 Mo).';
         }
       } catch (_) {
         /* keep meta-only */

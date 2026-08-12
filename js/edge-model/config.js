@@ -8,15 +8,15 @@ var EdgeModelConfig = (() => {
 
   const DEFAULTS = {
     enabled: true,
-    modelUrl: 'https://huggingface.co/bartowski/SmolLM2-360M-Instruct-GGUF/resolve/main/SmolLM2-360M-Instruct-Q4_K_M.gguf',
-    modelVersion: 'smollm2-360m-instruct-q4km-v1',
-    modelSizeBytes: 270590880,
+    modelUrl: 'https://huggingface.co/bartowski/SmolLM2-135M-Instruct-GGUF/resolve/main/SmolLM2-135M-Instruct-Q3_K_S.gguf',
+    modelVersion: 'smollm2-135m-instruct-q3ks-v1',
+    modelSizeBytes: 88202080,
     runtime: 'wllama',
-    maxTokens: 300,
+    maxTokens: 200,
     temperature: 0.7,
     intentClassifier: 'keywords-v1',
     fallbackToBifrost: true,
-    minRamMB: 2048,
+    minRamMB: 1024,
   };
 
   let _cfg = Object.assign({}, DEFAULTS);
