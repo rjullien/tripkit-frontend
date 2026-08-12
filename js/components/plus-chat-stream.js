@@ -57,12 +57,19 @@ var PlusChatStream = (() => {
       const pct = Math.round((st.progress || 0) * 100);
       const elapsed = st.elapsedSec || 0;
       const phase = st.phase || 'Activation…';
+      const detail = st.detail || '';
+      const hint = st.hint || '';
+      const known = pct > 0;
       return `<div class="edge-bar" id="edge-model-bar">
-        <div class="edge-bar-title">${escapeHtml(phase)}${pct > 0 ? ' · ' + pct + '%' : ''}</div>
-        <div class="edge-progress"><div class="edge-progress-fill" style="width:${pct > 0 ? pct : Math.min(95, 8 + elapsed * 2)}%"></div></div>
+        <div class="edge-bar-title">${escapeHtml(phase)}${known ? ' · ' + pct + '%' : ''}</div>
+        <div class="edge-progress${known ? '' : ' indeterminate'}">
+          <div class="edge-progress-fill" style="${known ? 'width:' + pct + '%' : ''}"></div>
+        </div>
         <p class="leo-hint" style="margin:8px 0 0">
-          ${elapsed}s écoulées — sur iPhone ça peut prendre 1–3&nbsp;min (chargement ~1&nbsp;GB en mémoire).
+          <strong style="color:var(--text)">${elapsed}s</strong>
+          ${hint ? ' — ' + escapeHtml(hint) : ''}
         </p>
+        ${detail ? `<p class="leo-hint" style="margin:6px 0 0;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.78em;overflow-wrap:anywhere">${escapeHtml(detail)}</p>` : ''}
         <button type="button" class="btn edge-btn-secondary" id="edge-cancel-warmup-btn" style="margin-top:10px">Annuler</button>
       </div>`;
     }
@@ -177,6 +184,46 @@ var PlusChatStream = (() => {
     if (!host) return;
     host.innerHTML = edgeBarHtml();
     bindEdgeBar();
+  }
+
+  /** Update loading_ram UI without full rebuild (keeps indeterminate animation alive). */
+  function patchEdgeLoading(st) {
+    const bar = document.getElementById('edge-model-bar');
+    if (!bar || !st || st.state !== 'loading_ram') return false;
+    const title = bar.querySelector('.edge-bar-title');
+    const hints = bar.querySelectorAll('.leo-hint');
+    const pct = Math.round((st.progress || 0) * 100);
+    const phase = st.phase || 'Activation…';
+    if (title) title.textContent = phase + (pct > 0 ? ' · ' + pct + '%' : '');
+    if (hints[0]) {
+      hints[0].innerHTML = `<strong style="color:var(--text)">${st.elapsedSec || 0}s</strong>`
+        + (st.hint ? ' — ' + escapeHtml(st.hint) : '');
+    }
+    if (st.detail) {
+      let det = hints[1];
+      if (!det || !det.classList.contains('edge-detail')) {
+        det = document.createElement('p');
+        det.className = 'leo-hint edge-detail';
+        det.style.cssText = 'margin:6px 0 0;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.78em;overflow-wrap:anywhere';
+        hints[0] ? hints[0].after(det) : bar.appendChild(det);
+      }
+      det.textContent = st.detail;
+    }
+    const fill = bar.querySelector('.edge-progress-fill');
+    const prog = bar.querySelector('.edge-progress');
+    if (pct > 0 && fill && prog) {
+      prog.classList.remove('indeterminate');
+      fill.style.width = pct + '%';
+    }
+    return true;
+  }
+
+  function onEdgeChange() {
+    const st = edgeStatus();
+    if (st && st.state === 'loading_ram' && document.getElementById('edge-model-bar')) {
+      if (patchEdgeLoading(st)) return;
+    }
+    refreshEdgeBar();
   }
 
   function renderSection(container) {

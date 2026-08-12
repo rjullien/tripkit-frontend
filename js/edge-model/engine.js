@@ -13,6 +13,8 @@ var EdgeEngine = (() => {
   let _progress = 0; // 0..1
   let _error = '';
   let _phase = '';
+  let _detail = '';
+  let _hint = '';
   let _elapsedSec = 0;
   let _wllama = null;
   let _WllamaClass = null;
@@ -56,6 +58,8 @@ var EdgeEngine = (() => {
       progress: _progress,
       error: _error,
       phase: _phase,
+      detail: _detail,
+      hint: _hint,
       elapsedSec: _elapsedSec,
       onDisk,
       inRam: isLoaded(),
@@ -84,18 +88,29 @@ var EdgeEngine = (() => {
     }
   }
 
-  function setPhase(phase) {
+  function setPhase(phase, detail) {
     _phase = phase || '';
+    if (detail !== undefined) _detail = detail || '';
     emit();
+  }
+
+  function hintForElapsed(sec) {
+    if (sec < 8) return 'Init runtime WASM…';
+    if (sec < 25) return 'Décodage GGUF + démarrage worker…';
+    if (sec < 60) return 'Allocation mémoire (~1.5 Go) — c’est long mais normal';
+    if (sec < 120) return 'Toujours en cours — iPhone ~1–3 min pour 1 Go';
+    return 'Très long — tu peux Annuler et rester sur le serveur';
   }
 
   function startHeartbeat(startedAt) {
     stopHeartbeat();
     _elapsedSec = 0;
+    _hint = hintForElapsed(0);
     _heartbeat = setInterval(() => {
       _elapsedSec = Math.floor((Date.now() - startedAt) / 1000);
+      _hint = hintForElapsed(_elapsedSec);
       emit();
-    }, 1000);
+    }, 500);
   }
 
   function stopHeartbeat() {
@@ -214,42 +229,52 @@ var EdgeEngine = (() => {
     _state = 'loading_ram';
     _progress = 0;
     _error = '';
-    _phase = 'Démarrage…';
+    _phase = '1/4 Démarrage…';
+    _detail = '';
+    _hint = hintForElapsed(0);
     _elapsedSec = 0;
     startHeartbeat(startedAt);
     emit();
 
     const timeoutMs = (opts && opts.timeoutMs) || WARMUP_TIMEOUT_MS;
+    const nCtx = isMobileSafari() ? 1024 : 2048;
 
     try {
-      // Fresh instance — avoids "already initialized" after a failed attempt
-      await resetInstance();
+      // Fresh instance — do NOT call resetInstance() here (it kills the heartbeat).
+      await exitWllama();
       if (gen !== _warmupGen) throw new Error('Annulé');
 
+      setPhase('2/4 Chargement runtime WASM…', 'js/lib/wllama + wllama.wasm');
       const w = await getInstance();
       if (gen !== _warmupGen) throw new Error('Annulé');
 
-      setPhase('Lecture du modèle (OPFS)…');
+      setPhase('3/4 Lecture OPFS…', 'Ouverture du GGUF en cache local');
       let blob = await w.cacheManager.open(cfg.modelUrl);
       if (!blob || !blob.size) {
-        // Fallback: maybe metadata key differs — try download-from-cache via URL
-        setPhase('Rechargement cache…');
+        setPhase('3/4 Cache OPFS vide — fallback URL…', cfg.modelUrl);
         await w.loadModelFromUrl(cfg.modelUrl, {
           useCache: true,
-          n_ctx: isMobileSafari() ? 1024 : 2048,
+          n_ctx: nCtx,
           n_gpu_layers: 0,
           n_threads: 1,
           progressCallback: ({ loaded, total }) => {
             _progress = total > 0 ? loaded / total : 0;
+            _detail = total
+              ? Math.round(loaded / 1e6) + ' / ' + Math.round(total / 1e6) + ' Mo'
+              : Math.round(loaded / 1e6) + ' Mo';
             emit();
           },
         });
       } else {
-        setPhase('Chargement en mémoire (~1 GB, patience)…');
+        const mb = (blob.size / 1e6).toFixed(0);
+        setPhase(
+          '4/4 Inférence WASM (n_threads=1, n_ctx=' + nCtx + ')…',
+          'Fichier OPFS : ' + mb + ' Mo — pas de % pendant cette étape (Wllama ne le rapporte pas)'
+        );
         const loadPromise = w.loadModel([blob], {
-          n_ctx: isMobileSafari() ? 1024 : 2048,
+          n_ctx: nCtx,
           n_gpu_layers: 0,
-          n_threads: 1, // no SharedArrayBuffer / COOP-COEP required
+          n_threads: 1,
         });
         const timeoutPromise = new Promise((_, reject) => {
           setTimeout(() => reject(new Error(
@@ -271,15 +296,19 @@ var EdgeEngine = (() => {
       _state = 'ready_ram';
       _progress = 1;
       _phase = '';
+      _detail = '';
+      _hint = '';
       _elapsedSec = Math.floor((Date.now() - startedAt) / 1000);
       emit();
       return true;
     } catch (e) {
       stopHeartbeat();
-      await resetInstance();
+      await exitWllama();
       _error = formatErr(e, 'activation échouée');
       _state = hasOnDisk() ? 'ready_disk' : 'error';
       _phase = '';
+      _detail = '';
+      _hint = '';
       emit();
       throw new Error(_error);
     }
@@ -293,6 +322,8 @@ var EdgeEngine = (() => {
     _state = hasOnDisk() ? 'ready_disk' : 'idle';
     _progress = 0;
     _phase = '';
+    _detail = '';
+    _hint = '';
     _error = 'Activation annulée';
     emit();
   }

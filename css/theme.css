@@ -1303,6 +1303,15 @@ a:visited { color: var(--accent); }
   background: var(--accent);
   transition: width .2s ease;
 }
+.edge-progress.indeterminate .edge-progress-fill {
+  width: 35%;
+  transition: none;
+  animation: edge-indeterminate 1.1s ease-in-out infinite;
+}
+@keyframes edge-indeterminate {
+  0% { transform: translateX(-120%); }
+  100% { transform: translateX(320%); }
+}
 
 /* ── Weather modal ──────────────────────────────────────────── */
 .weather-modal-overlay {
