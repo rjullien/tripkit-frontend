@@ -504,6 +504,7 @@ var App = (() => {
     html += `<div id="plus-trip-selector"></div>`;
     html += `<div id="plus-publish-panel"></div>`;
     html += `<div id="plus-leo-chat-stream"></div>`;
+    html += `<div id="plus-chat-stream"></div>`;
 
     // ── Quiz (only if quiz exists for current trip) ──
     const tripsWithQuiz = []; // add trip ids that ship a questions.json quiz // trips that have a questions.json quiz
@@ -617,6 +618,12 @@ var App = (() => {
     const leoStreamEl = document.getElementById('plus-leo-chat-stream');
     if (leoStreamEl && typeof LeoChatStream !== 'undefined') {
       LeoChatStream.loadStatus().then(() => LeoChatStream.renderSection(leoStreamEl));
+    }
+
+    // Plus Assistant — Bifrost direct (ops/plus-chat.json model).
+    const plusChatEl = document.getElementById('plus-chat-stream');
+    if (plusChatEl && typeof PlusChatStream !== 'undefined') {
+      PlusChatStream.loadStatus().then(() => PlusChatStream.renderSection(plusChatEl));
     }
 
     // If /health hasn't resolved yet (or failed earlier), retry now that the

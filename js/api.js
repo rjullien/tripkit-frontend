@@ -465,11 +465,12 @@ var API = (() => {
   }
 
   /**
-   * Stream Leo chat (SSE). Yields { event, data } objects.
-   * Events: delta | tool | done | error
-   * @param {{ tripId?: string, messages: Array<{role:string,content:string}>, signal?: AbortSignal }} body
+   * Shared SSE chat stream reader (Leo / Plus Assistant).
+   * @param {string} path API path under /api
+   * @param {object} body
+   * @param {string} failCode default error code when HTTP fails
    */
-  async function* leoChatStream(body = {}) {
+  async function* chatSSE(path, body = {}, failCode = 'chat_failed') {
     if (!navigator.onLine) {
       yield { event: 'error', data: { code: 'network', error: 'offline' } };
       return;
@@ -483,7 +484,7 @@ var API = (() => {
     };
     let res;
     try {
-      res = await fetch(url('/leo/chat/stream'), {
+      res = await fetch(url(path), {
         method: 'POST',
         headers,
         body: JSON.stringify(payload),
@@ -507,7 +508,7 @@ var API = (() => {
       yield {
         event: 'error',
         data: {
-          code: (data && data.code) || 'leo_chat_failed',
+          code: (data && data.code) || failCode,
           error: (data && data.error) || `HTTP ${res.status}`,
         },
       };
@@ -515,7 +516,7 @@ var API = (() => {
     }
     setReachable(true);
     if (!res.body || !res.body.getReader) {
-      yield { event: 'error', data: { code: 'leo_chat_failed', error: 'Streaming non supporté' } };
+      yield { event: 'error', data: { code: failCode, error: 'Streaming non supporté' } };
       return;
     }
     const reader = res.body.getReader();
@@ -547,7 +548,7 @@ var API = (() => {
             yield* flush();
             continue;
           }
-          if (line.startsWith(':')) continue; // keepalive
+          if (line.startsWith(':')) continue;
           if (line.startsWith('event:')) {
             eventName = line.slice(6).trim();
             continue;
@@ -556,9 +557,6 @@ var API = (() => {
             dataLines.push(line.slice(5).trim());
           }
         }
-      }
-      if (buf) {
-        // trailing incomplete line — ignore
       }
       yield* flush();
     } catch (e) {
@@ -571,6 +569,27 @@ var API = (() => {
         },
       };
     }
+  }
+
+  /**
+   * Stream Leo chat (SSE). Yields { event, data } objects.
+   * Events: delta | tool | done | error
+   * @param {{ tripId?: string, messages: Array<{role:string,content:string}>, signal?: AbortSignal }} body
+   */
+  async function* leoChatStream(body = {}) {
+    yield* chatSSE('/leo/chat/stream', body, 'leo_chat_failed');
+  }
+
+  async function getPlusChatStatus() {
+    return requestJSON('/plus/chat/status');
+  }
+
+  /**
+   * Stream Plus Assistant (Bifrost direct). Events: delta | done | error
+   * @param {{ tripId?: string, messages: Array<{role:string,content:string}>, signal?: AbortSignal }} body
+   */
+  async function* plusChatStream(body = {}) {
+    yield* chatSSE('/plus/chat/stream', body, 'plus_chat_failed');
   }
 
   // ── Public API ────────────────────────────────────────────────────────────
@@ -624,6 +643,7 @@ var API = (() => {
     checkVersion, checkVersionStatus, fetchSeed,
     requestJSON, getPublishSources, createPublishJob, getPublishJob,
     getLeoStatus, leoChat, leoChatStream,
+    getPlusChatStatus, plusChatStream,
     assetUrl, getBaseUrl, warmTripAssets,
     probe, isReachable, getReachability, onReachabilityChange,
   };

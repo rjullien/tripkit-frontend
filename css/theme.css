@@ -1228,6 +1228,7 @@ a:visited { color: var(--accent); }
 .leo-msg { margin: 10px 0; }
 .leo-msg.user .leo-bubble { background: rgba(88,166,255,.12); }
 .leo-msg.assistant .leo-bubble { background: rgba(255,255,255,.04); }
+.plus-chat-model { font-size: .78em; color: var(--sec); }
 .leo-who { font-size: .72em; color: var(--muted); margin-bottom: 4px; font-weight: 600; }
 .leo-bubble {
   border-radius: 10px; padding: 10px 12px; font-size: .88em; line-height: 1.45;
