@@ -6,7 +6,11 @@
 var EdgeEngine = (() => {
   const WLLAMA_JS = 'js/lib/wllama/index.min.js';
   const WLLAMA_WASM = 'js/lib/wllama/wasm/wllama.wasm';
-  const WARMUP_TIMEOUT_MS = 120000; // 2 min — 360M should load well under this on iPhone
+  // Safari has no JSPI/Memory64 — Wllama needs Asyncify compat (vendored, NOT jsDelivr).
+  const WLLAMA_COMPAT_WASM = 'js/lib/wllama/compat/wllama.wasm';
+  const WLLAMA_COMPAT_JS = 'js/lib/wllama/compat/wllama.js';
+  const WARMUP_TIMEOUT_MS = 180000; // 3 min — Safari Asyncify + 360M can need 1–2 min
+  const OVERSIZE_BYTES = 400 * 1000 * 1000; // >400 Mo = leftover 1.7B, refuse warm-up
 
   /** @type {null | 'idle' | 'downloading' | 'ready_disk' | 'loading_ram' | 'ready_ram' | 'error'} */
   let _state = 'idle';
@@ -16,6 +20,7 @@ var EdgeEngine = (() => {
   let _detail = '';
   let _hint = '';
   let _elapsedSec = 0;
+  let _diskBytes = 0; // last probed OPFS blob size for current modelUrl
   let _wllama = null;
   let _WllamaClass = null;
   let _listeners = [];
@@ -53,6 +58,15 @@ var EdgeEngine = (() => {
   function status() {
     const cfg = typeof EdgeModelConfig !== 'undefined' ? EdgeModelConfig.get() : {};
     const onDisk = hasOnDisk();
+    const expected = cfg.modelSizeBytes || 0;
+    const stored = typeof EdgeModelConfig !== 'undefined' ? EdgeModelConfig.storedSize() : 0;
+    const sizeBytes = _diskBytes || stored || expected || 0;
+    const oversize = _diskBytes > 0 && (
+      _diskBytes >= OVERSIZE_BYTES
+      || (expected > 0 && _diskBytes > expected * 1.5)
+    );
+    const needsUpdate = (typeof EdgeModelConfig !== 'undefined' && EdgeModelConfig.needsUpdate())
+      || oversize;
     return {
       state: _state,
       progress: _progress,
@@ -66,10 +80,9 @@ var EdgeEngine = (() => {
       enabled: cfg.enabled !== false,
       modelVersion: cfg.modelVersion || '',
       storedVersion: typeof EdgeModelConfig !== 'undefined' ? EdgeModelConfig.storedVersion() : '',
-      needsUpdate: typeof EdgeModelConfig !== 'undefined' ? EdgeModelConfig.needsUpdate() : false,
-      sizeBytes: (typeof EdgeModelConfig !== 'undefined' && EdgeModelConfig.storedSize())
-        || cfg.modelSizeBytes
-        || 0,
+      needsUpdate,
+      oversize,
+      sizeBytes,
     };
   }
 
@@ -95,11 +108,11 @@ var EdgeEngine = (() => {
   }
 
   function hintForElapsed(sec) {
-    if (sec < 8) return 'Init runtime WASM…';
-    if (sec < 25) return 'Décodage GGUF + démarrage worker…';
-    if (sec < 60) return 'Allocation mémoire (~1.5 Go) — c’est long mais normal';
-    if (sec < 120) return 'Toujours en cours — iPhone ~1–3 min pour 1 Go';
-    return 'Très long — tu peux Annuler et rester sur le serveur';
+    if (sec < 10) return 'Init runtime WASM (Safari = build Asyncify)…';
+    if (sec < 30) return 'Lecture GGUF OPFS + démarrage worker…';
+    if (sec < 90) return 'Allocation mémoire — normal sur iPhone (360M ≈ 30–90s)';
+    if (sec < 150) return 'Toujours en cours — laisse tourner ou Annuler';
+    return 'Très long — Annuler, vérifier taille ~270 Mo, réessayer';
   }
 
   function startHeartbeat(startedAt) {
@@ -145,8 +158,8 @@ var EdgeEngine = (() => {
     if (_wllama) return _wllama;
     const Wllama = await loadWllamaClass();
     const paths = { default: absUrl(WLLAMA_WASM) };
-    // CPU-only WASM. Do NOT call setCompat('default') — that pulls WebGPU compat
-    // from jsDelivr and can hang forever on iOS for our n_gpu_layers:0 path.
+    // Constructor enables setCompat('default') → jsDelivr CDN. Override with
+    // vendored Asyncify assets so iPhone Safari never depends on CDN.
     _wllama = new Wllama(paths, {
       allowOffline: true,
       logger: {
@@ -156,11 +169,20 @@ var EdgeEngine = (() => {
         error: (...a) => console.error('[edge]', ...a),
       },
     });
+    if (typeof _wllama.setCompat === 'function') {
+      _wllama.setCompat({
+        wasm: absUrl(WLLAMA_COMPAT_WASM),
+        worker: absUrl(WLLAMA_COMPAT_JS),
+      });
+    }
     return _wllama;
   }
 
   function formatErr(e, fallback) {
     const raw = (e && e.message) || String(e || fallback);
+    if (/trop gros|1\.1|oversize/i.test(raw)) {
+      return raw;
+    }
     if (/load failed|failed to fetch/i.test(raw)) {
       return 'Réseau bloqué (CSP/CORS) ou URL modèle injoignable.';
     }
@@ -168,7 +190,9 @@ var EdgeEngine = (() => {
       return 'Runtime déjà initialisé — réessaie (Annuler puis Activer).';
     }
     if (/timeout activation/i.test(raw)) {
-      return 'Activation trop longue. Supprime l’ancien modèle 1.1 Go si présent, charge le 360M (~270 Mo), réessaie.';
+      const mb = _diskBytes ? Math.round(_diskBytes / 1e6) + ' Mo sur disque. ' : '';
+      return mb
+        + 'Activation trop longue. Si >400 Mo → Supprimer puis charger le 360M (~270 Mo). Sinon réessaie (Wi‑Fi, onglet seul).';
     }
     return raw || fallback;
   }
@@ -207,6 +231,7 @@ var EdgeEngine = (() => {
         signal: opts && opts.signal,
       });
       EdgeModelConfig.setStoredVersion(cfg.modelVersion, cfg.modelSizeBytes);
+      _diskBytes = cfg.modelSizeBytes || _diskBytes;
       _state = 'ready_disk';
       _progress = 1;
       _phase = '';
@@ -252,12 +277,21 @@ var EdgeEngine = (() => {
       await exitWllama();
       if (gen !== _warmupGen) throw new Error('Annulé');
 
-      setPhase('2/4 Chargement runtime WASM…', 'js/lib/wllama + wllama.wasm');
+      setPhase('2/4 Chargement runtime WASM…', isMobileSafari()
+        ? 'Safari → compat Asyncify local (pas jsDelivr)'
+        : 'js/lib/wllama + wllama.wasm');
       const w = await getInstance();
       if (gen !== _warmupGen) throw new Error('Annulé');
 
       setPhase('3/4 Lecture OPFS…', 'Ouverture du GGUF en cache local');
       let blob = await w.cacheManager.open(cfg.modelUrl);
+      _diskBytes = blob && blob.size ? blob.size : 0;
+      if (blob && blob.size >= OVERSIZE_BYTES) {
+        const mb = Math.round(blob.size / 1e6);
+        throw new Error(
+          'Modèle trop gros (' + mb + ' Mo). Supprime-le puis charge le 360M (~270 Mo).'
+        );
+      }
       if (!blob || !blob.size) {
         setPhase('3/4 Cache OPFS vide — fallback URL…', cfg.modelUrl);
         await w.loadModelFromUrl(cfg.modelUrl, {
@@ -265,8 +299,10 @@ var EdgeEngine = (() => {
           n_ctx: nCtx,
           n_gpu_layers: 0,
           n_threads: 1,
+          warmup: false,
           progressCallback: ({ loaded, total }) => {
             _progress = total > 0 ? loaded / total : 0;
+            _diskBytes = loaded || _diskBytes;
             _detail = total
               ? Math.round(loaded / 1e6) + ' / ' + Math.round(total / 1e6) + ' Mo'
               : Math.round(loaded / 1e6) + ' Mo';
@@ -277,12 +313,13 @@ var EdgeEngine = (() => {
         const mb = (blob.size / 1e6).toFixed(0);
         setPhase(
           '4/4 Inférence WASM (n_threads=1, n_ctx=' + nCtx + ')…',
-          'Fichier OPFS : ' + mb + ' Mo — étape sans % (Wllama). 360M ≈ 20–60s sur iPhone.'
+          'OPFS ' + mb + ' Mo — Asyncify Safari sans %. Compte 30–120s.'
         );
         const loadPromise = w.loadModel([blob], {
           n_ctx: nCtx,
           n_gpu_layers: 0,
           n_threads: 1,
+          warmup: false,
         });
         const timeoutPromise = new Promise((_, reject) => {
           setTimeout(() => reject(new Error(
@@ -404,6 +441,7 @@ var EdgeEngine = (() => {
     }
     await resetInstance();
     if (typeof EdgeModelConfig !== 'undefined') EdgeModelConfig.clearStoredMeta();
+    _diskBytes = 0;
     _state = 'idle';
     _progress = 0;
     _error = '';
@@ -418,8 +456,21 @@ var EdgeEngine = (() => {
       _state = 'ready_ram';
     } else if (hasOnDisk()) {
       _state = 'ready_disk';
+      try {
+        const cfg = EdgeModelConfig.get();
+        const w = await getInstance();
+        const blob = await w.cacheManager.open(cfg.modelUrl);
+        _diskBytes = blob && blob.size ? blob.size : 0;
+        if (_diskBytes >= OVERSIZE_BYTES && !_error) {
+          _error = 'Ancien modèle ~' + Math.round(_diskBytes / 1e6)
+            + ' Mo détecté — remplace par 360M (~270 Mo).';
+        }
+      } catch (_) {
+        /* keep meta-only */
+      }
     } else {
       _state = 'idle';
+      _diskBytes = 0;
     }
     emit();
     return status();

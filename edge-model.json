@@ -9,5 +9,5 @@
   "intentClassifier": "keywords-v1",
   "fallbackToBifrost": true,
   "minRamMB": 2048,
-  "notes": "Copy of rjullien/tripkit/ops/edge-model.json — 360M for iPhone (1.7B timed out at 180s)."
+  "notes": "Copy of rjullien/tripkit/ops/edge-model.json — 360M + local wllama-compat for Safari."
 }

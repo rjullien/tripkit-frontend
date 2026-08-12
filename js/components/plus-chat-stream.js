@@ -91,7 +91,7 @@ var PlusChatStream = (() => {
           <button type="button" class="btn edge-btn-danger" id="edge-purge-btn">Supprimer le modèle</button>
         </div>
         ${st.error ? `<p class="leo-hint" style="color:var(--orange);margin:10px 0 0;white-space:normal;overflow-wrap:anywhere">${escapeHtml(st.error)}</p>` : ''}
-        ${st.needsUpdate ? '<p class="leo-hint" style="margin:8px 0 0">Le 1.7B (~1.1&nbsp;Go) timeout sur iPhone. Remplace-le par le 360M plus léger.</p>' : ''}
+        ${st.needsUpdate ? '<p class="leo-hint" style="margin:8px 0 0">Fichier trop lourd ou obsolète pour iPhone. Remplace par le 360M (~270&nbsp;Mo).</p>' : ''}
       </div>`;
     }
     // idle / error — load button
@@ -141,7 +141,7 @@ var PlusChatStream = (() => {
     const upd = document.getElementById('edge-update-btn');
     if (upd) {
       upd.addEventListener('click', async () => {
-        if (!confirm('Remplacer l’ancien modèle par SmolLM2 360M (~270 Mo) ?\nL’ancien 1.1 Go sera effacé.')) return;
+        if (!confirm('Remplacer l’ancien modèle par SmolLM2 360M (~270 Mo) ?\nL’ancien fichier OPFS sera effacé.')) return;
         upd.disabled = true;
         try {
           await EdgeEngine.download();
