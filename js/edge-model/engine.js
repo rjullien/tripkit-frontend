@@ -10,7 +10,7 @@ var EdgeEngine = (() => {
   const WLLAMA_COMPAT_WASM = 'js/lib/wllama/compat/wllama.wasm';
   const WLLAMA_COMPAT_JS = 'js/lib/wllama/compat/wllama.js';
   const WARMUP_TIMEOUT_MS = 180000; // 3 min — Safari Asyncify; 135M should be well under
-  const OVERSIZE_BYTES = 150 * 1000 * 1000; // >150 Mo = leftover 360M/1.7B, refuse warm-up
+  const OVERSIZE_BYTES = 40 * 1000 * 1000; // >40 Mo = leftover 135M/360M during stories15M smoke-test
 
   /** @type {null | 'idle' | 'downloading' | 'ready_disk' | 'loading_ram' | 'ready_ram' | 'error'} */
   let _state = 'idle';
@@ -110,9 +110,9 @@ var EdgeEngine = (() => {
   function hintForElapsed(sec) {
     if (sec < 8) return 'Init runtime WASM (Safari Asyncify)…';
     if (sec < 25) return 'Lecture GGUF OPFS + worker…';
-    if (sec < 60) return 'Allocation mémoire — 135M ≈ 10–40s sur iPhone';
+    if (sec < 60) return 'Allocation mémoire — stories15M ≈ quelques secondes';
     if (sec < 120) return 'Toujours en cours — laisse tourner ou Annuler';
-    return 'Très long — Annuler, vérifier taille ~88 Mo, réessayer';
+    return 'Très long — Annuler, vérifier taille ~19 Mo, réessayer';
   }
 
   function startHeartbeat(startedAt) {
@@ -192,7 +192,7 @@ var EdgeEngine = (() => {
     if (/timeout activation/i.test(raw)) {
       const mb = _diskBytes ? Math.round(_diskBytes / 1e6) + ' Mo sur disque. ' : '';
       return mb
-        + 'Activation trop longue. Si >150 Mo → Remplacer par 135M (~88 Mo). Sinon réessaie (Wi‑Fi, onglet seul).';
+        + 'Activation trop longue. Si >40 Mo → Remplacer par stories15M (~19 Mo). Sinon réessaie.';
     }
     return raw || fallback;
   }
@@ -289,7 +289,7 @@ var EdgeEngine = (() => {
       if (blob && blob.size >= OVERSIZE_BYTES) {
         const mb = Math.round(blob.size / 1e6);
         throw new Error(
-          'Modèle trop gros (' + mb + ' Mo). Supprime-le puis charge le 135M (~88 Mo).'
+          'Modèle trop gros (' + mb + ' Mo). Supprime-le puis charge stories15M (~19 Mo).'
         );
       }
       if (!blob || !blob.size) {
@@ -313,7 +313,7 @@ var EdgeEngine = (() => {
         const mb = (blob.size / 1e6).toFixed(0);
         setPhase(
           '4/4 Inférence WASM (n_threads=1, n_ctx=' + nCtx + ')…',
-          'OPFS ' + mb + ' Mo — Asyncify Safari sans %. 135M ≈ 10–40s.'
+          'OPFS ' + mb + ' Mo — Asyncify Safari. stories15M ≈ quelques secondes.'
         );
         const loadPromise = w.loadModel([blob], {
           n_ctx: nCtx,
@@ -494,7 +494,7 @@ var EdgeEngine = (() => {
         _diskBytes = blob && blob.size ? blob.size : 0;
         if (_diskBytes >= OVERSIZE_BYTES && !_error) {
           _error = 'Ancien modèle ~' + Math.round(_diskBytes / 1e6)
-            + ' Mo détecté — remplace par 135M (~88 Mo).';
+            + ' Mo détecté — remplace par stories15M (~19 Mo).';
         }
       } catch (_) {
         /* keep meta-only */

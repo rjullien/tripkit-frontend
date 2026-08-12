@@ -1,13 +1,13 @@
 {
   "enabled": true,
-  "modelUrl": "https://huggingface.co/bartowski/SmolLM2-135M-Instruct-GGUF/resolve/main/SmolLM2-135M-Instruct-Q3_K_S.gguf",
-  "modelVersion": "smollm2-135m-instruct-q3ks-v1",
-  "modelSizeBytes": 88202080,
+  "modelUrl": "https://huggingface.co/ggml-org/models-moved/resolve/main/tinyllamas/stories15M-q4_0.gguf",
+  "modelVersion": "stories15m-q4-0-v1",
+  "modelSizeBytes": 19077344,
   "runtime": "wllama",
-  "maxTokens": 80,
-  "temperature": 0.7,
+  "maxTokens": 48,
+  "temperature": 0.8,
   "intentClassifier": "keywords-v1",
   "fallbackToBifrost": true,
-  "minRamMB": 1024,
-  "notes": "TEMP smoke-test activation iPhone — 135M Q3_K_S (~88 Mo). Remonter 360M si OK."
+  "minRamMB": 512,
+  "notes": "TEMP ultra-cheap smoke-test (~19 Mo stories15M). Not for tips quality — prove iPhone generate. Remonter 135M/360M après."
 }
