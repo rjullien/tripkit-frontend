@@ -32,7 +32,7 @@ var PlusChatStream = (() => {
 
     container.innerHTML = `<div class="leo-section plus-chat-section">
       <h3 class="section-title">Assistant voyage</h3>
-      <p class="leo-hint">Questions libres (Bifrost direct — sans outils). Pour modifier un seed → Léo.${model ? ` · <code class="plus-chat-model">${escapeHtml(model)}</code>` : ''}</p>
+      <p class="leo-hint">Questions sur aujourd’hui / demain (météo, hôtel, codes, bookings). Pour modifier un seed → Léo.${model ? ` · <code class="plus-chat-model">${escapeHtml(model)}</code>` : ''}</p>
       <div class="leo-thread" id="plus-chat-thread"></div>
       <div class="leo-stream-status" id="plus-chat-status" hidden></div>
       <div class="leo-wait" id="plus-chat-wait" hidden>
@@ -41,7 +41,7 @@ var PlusChatStream = (() => {
       </div>
       <form class="leo-compose" id="plus-chat-compose">
         <textarea id="plus-chat-input" rows="2"
-          placeholder="Ex. Quel rythme pour 3 jours à Québec ?"
+          placeholder="Ex. Code wifi / pin Airbnb demain ? Météo lundi ?"
           ${!ready || !navigator.onLine ? 'disabled' : ''}></textarea>
         <button type="submit" class="btn btn-primary" id="plus-chat-send"
           ${!ready || !navigator.onLine ? 'disabled' : ''}>Envoyer</button>
