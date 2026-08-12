@@ -8,15 +8,15 @@ var EdgeModelConfig = (() => {
 
   const DEFAULTS = {
     enabled: true,
-    modelUrl: 'models/stories15M-q4_0.gguf',
-    modelVersion: 'stories15m-q4-0-selfhost-v3',
-    modelSizeBytes: 19077344,
+    modelUrl: 'https://huggingface.co/bartowski/Qwen2.5-0.5B-Instruct-GGUF/resolve/main/Qwen2.5-0.5B-Instruct-Q4_K_M.gguf',
+    modelVersion: 'qwen2.5-0.5b-instruct-q4km-v1',
+    modelSizeBytes: 397808192,
     runtime: 'wllama',
-    maxTokens: 48,
-    temperature: 0.8,
+    maxTokens: 128,
+    temperature: 0.7,
     intentClassifier: 'keywords-v1',
     fallbackToBifrost: true,
-    minRamMB: 512,
+    minRamMB: 1024,
   };
 
   let _cfg = Object.assign({}, DEFAULTS);
