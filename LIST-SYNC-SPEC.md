@@ -27,11 +27,13 @@ Préférence localStorage : `{listId}-list-shared`. Défaut = **Oui**.
 ## Règles coches (listes partagées Oui seulement)
 
 1. État `{ checked, updatedAt }`
-2. **`updatedAt` le plus récent gagne**
+2. **`updatedAt` le plus récent gagne** (sur le serveur, et pour les coches *dirty* locales)
 3. À ts égal : **coché gagne** sur non coché
 4. Pull à l’ouverture + **re-pull ~12 s** tant que la liste est ouverte + re-pull au resume (visibility/online)
-5. Garde FE : un uncheck distant n’écrase pas une coche locale < 10 s
+5. Garde FE : un uncheck distant n’écrase pas une coche locale < 10 s (**dirty** seulement)
 6. Liste Non → client envoie `checks: {}` et ignore `merged.checks`
+7. **Push** : n’envoie que les coches **dirty** (togglées localement depuis le dernier push réussi) — évite qu’un téléphone avec des `updatedAt` locaux périmés/futurs écrase les coches des autres
+8. **Pull** : envoie `checks: {}`, puis applique `merged.checks` en **force** pour tout item non dirty (le serveur fait foi)
 
 ## Règles items custom
 

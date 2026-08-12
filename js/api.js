@@ -205,19 +205,27 @@ var API = (() => {
     writeOutbox(box);
   }
 
-  async function syncList(tripId, listId) {
+  async function syncList(tripId, listId, opts) {
+    const mode = (opts && opts.mode) === 'pull' ? 'pull' : 'push';
     const deviceId = Store.getDeviceId();
     const deletedCustom = Store.getCustomDeleted(listId);
     const listShared = Store.isListShared(listId);
 
     // Shared custom items always sync. Checks sync ONLY when the list is
     // « Liste partagée Oui ». Hidden stays local forever.
+    // Pull: never send checks (avoid stale local LWW wiping peers).
+    // Push: send only dirty checks (items the user toggled since last push).
     const allCustom = Store.getCustomItems(listId);
     const sharedCustom = {};
     Object.entries(allCustom).forEach(([id, item]) => {
       if (item.shared) sharedCustom[id] = { text: item.text, section: item.section, createdAt: item.createdAt };
     });
-    const checksPayload = listShared ? Store.getChecks(listId) : {};
+    let checksPayload = {};
+    let dirtyIds = [];
+    if (listShared && mode === 'push') {
+      dirtyIds = Store.getDirtyCheckIds(listId);
+      checksPayload = Store.getDirtyChecks(listId);
+    }
 
     const result = await safeFetch(`/trips/${tripId}/lists/${listId}/sync`, {
       method: 'PATCH',
@@ -261,17 +269,14 @@ var API = (() => {
       if (changed) Store.set(`${listId}-custom`, cur);
 
       if (listShared && result.merged.checks) {
-        Object.entries(result.merged.checks).forEach(([id, item]) => {
-          const before = Store.getChecks(listId)[id];
-          Store.setCheck(listId, id, !!item.checked, item.updatedAt || 0);
-          const after = Store.getChecks(listId)[id];
-          if (!before || !after
-            || before.checked !== after.checked
-            || before.updatedAt !== after.updatedAt) {
-            changed = true;
-          }
-        });
+        if (Store.applyRemoteChecks(listId, result.merged.checks)) {
+          changed = true;
+        }
       }
+    }
+
+    if (listShared && mode === 'push' && dirtyIds.length) {
+      Store.clearDirtyChecks(listId, dirtyIds);
     }
 
     if (result.serverSyncAt) {
