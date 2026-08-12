@@ -228,7 +228,7 @@ var EdgeChatStream = (() => {
     if (!container) return;
     container.innerHTML = `<div class="leo-section edge-chat-section">
       <h3 class="section-title">Local (appareil)</h3>
-      <p class="leo-hint">Smoke-test modèle ultra-léger (~19&nbsp;Mo). Qualité tips nulle — juste pour valider Activer + 1 réponse. Bifrost / Léo restent au-dessus.</p>
+      <p class="leo-hint">Smoke-test ~19&nbsp;Mo (self-host). Qualité tips nulle — juste Activer + 1 réponse. Bifrost / Léo au-dessus.</p>
       <div id="edge-model-bar-host">${edgeBarHtml()}</div>
       <div class="leo-thread" id="edge-chat-thread"></div>
       <div class="leo-stream-status" id="edge-chat-status" hidden></div>

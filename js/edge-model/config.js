@@ -8,8 +8,8 @@ var EdgeModelConfig = (() => {
 
   const DEFAULTS = {
     enabled: true,
-    modelUrl: 'https://huggingface.co/ggml-org/models-moved/resolve/main/tinyllamas/stories15M-q4_0.gguf',
-    modelVersion: 'stories15m-q4-0-v1',
+    modelUrl: 'models/stories15M-q4_0.gguf',
+    modelVersion: 'stories15m-q4-0-selfhost-v2',
     modelSizeBytes: 19077344,
     runtime: 'wllama',
     maxTokens: 48,

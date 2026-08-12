@@ -35,6 +35,14 @@ var EdgeEngine = (() => {
     }
   }
 
+  /** Absolute URL for GGUF (relative paths → same-origin). */
+  function resolveModelUrl(url) {
+    const u = String(url || '').trim();
+    if (!u) return u;
+    if (/^https?:\/\//i.test(u)) return u;
+    return absUrl(u);
+  }
+
   function isMobileSafari() {
     const ua = navigator.userAgent || '';
     return /iPhone|iPad|iPod/.test(ua)
@@ -61,10 +69,7 @@ var EdgeEngine = (() => {
     const expected = cfg.modelSizeBytes || 0;
     const stored = typeof EdgeModelConfig !== 'undefined' ? EdgeModelConfig.storedSize() : 0;
     const sizeBytes = _diskBytes || stored || expected || 0;
-    const oversize = _diskBytes > 0 && (
-      _diskBytes >= OVERSIZE_BYTES
-      || (expected > 0 && _diskBytes > expected * 1.5)
-    );
+    const oversize = sizeBytes >= OVERSIZE_BYTES;
     const needsUpdate = (typeof EdgeModelConfig !== 'undefined' && EdgeModelConfig.needsUpdate())
       || oversize;
     return {
@@ -205,6 +210,7 @@ var EdgeEngine = (() => {
     const cfg = EdgeModelConfig.get();
     if (cfg.enabled === false) throw new Error('Edge model désactivé');
     if (!cfg.modelUrl) throw new Error('modelUrl manquant');
+    const modelUrl = resolveModelUrl(cfg.modelUrl);
 
     _state = 'downloading';
     _progress = 0;
@@ -214,15 +220,16 @@ var EdgeEngine = (() => {
 
     try {
       const w = await getInstance();
-      // Free previous GGUF (e.g. 1.7B → 360M) before download
-      if (typeof EdgeModelConfig !== 'undefined' && EdgeModelConfig.needsUpdate()) {
-        setPhase('Nettoyage ancien modèle…');
-        try { await w.cacheManager.clear(); } catch (_) { /* ignore */ }
-      }
-      await w.cacheManager.download(cfg.modelUrl, {
+      // Always clear OPFS before a (re)download — avoids stale URL keys / old 135M
+      setPhase('Nettoyage cache OPFS…');
+      try { await w.cacheManager.clear(); } catch (_) { /* ignore */ }
+      EdgeModelConfig.clearStoredMeta();
+
+      await w.cacheManager.download(modelUrl, {
         progressCallback: ({ loaded, total }) => {
           _progress = total > 0 ? loaded / total : 0;
           _phase = 'Téléchargement… ' + Math.round(_progress * 100) + '%';
+          _diskBytes = loaded || _diskBytes;
           emit();
           if (opts && typeof opts.onProgress === 'function') {
             opts.onProgress(_progress, loaded, total);
@@ -247,14 +254,15 @@ var EdgeEngine = (() => {
   }
 
   /**
-   * Load GGUF from OPFS into RAM (lazy warm-up).
-   * Uses cacheManager.open + loadModel (no network) + n_threads:1 (no COOP/COEP).
+   * Load GGUF into RAM (lazy warm-up).
+   * Uses loadModelFromUrl(useCache) — same path as Wllama demos; more reliable on
+   * Safari than open()+loadModel([blob]) (Blob transfer quirks).
    */
   async function warmUp(opts) {
     await ensureConfig();
     const cfg = EdgeModelConfig.get();
     if (!hasOnDisk() && !(opts && opts.allowDownload)) {
-      throw new Error('Modèle non téléchargé — utilise Charger d’abord');
+      throw new Error('Modèle non téléchargé — utilise Charger / Remplacer d’abord');
     }
 
     const gen = ++_warmupGen;
@@ -271,63 +279,40 @@ var EdgeEngine = (() => {
 
     const timeoutMs = (opts && opts.timeoutMs) || WARMUP_TIMEOUT_MS;
     const nCtx = isMobileSafari() ? 512 : 1024;
+    const modelUrl = resolveModelUrl(cfg.modelUrl);
 
     try {
-      // Fresh instance — do NOT call resetInstance() here (it kills the heartbeat).
       await exitWllama();
       if (gen !== _warmupGen) throw new Error('Annulé');
 
-      setPhase('2/4 Chargement runtime WASM…', isMobileSafari()
-        ? 'Safari → compat Asyncify local (pas jsDelivr)'
-        : 'js/lib/wllama + wllama.wasm');
+      setPhase('2/4 Runtime WASM…', isMobileSafari()
+        ? 'Safari Asyncify local'
+        : 'wllama.wasm');
       const w = await getInstance();
       if (gen !== _warmupGen) throw new Error('Annulé');
 
-      setPhase('3/4 Lecture OPFS…', 'Ouverture du GGUF en cache local');
-      let blob = await w.cacheManager.open(cfg.modelUrl);
-      _diskBytes = blob && blob.size ? blob.size : 0;
-      if (blob && blob.size >= OVERSIZE_BYTES) {
-        const mb = Math.round(blob.size / 1e6);
-        throw new Error(
-          'Modèle trop gros (' + mb + ' Mo). Supprime-le puis charge stories15M (~19 Mo).'
-        );
-      }
-      if (!blob || !blob.size) {
-        setPhase('3/4 Cache OPFS vide — fallback URL…', cfg.modelUrl);
-        await w.loadModelFromUrl(cfg.modelUrl, {
-          useCache: true,
-          n_ctx: nCtx,
-          n_gpu_layers: 0,
-          n_threads: 1,
-          warmup: false,
-          progressCallback: ({ loaded, total }) => {
-            _progress = total > 0 ? loaded / total : 0;
-            _diskBytes = loaded || _diskBytes;
-            _detail = total
-              ? Math.round(loaded / 1e6) + ' / ' + Math.round(total / 1e6) + ' Mo'
-              : Math.round(loaded / 1e6) + ' Mo';
-            emit();
-          },
-        });
-      } else {
-        const mb = (blob.size / 1e6).toFixed(0);
-        setPhase(
-          '4/4 Inférence WASM (n_threads=1, n_ctx=' + nCtx + ')…',
-          'OPFS ' + mb + ' Mo — Asyncify Safari. stories15M ≈ quelques secondes.'
-        );
-        const loadPromise = w.loadModel([blob], {
-          n_ctx: nCtx,
-          n_gpu_layers: 0,
-          n_threads: 1,
-          warmup: false,
-        });
-        const timeoutPromise = new Promise((_, reject) => {
-          setTimeout(() => reject(new Error(
-            'Timeout activation (' + Math.round(timeoutMs / 1000) + 's). Réessaie ou reste sur le serveur.'
-          )), timeoutMs);
-        });
-        await Promise.race([loadPromise, timeoutPromise]);
-      }
+      setPhase('3/4 Chargement GGUF…', modelUrl);
+      const loadPromise = w.loadModelFromUrl(modelUrl, {
+        useCache: true,
+        n_ctx: nCtx,
+        n_gpu_layers: 0,
+        n_threads: 1,
+        warmup: false,
+        progressCallback: ({ loaded, total }) => {
+          _progress = total > 0 ? loaded / total : 0;
+          _diskBytes = loaded || _diskBytes;
+          _detail = total
+            ? Math.round(loaded / 1e6) + ' / ' + Math.round(total / 1e6) + ' Mo'
+            : Math.round(loaded / 1e6) + ' Mo';
+          emit();
+        },
+      });
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error(
+          'Timeout activation (' + Math.round(timeoutMs / 1000) + 's). Réessaie ou reste sur Bifrost.'
+        )), timeoutMs);
+      });
+      await Promise.race([loadPromise, timeoutPromise]);
 
       if (gen !== _warmupGen) {
         await resetInstance();
@@ -337,6 +322,8 @@ var EdgeEngine = (() => {
       if (!EdgeModelConfig.storedVersion()) {
         EdgeModelConfig.setStoredVersion(cfg.modelVersion, cfg.modelSizeBytes);
       }
+      if (!_diskBytes && cfg.modelSizeBytes) _diskBytes = cfg.modelSizeBytes;
+
       stopHeartbeat();
       _state = 'ready_ram';
       _progress = 1;
@@ -480,24 +467,17 @@ var EdgeEngine = (() => {
     emit();
   }
 
-  /** Reconcile state after boot (disk meta only — no RAM load). */
+  /** Reconcile state after boot — meta only, no WASM spin-up. */
   async function refreshFromDisk() {
     await ensureConfig();
     if (isLoaded()) {
       _state = 'ready_ram';
     } else if (hasOnDisk()) {
       _state = 'ready_disk';
-      try {
-        const cfg = EdgeModelConfig.get();
-        const w = await getInstance();
-        const blob = await w.cacheManager.open(cfg.modelUrl);
-        _diskBytes = blob && blob.size ? blob.size : 0;
-        if (_diskBytes >= OVERSIZE_BYTES && !_error) {
-          _error = 'Ancien modèle ~' + Math.round(_diskBytes / 1e6)
-            + ' Mo détecté — remplace par stories15M (~19 Mo).';
-        }
-      } catch (_) {
-        /* keep meta-only */
+      _diskBytes = (typeof EdgeModelConfig !== 'undefined' && EdgeModelConfig.storedSize()) || 0;
+      if (_diskBytes >= OVERSIZE_BYTES && !_error) {
+        _error = 'Ancien modèle ~' + Math.round(_diskBytes / 1e6)
+          + ' Mo — clique Remplacer (~19 Mo self-host).';
       }
     } else {
       _state = 'idle';

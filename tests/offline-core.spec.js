@@ -51,7 +51,7 @@ test.describe('SW precache list', () => {
     expect(text).toContain('plus-chat-stream.js');
     expect(text).toContain('edge-chat-stream.js');
     expect(text).toContain('edge-model/engine.js');
-    expect(text).toContain('tripkit-95');
+    expect(text).toContain('tripkit-96');
     expect(text).toContain('huggingface.co');
     expect(text).not.toContain('/js/components/leo-chat.js');
   });

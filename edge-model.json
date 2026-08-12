@@ -1,7 +1,7 @@
 {
   "enabled": true,
-  "modelUrl": "https://huggingface.co/ggml-org/models-moved/resolve/main/tinyllamas/stories15M-q4_0.gguf",
-  "modelVersion": "stories15m-q4-0-v1",
+  "modelUrl": "models/stories15M-q4_0.gguf",
+  "modelVersion": "stories15m-q4-0-selfhost-v2",
   "modelSizeBytes": 19077344,
   "runtime": "wllama",
   "maxTokens": 48,
@@ -9,5 +9,5 @@
   "intentClassifier": "keywords-v1",
   "fallbackToBifrost": true,
   "minRamMB": 512,
-  "notes": "TEMP ultra-cheap smoke-test (~19 Mo stories15M). Not for tips quality — prove iPhone generate. Remonter 135M/360M après."
+  "notes": "Self-hosted stories15M (~19 Mo) same-origin — smoke-test iPhone activation (no HF CDN/CSP)."
 }
