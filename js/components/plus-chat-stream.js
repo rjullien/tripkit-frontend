@@ -75,6 +75,7 @@ var PlusChatStream = (() => {
           ${st.needsUpdate ? '<button type="button" class="btn" id="edge-update-btn">Mettre à jour</button>' : ''}
           <button type="button" class="btn edge-btn-danger" id="edge-purge-btn">Supprimer le modèle</button>
         </div>
+        ${st.error ? `<p class="leo-hint" style="color:var(--orange);margin:10px 0 0;white-space:normal;overflow-wrap:anywhere">${escapeHtml(st.error)}</p>` : ''}
       </div>`;
     }
     // idle / error — load button
@@ -91,13 +92,15 @@ var PlusChatStream = (() => {
       dl.addEventListener('click', async () => {
         const cfg = EdgeModelConfig.get();
         const size = fmtSize(cfg.modelSizeBytes);
-        if (!confirm(`Télécharger le modèle hors-ligne (~${size}) ?\nPréférer le Wi‑Fi. Tu pourras le supprimer plus tard.`)) return;
+        if (!confirm(`Télécharger ~${size} ?\nPréférer Wi‑Fi.`)) return;
+        dl.disabled = true;
         try {
           await EdgeEngine.download();
           if (typeof App !== 'undefined' && App.showToast) App.showToast('✅ Modèle téléchargé');
         } catch (e) {
+          // Error already in edge bar via EdgeEngine.status().error
           if (typeof App !== 'undefined' && App.showToast) {
-            App.showToast('❌ ' + ((e && e.message) || 'téléchargement échoué'), 'error');
+            App.showToast('❌ Téléchargement échoué', 'error');
           }
         }
         refreshEdgeBar();
@@ -106,12 +109,14 @@ var PlusChatStream = (() => {
     const warm = document.getElementById('edge-warmup-btn');
     if (warm) {
       warm.addEventListener('click', async () => {
+        warm.disabled = true;
+        warm.textContent = 'Activation…';
         try {
           await EdgeEngine.warmUp();
           if (typeof App !== 'undefined' && App.showToast) App.showToast('⚡ Modèle actif');
         } catch (e) {
           if (typeof App !== 'undefined' && App.showToast) {
-            App.showToast('❌ ' + ((e && e.message) || 'activation échouée'), 'error');
+            App.showToast('❌ Activation échouée', 'error');
           }
         }
         refreshEdgeBar();
@@ -120,13 +125,14 @@ var PlusChatStream = (() => {
     const upd = document.getElementById('edge-update-btn');
     if (upd) {
       upd.addEventListener('click', async () => {
-        if (!confirm('Télécharger la nouvelle version du modèle ?')) return;
+        if (!confirm('Mettre à jour le modèle ?')) return;
+        upd.disabled = true;
         try {
           await EdgeEngine.download();
           if (typeof App !== 'undefined' && App.showToast) App.showToast('✅ Modèle mis à jour');
         } catch (e) {
           if (typeof App !== 'undefined' && App.showToast) {
-            App.showToast('❌ ' + ((e && e.message) || 'mise à jour échouée'), 'error');
+            App.showToast('❌ Mise à jour échouée', 'error');
           }
         }
         refreshEdgeBar();
@@ -135,7 +141,7 @@ var PlusChatStream = (() => {
     const purge = document.getElementById('edge-purge-btn');
     if (purge) {
       purge.addEventListener('click', async () => {
-        if (!confirm('Supprimer le modèle hors-ligne de cet appareil ?')) return;
+        if (!confirm('Supprimer le modèle hors-ligne ?')) return;
         await EdgeEngine.purge();
         if (typeof App !== 'undefined' && App.showToast) App.showToast('🗑️ Modèle supprimé');
         refreshEdgeBar();
