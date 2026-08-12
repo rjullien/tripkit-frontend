@@ -177,6 +177,9 @@ var LeoChatStream = (() => {
           const code = data.code || '';
           let msg = data.error || 'Échec stream';
           if (code === 'cancelled') msg = 'Annulé.';
+          else if (typeof API !== 'undefined' && API.netFailMessage) {
+            msg = API.netFailMessage({ message: msg }, code === 'cancelled');
+          }
           _history.push({ role: 'assistant', kind: 'error', content: msg });
           paintThread();
         }
@@ -188,7 +191,9 @@ var LeoChatStream = (() => {
       _history.push({
         role: 'assistant',
         kind: 'error',
-        content: (ac && ac.signal && ac.signal.aborted) ? 'Annulé.' : ((e && e.message) || 'stream interrompu'),
+        content: (typeof API !== 'undefined' && API.netFailMessage)
+          ? API.netFailMessage(e, !!(ac && ac.signal && ac.signal.aborted))
+          : ((ac && ac.signal && ac.signal.aborted) ? 'Annulé.' : ((e && e.message) || 'stream interrompu')),
       });
       paintThread();
     }

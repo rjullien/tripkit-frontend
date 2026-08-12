@@ -502,6 +502,21 @@ var API = (() => {
   }
 
   /**
+   * Safari iOS reports a dropped fetch/SSE as TypeError « Load failed ».
+   * Never show that raw string in the Plus chat bubbles.
+   */
+  function netFailMessage(e, aborted) {
+    if (aborted) return 'Annulé.';
+    const msg = (e && e.message) || '';
+    const name = e && e.name;
+    if (name === 'AbortError' || name === 'TimeoutError'
+        || /aborted|timeout|timed out|load failed|failed to fetch|networkerror/i.test(msg)) {
+      return 'Connexion coupée. Réessaie.';
+    }
+    return msg || 'stream interrompu';
+  }
+
+  /**
    * Shared SSE chat stream reader (Leo / Plus Assistant).
    * @param {string} path API path under /api
    * @param {object} body
@@ -528,13 +543,12 @@ var API = (() => {
         signal,
       });
     } catch (e) {
-      const name = e && e.name;
       const cancelled = !!(signal && signal.aborted);
       yield {
         event: 'error',
         data: {
-          code: cancelled ? 'cancelled' : (name === 'AbortError' ? 'timeout' : 'network'),
-          error: cancelled ? 'Annulé.' : 'Connexion coupée.',
+          code: cancelled ? 'cancelled' : ((e && e.name) === 'AbortError' ? 'timeout' : 'network'),
+          error: netFailMessage(e, cancelled),
         },
       };
       return;
@@ -602,7 +616,7 @@ var API = (() => {
         event: 'error',
         data: {
           code: cancelled ? 'cancelled' : 'network',
-          error: cancelled ? 'Annulé.' : ((e && e.message) || 'stream interrompu'),
+          error: netFailMessage(e, cancelled),
         },
       };
     }
@@ -679,7 +693,7 @@ var API = (() => {
     getLists, getList, syncList, backgroundSyncTrip, flushOutbox,
     checkVersion, checkVersionStatus, fetchSeed,
     requestJSON, getPublishSources, createPublishJob, getPublishJob,
-    getLeoStatus, leoChat, leoChatStream,
+    getLeoStatus, leoChat, leoChatStream, netFailMessage,
     getPlusChatStatus, plusChatStream,
     assetUrl, getBaseUrl, warmTripAssets,
     probe, isReachable, getReachability, onReachabilityChange,
