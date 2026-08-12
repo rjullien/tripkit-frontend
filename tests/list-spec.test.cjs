@@ -55,8 +55,9 @@ function makeBackend() {
   };
 }
 
-/** Miroir de api.js syncList (checks seulement si liste partagée). */
-function syncList(dev, listId, backend) {
+/** Miroir de api.js syncList (checks dirty-only en push ; vides en pull). */
+function syncList(dev, listId, backend, opts) {
+  const mode = (opts && opts.mode) === 'pull' ? 'pull' : 'push';
   const listShared = dev.Store.isListShared(listId);
   const deletedCustom = dev.Store.getCustomDeleted(listId);
   const all = dev.Store.getCustomItems(listId);
@@ -64,7 +65,16 @@ function syncList(dev, listId, backend) {
   for (const [id, it] of Object.entries(all)) {
     if (it.shared) sharedCustom[id] = { text: it.text, section: it.section, createdAt: it.createdAt };
   }
-  const checksPayload = listShared ? dev.Store.getChecks(listId) : {};
+  let checksPayload = {};
+  let dirtyIds = [];
+  if (listShared && mode === 'push') {
+    dirtyIds = typeof dev.Store.getDirtyCheckIds === 'function'
+      ? dev.Store.getDirtyCheckIds(listId)
+      : Object.keys(dev.Store.getChecks(listId));
+    checksPayload = typeof dev.Store.getDirtyChecks === 'function'
+      ? dev.Store.getDirtyChecks(listId)
+      : dev.Store.getChecks(listId);
+  }
   const body = {
     deviceId: dev.Store.getDeviceId(),
     custom: sharedCustom,
@@ -73,6 +83,7 @@ function syncList(dev, listId, backend) {
   };
   assert.ok(!('hidden' in body), 'hidden ne doit pas partir');
   if (!listShared) assert.deepEqual(body.checks, {}, 'liste Non → checks vides');
+  if (mode === 'pull') assert.deepEqual(body.checks, {}, 'pull → checks vides');
 
   const result = backend.sync(body);
   if (!result || !result.merged) return body;
@@ -90,9 +101,16 @@ function syncList(dev, listId, backend) {
   if (changed) dev.Store.set(`${listId}-custom`, cur);
 
   if (listShared && result.merged.checks) {
-    for (const [id, it] of Object.entries(result.merged.checks)) {
-      dev.Store.setCheck(listId, id, !!it.checked, it.updatedAt || 0);
+    if (typeof dev.Store.applyRemoteChecks === 'function') {
+      dev.Store.applyRemoteChecks(listId, result.merged.checks);
+    } else {
+      for (const [id, it] of Object.entries(result.merged.checks)) {
+        dev.Store.setCheck(listId, id, !!it.checked, it.updatedAt || 0);
+      }
     }
+  }
+  if (listShared && mode === 'push' && dirtyIds.length && typeof dev.Store.clearDirtyChecks === 'function') {
+    dev.Store.clearDirtyChecks(listId, dirtyIds);
   }
   return body;
 }
@@ -210,4 +228,22 @@ const ok = (msg) => { console.log('  ✅', msg); pass++; };
   ok('toggle Oui promeut items locaux');
 }
 
-console.log(`\n${pass}/8 scénarios OK — spec respectée.`);
+// 9) Pull force : ts local périmé/futur n’empêche plus de voir la coche du peer
+{
+  const be = makeBackend();
+  const alice = makeDevice('alice'); const bob = makeDevice('bob');
+  alice.Store.toggleCheck(L, 'galets'); // true + dirty
+  syncList(alice, L, be, { mode: 'push' });
+  // Bob a un faux uncheck local avec ts farfelu (ex. ancien bug / diag) — pas dirty
+  bob.Store.set(`${L}-checks`, { galets: { checked: false, updatedAt: 9999999999999 } });
+  const pullBody = syncList(bob, L, be, { mode: 'pull' });
+  assert.deepEqual(pullBody.checks, {}, 'pull n’envoie aucune coche');
+  assert.equal(bob.Store.getChecks(L).galets.checked, true, 'Bob voit la coche d’Alice malgré ts local futur');
+  // Un second push de Bob sans dirty ne doit pas écraser le serveur
+  const pushBody = syncList(bob, L, be, { mode: 'push' });
+  assert.deepEqual(pushBody.checks, {}, 'sans dirty → push checks vide');
+  assert.equal(be.sync({ checks: {} }).merged.checks.galets.checked, true);
+  ok('pull force + dirty-only: peer ticks survivent à un local stale');
+}
+
+console.log(`\n${pass}/9 scénarios OK — spec respectée.`);

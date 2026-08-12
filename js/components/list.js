@@ -391,7 +391,7 @@ var ListComponent = (() => {
   function backgroundSync(listData) {
     const tripId = Store.getCurrentTripId();
     if (tripId && typeof API !== 'undefined') {
-      return API.syncList(tripId, listData.id).then((res) => {
+      return API.syncList(tripId, listData.id, { mode: 'push' }).then((res) => {
         if (res && res.changed) {
           const el = document.getElementById('plus-content');
           if (el && el._listData && el._listData.id === listData.id) {
@@ -407,11 +407,12 @@ var ListComponent = (() => {
   /**
    * Pull shared customs + checks when opening a list (Nicole sees René's ticks).
    * Re-renders if the merge brought new state.
+   * Pull mode sends no checks so stale local timestamps cannot wipe peers.
    */
   function pullOnOpen(containerId, listData) {
     const tripId = Store.getCurrentTripId();
     if (!tripId || typeof API === 'undefined' || !listData) return;
-    API.syncList(tripId, listData.id).then((res) => {
+    API.syncList(tripId, listData.id, { mode: 'pull' }).then((res) => {
       if (res && res.changed) render(containerId, listData);
     }).catch(() => {});
   }

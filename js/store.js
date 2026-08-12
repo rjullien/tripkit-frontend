@@ -56,6 +56,39 @@ var Store = (() => {
   }
 
   /**
+   * Dirty check IDs: local toggles not yet successfully pushed.
+   * Pulls must not overwrite these; pushes send only these entries.
+   */
+  function getDirtyCheckIds(listId) {
+    const raw = get(`${listId}-checks-dirty`, []);
+    return Array.isArray(raw) ? raw : [];
+  }
+
+  function markCheckDirty(listId, itemId) {
+    const ids = getDirtyCheckIds(listId);
+    if (!ids.includes(itemId)) {
+      ids.push(itemId);
+      set(`${listId}-checks-dirty`, ids);
+    }
+  }
+
+  function clearDirtyChecks(listId, itemIds) {
+    if (!itemIds || !itemIds.length) return;
+    const drop = new Set(itemIds);
+    set(`${listId}-checks-dirty`, getDirtyCheckIds(listId).filter((id) => !drop.has(id)));
+  }
+
+  /** Checks map limited to dirty item IDs (for push payload). */
+  function getDirtyChecks(listId) {
+    const all = getChecks(listId);
+    const out = {};
+    getDirtyCheckIds(listId).forEach((id) => {
+      if (all[id]) out[id] = all[id];
+    });
+    return out;
+  }
+
+  /**
    * Toggle an item check. Returns updated checks.
    */
   function toggleCheck(listId, itemId) {
@@ -63,6 +96,7 @@ var Store = (() => {
     const current = checks[itemId] || { checked: false, updatedAt: 0 };
     checks[itemId] = { checked: !current.checked, updatedAt: Date.now() };
     set(`${listId}-checks`, checks);
+    markCheckDirty(listId, itemId);
     return checks;
   }
 
@@ -91,6 +125,39 @@ var Store = (() => {
       set(`${listId}-checks`, checks);
     }
     return checks;
+  }
+
+  /**
+   * Apply server checks after a pull/push.
+   * Non-dirty items: take server as truth (fixes stale local ts that blocked peers).
+   * Dirty items: keep LWW via setCheck so an in-flight local toggle is not lost.
+   */
+  function applyRemoteChecks(listId, remoteChecks) {
+    if (!remoteChecks) return false;
+    const dirty = new Set(getDirtyCheckIds(listId));
+    let changed = false;
+    Object.entries(remoteChecks).forEach(([id, item]) => {
+      const checked = !!item.checked;
+      const updatedAt = item.updatedAt || 0;
+      if (dirty.has(id)) {
+        const before = getChecks(listId)[id];
+        setCheck(listId, id, checked, updatedAt);
+        const after = getChecks(listId)[id];
+        if (!before || !after
+          || before.checked !== after.checked
+          || before.updatedAt !== after.updatedAt) {
+          changed = true;
+        }
+        return;
+      }
+      const before = getChecks(listId)[id];
+      const checks = getChecks(listId);
+      if (before && before.checked === checked && before.updatedAt === updatedAt) return;
+      checks[id] = { checked, updatedAt };
+      set(`${listId}-checks`, checks);
+      changed = true;
+    });
+    return changed;
   }
 
   /**
@@ -249,6 +316,7 @@ var Store = (() => {
    */
   function resetList(listId) {
     del(`${listId}-checks`);
+    del(`${listId}-checks-dirty`);
     del(`${listId}-custom`);
     del(`${listId}-custom-deleted`);
     del(`${listId}-hidden`);
@@ -394,7 +462,8 @@ var Store = (() => {
     // Seed
     isSeedLoaded, markSeedLoaded,
     // Lists
-    getChecks, toggleCheck, setCheck,
+    getChecks, toggleCheck, setCheck, applyRemoteChecks,
+    getDirtyCheckIds, getDirtyChecks, markCheckDirty, clearDirtyChecks,
     getCustomItems, addCustomItem, deleteCustomItem, toggleShareItem, getCustomDeleted,
     isListShared, setListShared,
     getHidden, hideItem, restoreItem,
