@@ -111,11 +111,17 @@ var ListComponent = (() => {
       </div>`;
     }
 
-    // Links
+    // Links — always include a bottom ← Retour (packing/valise lists are long;
+    // seed links often omit it while shopping/todo lists have it).
+    const links = Array.isArray(listData.links) ? listData.links.slice() : [];
+    const hasRetour = links.some((l) => /retour/i.test(String(l && l.label || '')));
+    if (!hasRetour) {
+      links.unshift({ label: '← Retour', url: '#plus', style: 'muted' });
+    }
     let linksHtml = '';
-    if (listData.links && listData.links.length) {
+    if (links.length) {
       linksHtml = `<div class="btn-row">`;
-      listData.links.forEach(l => {
+      links.forEach(l => {
         const cls = l.style ? `btn btn-${l.style}` : 'btn btn-muted';
         linksHtml += `<a href="${esc(l.url)}" class="${cls}">${esc(l.label)}</a>`;
       });

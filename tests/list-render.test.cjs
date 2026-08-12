@@ -280,6 +280,27 @@ test('server sync does not remove local custom item', () => {
   assert(html.includes('Server item'), 'Server item must appear');
 });
 
+test('packing list without seed links still gets bottom ← Retour', () => {
+  ListComponent.render('container', testList);
+  const html = mockElements['container'].innerHTML;
+  const retourCount = (html.match(/Retour/g) || []).length;
+  assert(retourCount >= 2, `expected top + bottom Retour, got ${retourCount}`);
+  assert(html.includes('← Retour'), 'bottom ← Retour link missing');
+  assert(html.includes('href="#plus"'), 'Retour should link to #plus');
+});
+
+test('existing seed Retour link is not duplicated', () => {
+  const withLink = {
+    ...testList,
+    links: [{ label: '← Retour', url: '#plus', style: 'muted' }, { label: '🛒 Courses', url: '#plus/listes/x', style: 'orange' }],
+  };
+  ListComponent.render('container', withLink);
+  const html = mockElements['container'].innerHTML;
+  const bottomRetours = (html.match(/← Retour/g) || []).length;
+  assert.equal(bottomRetours, 1, 'should not duplicate ← Retour');
+  assert(html.includes('🛒 Courses'), 'other links preserved');
+});
+
 // ── Summary ──────────────────────────────────────────────────────────────────
 console.log(`\n══════════════════════════════════════`);
 console.log(`  Results: ${passed} passed, ${failed} failed`);
