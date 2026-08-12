@@ -138,11 +138,20 @@ var EdgeEngine = (() => {
       emit();
       return true;
     } catch (e) {
-      _error = (e && e.message) || String(e);
+      _error = formatErr(e, 'téléchargement échoué');
       _state = hasOnDisk() ? 'ready_disk' : 'error';
       emit();
-      throw e;
+      throw new Error(_error);
     }
+  }
+
+  function formatErr(e, fallback) {
+    const raw = (e && e.message) || String(e || fallback);
+    // Wllama often surfaces opaque "Load failed" on HTTP 404 — hint the URL.
+    if (/load failed/i.test(raw)) {
+      return 'Échec téléchargement modèle (URL / réseau). Vérifie edge-model.json.';
+    }
+    return raw || fallback;
   }
 
   /**

@@ -8,9 +8,9 @@ var EdgeModelConfig = (() => {
 
   const DEFAULTS = {
     enabled: true,
-    modelUrl: 'https://huggingface.co/prithivMLmods/SmolLM2-1.7B-Instruct-GGUF/resolve/main/SmolLM2-1.7B-Instruct-Q4_K_M.gguf',
-    modelVersion: 'smollm2-1.7b-instruct-q4km-v1',
-    modelSizeBytes: 1050000000,
+    modelUrl: 'https://huggingface.co/HuggingFaceTB/SmolLM2-1.7B-Instruct-GGUF/resolve/main/smollm2-1.7b-instruct-q4_k_m.gguf',
+    modelVersion: 'smollm2-1.7b-instruct-q4km-v2',
+    modelSizeBytes: 1055609536,
     runtime: 'wllama',
     maxTokens: 300,
     temperature: 0.7,
