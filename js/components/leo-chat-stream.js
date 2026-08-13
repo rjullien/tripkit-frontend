@@ -11,6 +11,7 @@ var LeoChatStream = (() => {
   const SEQ_KEY = 'tk-leo-seq';
   const HIST_KEY = 'tk-leo-hist';
   const API_HIST_KEY = 'tk-leo-api-hist';
+  const MODEL_KEY = 'tk-leo-model';
 
   let _status = null;
   let _history = []; // display
@@ -68,6 +69,40 @@ var LeoChatStream = (() => {
 
   restoreFromSession();
 
+  function allowedModels() {
+    const list = (_status && Array.isArray(_status.models)) ? _status.models : [];
+    return list.filter(m => m && m.id);
+  }
+
+  function defaultModelId() {
+    const d = _status && _status.defaultModel;
+    if (d && allowedModels().some(m => m.id === d)) return d;
+    const first = allowedModels()[0];
+    return first ? first.id : '';
+  }
+
+  function selectedModelId() {
+    const allowed = allowedModels();
+    if (!allowed.length) return '';
+    const sel = document.getElementById('leo-stream-model');
+    if (sel && sel.value && allowed.some(m => m.id === sel.value)) return sel.value;
+    let saved = '';
+    try { saved = localStorage.getItem(MODEL_KEY) || ''; } catch (_) {}
+    if (saved && allowed.some(m => m.id === saved)) return saved;
+    return defaultModelId();
+  }
+
+  function persistModel(id) {
+    if (!id) return;
+    try { localStorage.setItem(MODEL_KEY, id); } catch (_) {}
+  }
+
+  function modelLabel(id) {
+    if (!id) return '';
+    const m = allowedModels().find(x => x.id === id);
+    return (m && m.label) || id;
+  }
+
   async function loadStatus() {
     const res = await API.getLeoStatus();
     if (!res.ok || !res.data) {
@@ -82,6 +117,20 @@ var LeoChatStream = (() => {
     if (!container) return;
     const ready = !!(_status && _status.ready);
     const dash = (_status && _status.dashboardUrl) || 'https://hermes-leo.bapttf.com';
+    const models = allowedModels();
+    const selected = selectedModelId();
+    const modelRow = models.length
+      ? `<div class="leo-compose-row">
+        <label class="leo-model-label">Modèle
+          <select id="leo-stream-model" ${!ready || !navigator.onLine ? 'disabled' : ''}>
+            ${models.map(m => `<option value="${escapeHtml(m.id)}"${m.id === selected ? ' selected' : ''}>${escapeHtml(m.label || m.id)}</option>`).join('')}
+          </select>
+        </label>
+        <button type="submit" class="btn btn-primary" id="leo-stream-send"
+          ${!ready || !navigator.onLine ? 'disabled' : ''}>Envoyer</button>
+      </div>`
+      : `<button type="submit" class="btn btn-primary" id="leo-stream-send"
+          ${!ready || !navigator.onLine ? 'disabled' : ''}>Envoyer</button>`;
 
     container.innerHTML = `<div class="leo-section leo-stream-section">
       <h3 class="section-title">Léo</h3>
@@ -96,8 +145,7 @@ var LeoChatStream = (() => {
         <textarea id="leo-stream-input" rows="2"
           placeholder="Ex. Dans quebec-2026, ajoute une note Day 12…"
           ${!ready || !navigator.onLine ? 'disabled' : ''}></textarea>
-        <button type="submit" class="btn btn-primary" id="leo-stream-send"
-          ${!ready || !navigator.onLine ? 'disabled' : ''}>Envoyer</button>
+        ${modelRow}
       </form>
       ${!ready ? `<div class="leo-banner">Léo non prêt — <a href="${escapeHtml(dash)}" target="_blank" rel="noopener">Dashboard</a></div>` : ''}
     </div>`;
@@ -109,6 +157,10 @@ var LeoChatStream = (() => {
         e.preventDefault();
         send();
       });
+    }
+    const sel = document.getElementById('leo-stream-model');
+    if (sel) {
+      sel.addEventListener('change', () => persistModel(sel.value));
     }
     const cancel = document.getElementById('leo-stream-cancel');
     if (cancel) {
@@ -132,8 +184,11 @@ var LeoChatStream = (() => {
       const cls = m.role === 'user' ? 'leo-msg user' : (err ? 'leo-msg assistant error' : 'leo-msg assistant');
       const who = m.role === 'user' ? 'Toi' : (err ? 'Erreur' : 'Léo');
       const live = m.live ? ' leo-live' : '';
+      const model = (m.role === 'assistant' && !err && m.model)
+        ? ` <span class="leo-msg-model">${escapeHtml(modelLabel(m.model))}</span>`
+        : '';
       return `<div class="${cls}${live}" data-id="${escapeHtml(m.id || '')}">
-        <div class="leo-who">${who}</div>
+        <div class="leo-who">${who}${model}</div>
         <div class="leo-bubble">${escapeHtml(m.content)}</div>
       </div>`;
     }).join('');
@@ -145,11 +200,14 @@ var LeoChatStream = (() => {
     const btn = document.getElementById('leo-stream-send');
     const input = document.getElementById('leo-stream-input');
     const wait = document.getElementById('leo-stream-wait');
+    const sel = document.getElementById('leo-stream-model');
+    const blocked = on || !(_status && _status.ready) || !navigator.onLine;
     if (btn) {
-      btn.disabled = on || !(_status && _status.ready) || !navigator.onLine;
+      btn.disabled = blocked;
       btn.textContent = on ? 'Léo…' : 'Envoyer';
     }
-    if (input) input.disabled = on || !(_status && _status.ready) || !navigator.onLine;
+    if (input) input.disabled = blocked;
+    if (sel) sel.disabled = blocked;
     if (wait) wait.hidden = !on;
   }
 
@@ -188,6 +246,11 @@ var LeoChatStream = (() => {
     return asst;
   }
 
+  function noteModel(asst, data) {
+    if (!asst || !data || !data.model) return;
+    asst.model = data.model;
+  }
+
   function noteSeq(data) {
     if (!data) return;
     if (data.jobId) _jobId = data.jobId;
@@ -220,10 +283,13 @@ var LeoChatStream = (() => {
         const data = ev.data || {};
         noteSeq(data);
         if (event === 'meta') {
+          noteModel(asst, data);
+          if (data.model) paintThread();
           setStatus(_toolLine ? `🔧 ${_toolLine}` : 'Léo…');
         } else if (event === 'delta' && data.text) {
           asst.content += data.text;
           finalReply = asst.content;
+          noteModel(asst, data);
           setStatus(_toolLine ? `✎ ${_toolLine}` : 'Réponse…');
           paintThread();
           persistJob();
@@ -234,6 +300,7 @@ var LeoChatStream = (() => {
           finalReply = (data.reply != null && data.reply !== '') ? data.reply : asst.content;
           asst.content = finalReply || '(réponse vide)';
           asst.live = false;
+          noteModel(asst, data);
           paintThread();
           return { outcome: 'done', reply: asst.content };
         } else if (event === 'error') {
@@ -393,12 +460,15 @@ var LeoChatStream = (() => {
     const ac = typeof AbortController !== 'undefined' ? new AbortController() : null;
     _abort = ac;
     _listening = true;
+    const model = selectedModelId();
+    persistModel(model);
 
     let result;
     try {
       result = await consume(API.leoChatStream({
         tripId: tripId || undefined,
         messages: _apiHistory.slice(),
+        model: model || undefined,
         signal: ac ? ac.signal : undefined,
       }), asst);
     } finally {

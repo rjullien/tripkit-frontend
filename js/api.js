@@ -628,7 +628,7 @@ var API = (() => {
   /**
    * Stream Leo chat (SSE). Yields { event, data } objects.
    * Events: delta | tool | done | error
-   * @param {{ tripId?: string, messages: Array<{role:string,content:string}>, signal?: AbortSignal }} body
+   * @param {{ tripId?: string, messages: Array<{role:string,content:string}>, model?: string, signal?: AbortSignal }} body
    */
   async function* leoChatStream(body = {}) {
     yield* chatSSE('/leo/chat/stream', body, 'leo_chat_failed');
