@@ -128,6 +128,15 @@ export const test = base.extend({
         });
       }
 
+      // GET /api/me — Authelia login for Plus trip grouping
+      if (url.includes('/api/me')) {
+        return route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ user: 'alice' }),
+        });
+      }
+
       // Any other /api/* — return empty success
       if (url.includes('/api/')) {
         return route.fulfill({

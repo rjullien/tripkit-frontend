@@ -157,6 +157,10 @@ var API = (() => {
 
   // ── Trips ─────────────────────────────────────────────────────────────────
 
+  async function getMe() {
+    return requestJSON('/me');
+  }
+
   async function getTrips() {
     return safeFetch('/trips');
   }
@@ -714,7 +718,7 @@ var API = (() => {
 
   return {
     setToken, getToken, clearToken,
-    getTrips, getTrip, createTrip,
+    getTrips, getTrip, createTrip, getMe,
     getDays, getDay,
     getHotels,
     getLists, getList, syncList, backgroundSyncTrip, flushOutbox,

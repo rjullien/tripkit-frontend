@@ -241,6 +241,8 @@ a:visited { color: var(--accent); }
   margin-bottom: 10px;
 }
 
+.plus-trips-wrap { margin-top: 16px; }
+
 /* ── Checklist Items ── */
 .list-item {
   display: flex;
