@@ -527,8 +527,18 @@ var App = (() => {
     html += `<div id="plus-trip-selector"></div>`;
     html += `<div id="plus-publish-panel"></div>`;
     html += `<div id="plus-leo-chat-stream"></div>`;
-    html += `<div id="plus-chat-stream"></div>`;
-    html += `<div id="plus-edge-chat-stream"></div>`;
+    html += `<div class="section-wrap plus-docs-wrap plus-experimental-wrap" id="plus-experimental-wrap"
+      style="margin-top:16px;border:none;background:transparent">
+      <div class="section-head collapsed plus-docs-head" id="plus-experimental-head" role="button" tabindex="0"
+        aria-expanded="false" aria-controls="plus-experimental-body">
+        <span class="s-title">🧪 Expérimental</span>
+        <span class="s-chevron">▼</span>
+      </div>
+      <div class="section-body hidden plus-docs-body" id="plus-experimental-body">
+        <div id="plus-chat-stream"></div>
+        <div id="plus-edge-chat-stream"></div>
+      </div>
+    </div>`;
 
     // ── Quiz (only if quiz exists for current trip) ──
     const tripsWithQuiz = []; // add trip ids that ship a questions.json quiz // trips that have a questions.json quiz
@@ -627,15 +637,17 @@ var App = (() => {
     if (typeof BookingsView !== 'undefined' && BookingsView.bindDocumentsCollapse) {
       BookingsView.bindDocumentsCollapse(container);
     }
+    bindExperimentalCollapse(container);
 
-    // Render TripSelector into its placeholder
+    // Render TripSelector into its placeholder, then GH seeds (needs Store trips).
     const selectorEl = document.getElementById('plus-trip-selector');
-    if (selectorEl) TripSelector.render(selectorEl);
+    const tripsReady = selectorEl && typeof TripSelector !== 'undefined'
+      ? Promise.resolve(TripSelector.render(selectorEl))
+      : Promise.resolve();
 
-    // Publish from git (sources filtered server-side; disabled until registry enabled)
     const publishEl = document.getElementById('plus-publish-panel');
     if (publishEl && typeof PublishPanel !== 'undefined') {
-      PublishPanel.loadSources().then(() => {
+      tripsReady.then(() => PublishPanel.loadSources()).then(() => {
         PublishPanel.renderSection(publishEl);
         PublishPanel.resumeIfNeeded();
       });
@@ -662,6 +674,25 @@ var App = (() => {
     if (!_backendVersion) fetchBackendVersion();
     paintConnectivity();
     if (typeof API !== 'undefined' && API.probe) API.probe().then(() => paintConnectivity());
+  }
+
+  function bindExperimentalCollapse(root) {
+    const head = (root || document).querySelector('#plus-experimental-head');
+    const body = (root || document).querySelector('#plus-experimental-body');
+    if (!head || !body || head.dataset.bound === '1') return;
+    head.dataset.bound = '1';
+    const toggle = () => {
+      const open = body.classList.toggle('hidden') === false;
+      head.classList.toggle('collapsed', !open);
+      head.setAttribute('aria-expanded', open ? 'true' : 'false');
+    };
+    head.addEventListener('click', toggle);
+    head.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        toggle();
+      }
+    });
   }
 
   function formatBackendVersion(v) {
