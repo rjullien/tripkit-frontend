@@ -640,7 +640,7 @@ var App = (() => {
     }
     bindExperimentalCollapse(container);
 
-    // Render TripSelector into its placeholder, then GH seeds (needs Store trips).
+    // Trip list first, then GH publish (uses Store trips to mark « my » families).
     const selectorEl = document.getElementById('plus-trip-selector');
     const tripsReady = selectorEl && typeof TripSelector !== 'undefined'
       ? Promise.resolve(TripSelector.render(selectorEl))
@@ -649,7 +649,6 @@ var App = (() => {
     const publishEl = document.getElementById('plus-publish-panel');
     if (publishEl && typeof PublishPanel !== 'undefined') {
       tripsReady.then(() => PublishPanel.loadSources()).then(() => {
-        if (selectorEl && typeof TripSelector !== 'undefined') TripSelector.render(selectorEl);
         PublishPanel.renderSection(publishEl);
         PublishPanel.resumeIfNeeded();
       });

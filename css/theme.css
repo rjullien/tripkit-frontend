@@ -1204,6 +1204,10 @@ a:visited { color: var(--accent); }
 
 /* ── Publish from git ───────────────────────────────────────── */
 .publish-section { margin-top: 20px; }
+.publish-family { margin: 10px 0 16px; }
+.publish-family-head { margin-bottom: 8px; }
+.publish-family-name { font-weight: 700; font-size: .88em; color: var(--text); }
+.publish-family-repo { display: block; font-size: .75em; color: var(--muted); margin-top: 2px; }
 .publish-hint { font-size: .82em; color: var(--muted); margin: 0 0 12px; line-height: 1.4; }
 .publish-row {
   display: flex; align-items: center; gap: 12px;

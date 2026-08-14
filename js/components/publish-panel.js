@@ -5,6 +5,7 @@ var PublishPanel = (() => {
   let _jobId = null;
   let _pollTimer = null;
   let _sources = [];
+  let _login = undefined;
 
   function escapeHtml(s) {
     return String(s ?? '').replace(/[&<>"']/g, c => ({
@@ -24,14 +25,115 @@ var PublishPanel = (() => {
 
   function sources() { return _sources; }
 
+  async function currentLogin() {
+    if (_login !== undefined) return _login;
+    const stored = (typeof localStorage !== 'undefined'
+      && (localStorage.getItem('tk-user') || localStorage.getItem('tk-user-name')))
+      || '';
+    if (typeof API !== 'undefined' && API.getMe && navigator.onLine) {
+      try {
+        const res = await API.getMe();
+        if (res && res.ok && res.data && res.data.user) {
+          _login = String(res.data.user);
+          try { localStorage.setItem('tk-user', _login); } catch (_) {}
+          return _login;
+        }
+      } catch (e) {
+        console.debug('[PublishPanel] /me failed:', e.message);
+      }
+    }
+    _login = stored;
+    return _login;
+  }
+
+  function allTripDatas() {
+    if (typeof Store === 'undefined' || !Store.getAllTripIds) return [];
+    return Store.getAllTripIds().map((id) => Store.getTripData(id)).filter(Boolean);
+  }
+
+  function groupByFamily(sources) {
+    const order = [];
+    const map = {};
+    (sources || []).forEach((s) => {
+      const id = String(s.sourceId || s.family || 'other');
+      if (!map[id]) {
+        map[id] = { id, family: s.family || id, repo: s.repo || '', items: [] };
+        order.push(id);
+      }
+      map[id].items.push(s);
+      if (!map[id].repo && s.repo) map[id].repo = s.repo;
+    });
+    return order.map((id) => map[id]);
+  }
+
+  function familyLabel(id, family) {
+    const raw = String(family || id || '').trim();
+    if (!raw) return 'Famille';
+    return raw.charAt(0).toUpperCase() + raw.slice(1);
+  }
+
+  function isMineFamily(fam, login, knownIds) {
+    if (!fam || !fam.items || !fam.items.length) return true;
+    if (typeof TripGroups === 'undefined' || !TripGroups.isMySource) return true;
+    return fam.items.some((s) => TripGroups.isMySource(s, login, knownIds));
+  }
+
   async function renderSection(container) {
     if (!container) return;
     if (!_sources.length) {
       container.innerHTML = '';
       return;
     }
-    // List rows live in Voyage actif (Voyages passés / Autres voyages).
-    container.innerHTML = `<div id="publish-job-status" class="publish-job-status" hidden></div>`;
+    const login = await currentLogin();
+    const knownIds = (typeof TripGroups !== 'undefined' && TripGroups.identityPersonIds)
+      ? TripGroups.identityPersonIds(allTripDatas(), login)
+      : null;
+    const families = groupByFamily(_sources);
+    const mine = [];
+    const others = [];
+    families.forEach((fam) => {
+      (isMineFamily(fam, login, knownIds) ? mine : others).push(fam);
+    });
+
+    let html = `<div class="publish-section">
+      <h3 class="section-title">Publier depuis git</h3>
+      <p class="publish-hint">Créer ou mettre à jour un voyage depuis le repo famille (après QA).</p>`;
+    mine.forEach((fam) => { html += familyBlock(fam); });
+    if (others.length) {
+      let body = '';
+      others.forEach((fam) => { body += familyBlock(fam); });
+      const n = others.reduce((acc, f) => acc + f.items.length, 0);
+      html += collapsedGroup('others', '👥 Autres familles', n, body);
+    }
+    html += `<div id="publish-job-status" class="publish-job-status" hidden></div></div>`;
+    container.innerHTML = html;
+    bindPublishButtons(container);
+    bindCollapse(container);
+  }
+
+  function familyBlock(fam) {
+    const title = familyLabel(fam.id, fam.family);
+    let rows = '';
+    fam.items.forEach((s) => { rows += sourceRow(s); });
+    return `<div class="publish-family" data-family="${escapeHtml(fam.id)}">
+      <div class="publish-family-head">
+        <span class="publish-family-name">${escapeHtml(title)}</span>
+        ${fam.repo ? `<span class="publish-family-repo">${escapeHtml(fam.repo)}</span>` : ''}
+      </div>
+      ${rows}
+    </div>`;
+  }
+
+  function collapsedGroup(key, title, count, body) {
+    return `<div class="section-wrap plus-docs-wrap plus-trips-wrap">
+      <div class="section-head collapsed plus-docs-head plus-trips-head" data-publish-group="${escapeHtml(key)}"
+        role="button" tabindex="0" aria-expanded="false" aria-controls="plus-publish-body-${escapeHtml(key)}">
+        <span class="s-title">${escapeHtml(title)}</span>
+        <span class="s-count">${count}</span>
+        <span class="s-chevron">▼</span>
+      </div>
+      <div class="section-body hidden plus-docs-body plus-trips-body" id="plus-publish-body-${escapeHtml(key)}">${body}</div>
+    </div>`;
   }
 
   function sourceRow(s) {
@@ -51,6 +153,29 @@ var PublishPanel = (() => {
           data-trip="${escapeHtml(s.tripId)}"
           data-op="${escapeHtml(s.operation)}">${escapeHtml(label)}</button>
       </div>`;
+  }
+
+  function bindCollapse(root) {
+    if (!root) return;
+    root.querySelectorAll('[data-publish-group]').forEach((head) => {
+      if (head.dataset.bound === '1') return;
+      head.dataset.bound = '1';
+      const key = head.getAttribute('data-publish-group');
+      const body = root.querySelector(`#plus-publish-body-${key}`);
+      if (!body) return;
+      const toggle = () => {
+        const open = body.classList.toggle('hidden') === false;
+        head.classList.toggle('collapsed', !open);
+        head.setAttribute('aria-expanded', open ? 'true' : 'false');
+      };
+      head.addEventListener('click', toggle);
+      head.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          toggle();
+        }
+      });
+    });
   }
 
   function bindPublishButtons(container) {
