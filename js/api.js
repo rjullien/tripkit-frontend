@@ -169,6 +169,10 @@ var API = (() => {
     return safeFetch('/trips', { method: 'POST', body: JSON.stringify(data) });
   }
 
+  async function getMe() {
+    return requestJSON('/me');
+  }
+
   // ── Days ──────────────────────────────────────────────────────────────────
 
   async function getDays(tripId) {
@@ -714,7 +718,7 @@ var API = (() => {
 
   return {
     setToken, getToken, clearToken,
-    getTrips, getTrip, createTrip,
+    getTrips, getTrip, createTrip, getMe,
     getDays, getDay,
     getHotels,
     getLists, getList, syncList, backgroundSyncTrip, flushOutbox,

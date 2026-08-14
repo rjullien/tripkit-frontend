@@ -639,14 +639,15 @@ var App = (() => {
     }
     bindExperimentalCollapse(container);
 
-    // Render TripSelector into its placeholder
+    // Render TripSelector into its placeholder, then GH seeds (needs Store trips).
     const selectorEl = document.getElementById('plus-trip-selector');
-    if (selectorEl) TripSelector.render(selectorEl);
+    const tripsReady = selectorEl && typeof TripSelector !== 'undefined'
+      ? Promise.resolve(TripSelector.render(selectorEl))
+      : Promise.resolve();
 
-    // Publish from git (sources filtered server-side; disabled until registry enabled)
     const publishEl = document.getElementById('plus-publish-panel');
     if (publishEl && typeof PublishPanel !== 'undefined') {
-      PublishPanel.loadSources().then(() => {
+      tripsReady.then(() => PublishPanel.loadSources()).then(() => {
         PublishPanel.renderSection(publishEl);
         PublishPanel.resumeIfNeeded();
       });
