@@ -5,7 +5,6 @@ var PublishPanel = (() => {
   let _jobId = null;
   let _pollTimer = null;
   let _sources = [];
-  let _login = undefined;
 
   function escapeHtml(s) {
     return String(s ?? '').replace(/[&<>"']/g, c => ({
@@ -25,65 +24,14 @@ var PublishPanel = (() => {
 
   function sources() { return _sources; }
 
-  async function currentLogin() {
-    if (_login !== undefined) return _login;
-    const stored = (typeof localStorage !== 'undefined'
-      && (localStorage.getItem('tk-user') || localStorage.getItem('tk-user-name')))
-      || '';
-    if (typeof API !== 'undefined' && API.getMe && navigator.onLine) {
-      try {
-        const res = await API.getMe();
-        if (res && res.ok && res.data && res.data.user) {
-          _login = String(res.data.user);
-          try { localStorage.setItem('tk-user', _login); } catch (_) {}
-          return _login;
-        }
-      } catch (e) {
-        console.debug('[PublishPanel] /me failed:', e.message);
-      }
-    }
-    _login = stored;
-    return _login;
-  }
-
-  function allTripDatas() {
-    if (typeof Store === 'undefined' || !Store.getAllTripIds) return [];
-    return Store.getAllTripIds().map((id) => Store.getTripData(id)).filter(Boolean);
-  }
-
-  function tripDataFor(tripId) {
-    if (!tripId || typeof Store === 'undefined' || !Store.getTripData) return null;
-    return Store.getTripData(tripId) || null;
-  }
-
   async function renderSection(container) {
     if (!container) return;
     if (!_sources.length) {
       container.innerHTML = '';
       return;
     }
-    const login = await currentLogin();
-    const knownIds = (typeof TripGroups !== 'undefined' && TripGroups.identityPersonIds)
-      ? TripGroups.identityPersonIds(allTripDatas(), login)
-      : null;
-    const groups = { open: [], past: [], others: [] };
-    _sources.forEach((s) => {
-      const kind = (typeof TripGroups !== 'undefined' && TripGroups.bucketSource)
-        ? TripGroups.bucketSource(s, tripDataFor(s.tripId), login, undefined, knownIds)
-        : 'open';
-      (groups[kind] || groups.open).push(s);
-    });
-
-    let html = `<div class="publish-section">
-      <h3 class="section-title">Publier depuis git</h3>
-      <p class="publish-hint">Créer ou mettre à jour un voyage depuis le repo famille (après QA).</p>`;
-    groups.open.forEach((s) => { html += sourceRow(s); });
-    html += collapsedGroup('past', '🕰️ Seeds passés', groups.past);
-    html += collapsedGroup('others', '👥 Autres seeds', groups.others);
-    html += `<div id="publish-job-status" class="publish-job-status" hidden></div></div>`;
-    container.innerHTML = html;
-    bindPublishButtons(container);
-    bindCollapse(container);
+    // List rows live in Voyage actif (Voyages passés / Autres voyages).
+    container.innerHTML = `<div id="publish-job-status" class="publish-job-status" hidden></div>`;
   }
 
   function sourceRow(s) {
@@ -105,21 +53,6 @@ var PublishPanel = (() => {
       </div>`;
   }
 
-  function collapsedGroup(key, title, items) {
-    if (!items.length) return '';
-    let body = '';
-    items.forEach((s) => { body += sourceRow(s); });
-    return `<div class="section-wrap plus-docs-wrap plus-trips-wrap">
-      <div class="section-head collapsed plus-docs-head plus-trips-head" data-publish-group="${key}"
-        role="button" tabindex="0" aria-expanded="false" aria-controls="plus-publish-body-${key}">
-        <span class="s-title">${title}</span>
-        <span class="s-count">${items.length}</span>
-        <span class="s-chevron">▼</span>
-      </div>
-      <div class="section-body hidden plus-docs-body plus-trips-body" id="plus-publish-body-${key}">${body}</div>
-    </div>`;
-  }
-
   function bindPublishButtons(container) {
     if (!container) return;
     container.querySelectorAll('[data-action="publish"]').forEach((btn) => {
@@ -131,29 +64,6 @@ var PublishPanel = (() => {
         const op = btn.dataset.op;
         if (op === 'create') openCreateModal(sourceId, tripId);
         else startJob({ sourceId, tripId, confirmCreate: false });
-      });
-    });
-  }
-
-  function bindCollapse(root) {
-    if (!root) return;
-    root.querySelectorAll('[data-publish-group]').forEach((head) => {
-      if (head.dataset.bound === '1') return;
-      head.dataset.bound = '1';
-      const key = head.getAttribute('data-publish-group');
-      const body = root.querySelector(`#plus-publish-body-${key}`);
-      if (!body) return;
-      const toggle = () => {
-        const open = body.classList.toggle('hidden') === false;
-        head.classList.toggle('collapsed', !open);
-        head.setAttribute('aria-expanded', open ? 'true' : 'false');
-      };
-      head.addEventListener('click', toggle);
-      head.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault();
-          toggle();
-        }
       });
     });
   }
@@ -311,5 +221,5 @@ var PublishPanel = (() => {
     } catch (_) {}
   }
 
-  return { loadSources, sources, renderSection, resumeIfNeeded, startJob };
+  return { loadSources, sources, renderSection, resumeIfNeeded, startJob, sourceRow, bindPublishButtons };
 })();

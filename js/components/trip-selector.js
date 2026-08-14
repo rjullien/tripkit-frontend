@@ -112,6 +112,18 @@ var TripSelector = (() => {
       (groups[kind] || groups.open).push({ id, data });
     });
 
+    const seedGroups = { open: [], past: [], others: [] };
+    const sources = (typeof PublishPanel !== 'undefined' && PublishPanel.sources)
+      ? PublishPanel.sources() : [];
+    sources.forEach((s) => {
+      const td = (typeof Store !== 'undefined' && Store.getTripData)
+        ? Store.getTripData(s.tripId) : null;
+      const kind = (typeof TripGroups !== 'undefined' && TripGroups.bucketSource)
+        ? TripGroups.bucketSource(s, td, login, undefined, knownIds)
+        : 'open';
+      (seedGroups[kind] || seedGroups.open).push(s);
+    });
+
     const byStart = (a, b) => {
       const sa = (a.data.trip || a.data).startDate || '';
       const sb = (b.data.trip || b.data).startDate || '';
@@ -123,22 +135,33 @@ var TripSelector = (() => {
 
     let html = '';
     groups.open.forEach(({ id, data }) => { html += tripRow(id, data, currentId); });
-    html += collapsedGroup('past', '🕰️ Voyages passés', groups.past, currentId);
-    html += collapsedGroup('others', '👥 Autres voyages', groups.others, currentId);
+    seedGroups.open.forEach((s) => { html += seedRow(s); });
+    html += collapsedGroup('past', '🕰️ Voyages passés', groups.past, seedGroups.past, currentId);
+    html += collapsedGroup('others', '👥 Autres voyages', groups.others, seedGroups.others, currentId);
 
     container.innerHTML = html;
     bindCollapse(container);
+    if (typeof PublishPanel !== 'undefined' && PublishPanel.bindPublishButtons) {
+      PublishPanel.bindPublishButtons(container);
+    }
   }
 
-  function collapsedGroup(key, title, items, currentId) {
-    if (!items.length) return '';
+  function seedRow(s) {
+    if (typeof PublishPanel !== 'undefined' && PublishPanel.sourceRow) return PublishPanel.sourceRow(s);
+    return '';
+  }
+
+  function collapsedGroup(key, title, tripItems, seedItems, currentId) {
+    const seeds = seedItems || [];
+    if (!tripItems.length && !seeds.length) return '';
     let body = '';
-    items.forEach(({ id, data }) => { body += tripRow(id, data, currentId); });
+    tripItems.forEach(({ id, data }) => { body += tripRow(id, data, currentId); });
+    seeds.forEach((s) => { body += seedRow(s); });
     return `<div class="section-wrap plus-docs-wrap plus-trips-wrap">
       <div class="section-head collapsed plus-docs-head plus-trips-head" data-trips-group="${key}"
         role="button" tabindex="0" aria-expanded="false" aria-controls="plus-trips-body-${key}">
         <span class="s-title">${title}</span>
-        <span class="s-count">${items.length}</span>
+        <span class="s-count">${tripItems.length + seeds.length}</span>
         <span class="s-chevron">▼</span>
       </div>
       <div class="section-body hidden plus-docs-body plus-trips-body" id="plus-trips-body-${key}">${body}</div>

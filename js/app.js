@@ -648,6 +648,7 @@ var App = (() => {
     const publishEl = document.getElementById('plus-publish-panel');
     if (publishEl && typeof PublishPanel !== 'undefined') {
       tripsReady.then(() => PublishPanel.loadSources()).then(() => {
+        if (selectorEl && typeof TripSelector !== 'undefined') TripSelector.render(selectorEl);
         PublishPanel.renderSection(publishEl);
         PublishPanel.resumeIfNeeded();
       });
