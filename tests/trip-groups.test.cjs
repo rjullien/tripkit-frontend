@@ -89,13 +89,18 @@ test('Laurine: Philippines (à elle, futur) stays open', () => {
   assert.strictEqual(TripGroups.bucket(philippines(), 'laurine', now), 'open');
 });
 
-test('Laurine: USA visible mais pas à elle → others (même si voyageuse)', () => {
-  assert.strictEqual(TripGroups.isMine(usa(), 'laurine-rol'), false);
-  assert.strictEqual(TripGroups.bucket(usa(), 'laurine-rol', now), 'others');
+test('Laurine: USA (voyageuse, passé) → past, not Autres', () => {
+  assert.strictEqual(TripGroups.isMine(usa(), 'laurine-rol'), true);
+  assert.strictEqual(TripGroups.bucket(usa(), 'laurine-rol', now), 'past');
 });
 
-test('Nicole on Québec is not owner → others', () => {
-  assert.strictEqual(TripGroups.bucket(quebec(), 'Nicole', now), 'others');
+test('Nicole on Québec (voyageuse, en cours) → open', () => {
+  assert.strictEqual(TripGroups.isMine(quebec(), 'Nicole'), true);
+  assert.strictEqual(TripGroups.bucket(quebec(), 'Nicole', now), 'open');
+});
+
+test('Baptiste on Québec (voyageur, en cours) → open', () => {
+  assert.strictEqual(TripGroups.bucket(quebec(), 'BaptTF', now), 'open');
 });
 
 test('unknown login does not dump trips into others', () => {
@@ -112,7 +117,7 @@ test('laurine-rol (USA users key) still owns Philippines via identity union', ()
   assert.ok(known.has('laurine'));
   assert.strictEqual(TripGroups.isMine(philippines(), 'laurine-rol', known), true);
   assert.strictEqual(TripGroups.bucket(philippines(), 'laurine-rol', now, known), 'open');
-  assert.strictEqual(TripGroups.bucket(usa(), 'laurine-rol', now, known), 'others');
+  assert.strictEqual(TripGroups.bucket(usa(), 'laurine-rol', now, known), 'past');
 });
 
 console.log('\n── TripGroups.bucketSource (GH seeds) ─────────────────────');

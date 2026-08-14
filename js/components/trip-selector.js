@@ -1,7 +1,7 @@
 /**
  * trip-selector.js — Trip picker on Plus.
- * Mine + not finished stay visible. Past and other people's trips are
- * collapsed by default (same buckets as GH seeds / Documents).
+ * Participants + not finished stay visible (Voyage actif). Past trips I was
+ * on, and trips I am not on, are collapsed (same buckets as GH seeds).
  *
  * Classification uses GET /trips list metadata (dates + data.travelers/users),
  * not only a fully downloaded seed.
