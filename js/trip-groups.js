@@ -156,8 +156,60 @@ var TripGroups = (() => {
     return 'open';
   }
 
+  function parseData(raw) {
+    if (!raw) return {};
+    if (typeof raw === 'string') {
+      try { return JSON.parse(raw) || {}; } catch (_) { return {}; }
+    }
+    return typeof raw === 'object' ? raw : {};
+  }
+
+  /**
+   * Grouping fields from GET /trips. BE stores travelers/users/people on
+   * trip.data (flat) and dates on start_date / end_date.
+   */
+  function fromListItem(t) {
+    const extra = parseData(t && t.data);
+    const nested = extra.trip && typeof extra.trip === 'object' ? extra.trip : {};
+    return {
+      startDate: (t && (t.start_date || t.startDate)) || extra.startDate || nested.startDate || '',
+      endDate: (t && (t.end_date || t.endDate)) || extra.endDate || nested.endDate || '',
+      travelers: extra.travelers || nested.travelers || [],
+      users: extra.users || nested.users || {},
+      people: extra.people || nested.people || {},
+      name: (t && t.name) || extra.name || nested.name || (t && t.id) || '',
+      emoji: (t && t.emoji) || extra.emoji || nested.emoji || '🌍',
+    };
+  }
+
+  /**
+   * Patch Store trip data with list metadata without wiping days/hotels.
+   * Prefer an already-loaded seed for travelers/users; fill gaps from the list.
+   */
+  function mergeListItem(existing, t) {
+    const g = fromListItem(t);
+    const prev = (existing && (existing.trip || existing)) || {};
+    const prevPeople = (existing && existing.people && typeof existing.people === 'object')
+      ? existing.people : {};
+    const travelers = (Array.isArray(prev.travelers) && prev.travelers.length)
+      ? prev.travelers : g.travelers;
+    const users = (prev.users && typeof prev.users === 'object' && Object.keys(prev.users).length)
+      ? prev.users : g.users;
+    const people = Object.keys(prevPeople).length ? prevPeople : g.people;
+    const trip = Object.assign({}, prev, {
+      id: (t && t.id) || prev.id,
+      name: prev.name || g.name,
+      emoji: prev.emoji || g.emoji,
+      startDate: prev.startDate || g.startDate,
+      endDate: prev.endDate || g.endDate,
+      travelers: travelers,
+      users: users,
+    });
+    return Object.assign({}, existing || {}, { trip: trip, people: people });
+  }
+
   return {
     fold, personIdsForLogin, identityPersonIds, isMine, isPast, bucket,
-    isMySource, bucketSource,
+    isMySource, bucketSource, fromListItem, mergeListItem,
   };
 })();

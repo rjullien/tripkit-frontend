@@ -156,4 +156,61 @@ test('unknown login does not dump create seeds into others', () => {
   assert.strictEqual(TripGroups.bucketSource(laurinePh, null, '', now), 'open');
 });
 
+console.log('\n── TripGroups.mergeListItem (GET /trips) ──────────────────');
+
+test('list payload (start_date + data.travelers) buckets like a full seed', () => {
+  const qcList = {
+    id: 'quebec-2026',
+    name: 'Québec 2026',
+    start_date: '2026-08-14',
+    end_date: '2026-09-01',
+    data: {
+      travelers: [{ personId: 'rene', role: 'owner' }],
+      users: { rjullien: { defaultConf: 'rene' } },
+    },
+  };
+  const usaList = {
+    id: 'usa-2026',
+    name: 'USA',
+    start_date: '2026-04-16',
+    end_date: '2026-05-06',
+    data: {
+      travelers: [{ personId: 'rene', role: 'owner' }, { personId: 'laurine' }],
+      users: { rjullien: { defaultConf: 'rene' } },
+    },
+  };
+  const phList = {
+    id: 'philippines-2027',
+    name: 'Philippines',
+    start_date: '2027-02-25',
+    end_date: '2027-03-11',
+    data: {
+      travelers: [{ personId: 'laurine', role: 'owner' }],
+    },
+  };
+  const qc = TripGroups.mergeListItem(null, qcList);
+  const us = TripGroups.mergeListItem(null, usaList);
+  const ph = TripGroups.mergeListItem(null, phList);
+  const known = TripGroups.identityPersonIds([qc, us, ph], 'rjullien');
+  assert.strictEqual(TripGroups.bucket(qc, 'rjullien', now, known), 'open');
+  assert.strictEqual(TripGroups.bucket(us, 'rjullien', now, known), 'past');
+  assert.strictEqual(TripGroups.bucket(ph, 'rjullien', now, known), 'others');
+});
+
+test('mergeListItem fills missing travelers without wiping cached days', () => {
+  const existing = {
+    trip: { id: 'quebec-2026', name: 'Québec', startDate: '2026-08-14' },
+    days: [{ day: 1 }],
+  };
+  const merged = TripGroups.mergeListItem(existing, {
+    id: 'quebec-2026',
+    start_date: '2026-08-14',
+    end_date: '2026-09-01',
+    data: { travelers: [{ personId: 'rene', role: 'owner' }] },
+  });
+  assert.strictEqual(merged.days.length, 1);
+  assert.strictEqual(merged.trip.endDate, '2026-09-01');
+  assert.strictEqual(merged.trip.travelers[0].personId, 'rene');
+});
+
 console.log(`\n  ${pass} passed\n`);
