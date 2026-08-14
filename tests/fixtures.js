@@ -115,6 +115,15 @@ export const test = base.extend({
         });
       }
 
+      // Polarsteps caption — hidden on the generic test trip (no seed flag).
+      if (url.includes(`/api/trips/${TRIP_ID}/polarsteps/`)) {
+        return route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ enabled: false, ready: false, seedEnabled: false, active: false }),
+        });
+      }
+
       // GET /api/trips/:id (single trip)
       if (url.includes(`/api/trips/${TRIP_ID}`) && !url.includes('/days') && !url.includes('/hotels') && !url.includes('/lists')) {
         return route.fulfill({

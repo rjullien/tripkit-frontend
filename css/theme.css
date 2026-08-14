@@ -1231,6 +1231,17 @@ a:visited { color: var(--accent); }
 }
 .publish-modal-list { margin: 12px 0; padding-left: 18px; font-size: .9em; color: var(--muted); line-height: 1.7; }
 
+/* ── Polarsteps (Plus journal draft) ────────────────────────── */
+.polarsteps-section textarea.polarsteps-result,
+.polarsteps-section #polarsteps-note {
+  width: 100%; resize: vertical;
+  border-radius: 10px; border: 1px solid rgba(255,255,255,.12);
+  background: var(--bg); color: var(--text); padding: 10px 12px; font: inherit;
+}
+.polarsteps-result { min-height: 140px; margin-top: 12px; }
+.polarsteps-actions { display: flex; gap: 8px; margin-top: 10px; }
+.polarsteps-error { margin-top: 12px; }
+
 /* ── Leo chat (Hermes proxy) ────────────────────────────────── */
 .leo-section { margin-top: 24px; }
 .leo-hint { font-size: .82em; color: var(--muted); margin: 0 0 12px; line-height: 1.4; }
