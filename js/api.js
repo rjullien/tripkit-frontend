@@ -682,6 +682,27 @@ var API = (() => {
     });
   }
 
+  async function getDiscoveryThemes(tripId) {
+    return requestJSON(`/trips/${encodeURIComponent(tripId)}/discovery/themes`);
+  }
+
+  async function getDiscoveryResults(tripId, opts = {}) {
+    const q = [];
+    if (opts.dayNum != null) q.push(`dayNum=${encodeURIComponent(String(opts.dayNum))}`);
+    if (opts.locationId) q.push(`locationId=${encodeURIComponent(opts.locationId)}`);
+    if (opts.themes) q.push(`themes=${encodeURIComponent(opts.themes)}`);
+    const qs = q.length ? `?${q.join('&')}` : '';
+    return requestJSON(`/trips/${encodeURIComponent(tripId)}/discovery/results${qs}`);
+  }
+
+  async function postDiscoverySearch(tripId, body = {}) {
+    return requestJSON(`/trips/${encodeURIComponent(tripId)}/discovery/search`, {
+      method: 'POST',
+      body: JSON.stringify(body || {}),
+      timeoutMs: 20000,
+    });
+  }
+
   /**
    * Stream Plus Assistant (Bifrost direct). Events: delta | done | error
    * @param {{ tripId?: string, messages: Array<{role:string,content:string}>, signal?: AbortSignal }} body
@@ -743,6 +764,7 @@ var API = (() => {
     getLeoStatus, leoChat, leoChatStream, leoJobStream, cancelLeoJob, netFailMessage,
     getPlusChatStatus, plusChatStream,
     getPolarstepsStatus, getPolarstepsCaption, postPolarstepsCaption,
+    getDiscoveryThemes, getDiscoveryResults, postDiscoverySearch,
     assetUrl, getBaseUrl, warmTripAssets,
     probe, isReachable, getReachability, onReachabilityChange,
   };
