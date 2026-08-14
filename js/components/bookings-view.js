@@ -286,12 +286,15 @@ var BookingsView = (() => {
     if (car.fuelPolicy && /plein/i.test(car.fuelPolicy)) derived.push('Plein fait');
     if (car.mileage && /illimit/i.test(car.mileage)) derived.push('Km illimité');
 
+    const mapsUrl = (q) => `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(q)}`;
     let details = '';
     if (pickup.agency || pickup.address) {
-      details += `<div>📍 Prise: ${esc(pickup.agency || '')}${pickup.address ? ' — ' + esc(pickup.address) : ''}</div>`;
+      const addr = pickup.address || '';
+      details += `<div>📍 Prise: ${esc(pickup.agency || '')}${addr ? ' — ' + esc(addr) + ' <a href="' + mapsUrl(addr) + '" target="_blank" class="hotel-link-btn">📍 Maps</a>' : ''}</div>`;
     }
     if (ret.agency || ret.address) {
-      details += `<div>📍 Retour: ${esc(ret.agency || '')}${ret.address ? ' — ' + esc(ret.address) : ''}</div>`;
+      const addr = ret.address || '';
+      details += `<div>📍 Retour: ${esc(ret.agency || '')}${addr ? ' — ' + esc(addr) + ' <a href="' + mapsUrl(addr) + '" target="_blank" class="hotel-link-btn">📍 Maps</a>' : ''}</div>`;
     }
     if (car.driver) details += `<div>👤 ${esc(car.driver)}</div>`;
     if (car.documents) details += `<div>📋 ${esc(car.documents)}</div>`;

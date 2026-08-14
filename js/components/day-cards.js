@@ -52,6 +52,12 @@ var DayCards = (() => {
       html += `<img src="${esc(d.ticketImage)}" alt="Barcode" 
         style="width:100%;max-width:360px;border-radius:12px;margin:8px auto;display:block" />`;
     }
+    if (d.mapUrl || d.carplayUrl) {
+      html += `<div style="display:flex;gap:8px;justify-content:center;margin-top:10px">`;
+      if (d.mapUrl) html += `<a href="${esc(d.mapUrl)}" target="_blank" class="hotel-link-btn">📍 Maps</a>`;
+      if (d.carplayUrl) html += `<a href="${esc(d.carplayUrl)}" class="hotel-link-btn">🚗 CarPlay</a>`;
+      html += `</div>`;
+    }
     if (d.steps && d.steps.length) {
       html += `<div style="text-align:left;font-size:.82em;color:var(--muted);margin-top:12px;line-height:1.6">
         <div style="font-weight:700;color:var(--text);margin-bottom:6px">📋 Instructions :</div>`;
