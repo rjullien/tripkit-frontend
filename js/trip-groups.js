@@ -1,14 +1,14 @@
 /**
  * trip-groups.js — Plus trip list buckets: open / past / others.
  *
- * Open (Voyage actif): trips I own that are not finished.
- * Past: trips I own that already ended (collapsed like Documents).
- * Others: trips I can see but do not own (collapsed), even if I'm a traveler.
+ * Open (Voyage actif): trips I am on that are not finished.
+ * Past: trips I was on that already ended (collapsed like Documents).
+ * Others: trips I can see but I am not a participant (collapsed).
  *
  * Same buckets for GH seed rows in « Publier depuis git ».
  *
- * "Own" = traveler with role "owner" matching the Authelia login
- * (trip.users[login].defaultConf, people[].login, or personId === login).
+ * "On the trip" = listed in travelers (any role) or trip.users, matching the
+ * Authelia login (trip.users[login].defaultConf, people[].login, personId).
  * Unknown login → do not hide trips as "others" (offline / anonymous).
  */
 var TripGroups = (() => {
@@ -52,14 +52,6 @@ var TripGroups = (() => {
     return ids;
   }
 
-  function ownerPersonIds(trip) {
-    const travelers = (trip && trip.travelers) || [];
-    return travelers
-      .filter((t) => t && fold(t.role) === 'owner')
-      .map((t) => fold(t.personId || t.id))
-      .filter(Boolean);
-  }
-
   function loginOnTrip(tripData, login) {
     const my = personIdsForLogin(tripData, login);
     if (!my.size) return false;
@@ -88,8 +80,9 @@ var TripGroups = (() => {
   }
 
   /**
-   * True when this trip is "mine" for the Plus open list.
-   * Owner role wins. If the seed has no owner, fall back to being on the trip.
+   * True when this trip is "mine" for Voyage actif / Passés.
+   * Any participant (traveler, not only role: owner) counts — Nicole and
+   * Baptiste on Québec must see it in actif, not Autres.
    * @param {object} tripData
    * @param {string} login
    * @param {Set<string>} [knownIds] person ids already resolved for this login
@@ -98,13 +91,16 @@ var TripGroups = (() => {
     const L = fold(login);
     if (!L) return true;
     const trip = tripOf(tripData);
-    const owners = ownerPersonIds(trip);
     const my = new Set(knownIds || []);
     personIdsForLogin(tripData, login).forEach((id) => my.add(id));
     if (!my.size) my.add(L);
-    if (owners.length) {
-      return owners.some((id) => my.has(id));
+    const travelers = trip.travelers || [];
+    for (let i = 0; i < travelers.length; i++) {
+      const t = travelers[i] || {};
+      if (my.has(fold(t.personId || t.id))) return true;
     }
+    const users = trip.users || {};
+    if (Object.keys(users).some((key) => my.has(fold(key)) || fold(key) === L)) return true;
     return loginOnTrip(tripData, login);
   }
 
