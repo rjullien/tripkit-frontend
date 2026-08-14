@@ -40,6 +40,20 @@ test.describe('Plus GH seed groups', () => {
         body: JSON.stringify(SOURCES),
       }),
     );
+    await page.route(/\/api\/trips\/?(\?|$)/, (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          results: [
+            { id: 'test-trip-2026', name: 'Test Trip 2026' },
+            { id: 'quebec-2026', name: 'Québec 2026' },
+            { id: 'usa-2026', name: 'Road Trip USA 2026' },
+            { id: 'philippines-2027', name: 'Philippines' },
+          ],
+        }),
+      }),
+    );
 
     await page.goto('/');
     await page.waitForSelector('.bottom-nav', { timeout: 8000 });
