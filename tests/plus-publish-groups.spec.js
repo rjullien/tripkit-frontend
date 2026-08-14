@@ -1,5 +1,5 @@
 /**
- * tests/plus-publish-groups.spec.js — GH seeds grouped like Voyage actif
+ * tests/plus-publish-groups.spec.js — GH seeds share Voyage actif's 2 groups
  */
 import { test, expect } from './fixtures.js';
 
@@ -25,7 +25,7 @@ const SOURCES = [
 ];
 
 test.describe('Plus GH seed groups', () => {
-  test('mine current stays open; past and others collapsed', async ({ page }) => {
+  test('seeds sit in the same Voyages passés / Autres voyages groups', async ({ page }) => {
     await page.route('**/api/me', (route) =>
       route.fulfill({
         status: 200,
@@ -94,34 +94,31 @@ test.describe('Plus GH seed groups', () => {
     });
 
     await page.locator('.bottom-nav button[data-tab="plus"]').click();
-    await page.waitForSelector('.publish-section', { timeout: 8000 });
+    await page.waitForSelector('#plus-trip-selector .publish-row', { timeout: 8000 });
 
-    const panel = page.locator('#plus-publish-panel');
-    await expect(panel).toContainText('Publier depuis git');
-    await expect(panel.locator(':scope > .publish-section > .publish-row .publish-name')).toContainText(['Québec 2026']);
-    await expect(panel.locator(':scope > .publish-section > .publish-row')).not.toContainText('Road Trip USA 2026');
-    await expect(panel.locator(':scope > .publish-section > .publish-row')).not.toContainText('Philippines');
+    const plus = page.locator('#plus-content');
+    await expect(plus).not.toContainText('Seeds passés');
+    await expect(plus).not.toContainText('Autres seeds');
+    await expect(page.locator('[data-trips-group]')).toHaveCount(2);
+    await expect(page.locator('[data-trips-group="past"]')).toContainText('Voyages passés');
+    await expect(page.locator('[data-trips-group="others"]')).toContainText('Autres voyages');
 
-    const pastHead = page.locator('[data-publish-group="past"]');
-    await expect(pastHead).toBeVisible();
-    await expect(pastHead).toContainText('Seeds passés');
-    const pastBody = page.locator('#plus-publish-body-past');
+    const openSeeds = page.locator('#plus-trip-selector > .publish-row .publish-name');
+    await expect(openSeeds).toContainText(['Québec 2026']);
+    await expect(page.locator('#plus-trip-selector > .publish-row')).not.toContainText('Road Trip USA 2026');
+    await expect(page.locator('#plus-trip-selector > .publish-row')).not.toContainText('Philippines');
+
+    const pastBody = page.locator('#plus-trips-body-past');
     await expect(pastBody).toBeHidden();
     await expect(pastBody).toContainText('Road Trip USA 2026');
+    await expect(pastBody.locator('.publish-row')).toContainText('Mettre à jour le voyage');
 
-    await pastHead.click();
+    await page.locator('[data-trips-group="past"]').click();
     await expect(pastBody).toBeVisible();
-    await expect(pastBody).toContainText('Road Trip USA 2026');
 
-    const othersHead = page.locator('[data-publish-group="others"]');
-    await expect(othersHead).toBeVisible();
-    await expect(othersHead).toContainText('Autres seeds');
-    const othersBody = page.locator('#plus-publish-body-others');
+    const othersBody = page.locator('#plus-trips-body-others');
     await expect(othersBody).toBeHidden();
     await expect(othersBody).toContainText('Philippines');
-
-    await othersHead.click();
-    await expect(othersBody).toBeVisible();
-    await expect(othersBody).toContainText('Philippines');
+    await expect(othersBody.locator('.publish-row')).toContainText('Mettre à jour le voyage');
   });
 });
