@@ -1,7 +1,7 @@
 /**
  * discovery-panel.js — « Autour de … » in the Jour view (Phase 0).
  * Collapsed by default. Scope = the day on screen (◀ ▶ / swipe).
- * Geo themes via Overpass; editorial themes listed as bientôt.
+ * Geo themes via Overpass; editorial (festivals / spectacles) via Léo web search.
  */
 var DiscoveryPanel = (() => {
   let abort = null;
@@ -95,12 +95,8 @@ var DiscoveryPanel = (() => {
 
   function paintThemes(el, themes) {
     el.innerHTML = themes.map((t) => {
-      const geo = t.engine === 'geo';
-      const checked = geo ? 'checked' : '';
-      const disabled = geo ? '' : 'disabled';
-      const hint = geo ? '' : ' title="Bientôt"';
-      return `<label class="discovery-chip${!geo ? ' is-soon' : ''}"${hint}>
-        <input type="checkbox" value="${esc(t.id)}" ${checked} ${disabled}>
+      return `<label class="discovery-chip">
+        <input type="checkbox" value="${esc(t.id)}" checked>
         <span>${esc(t.emoji || '')} ${esc(t.label || t.id)}</span>
       </label>`;
     }).join('');
@@ -194,13 +190,20 @@ var DiscoveryPanel = (() => {
       return;
     }
     wrap.innerHTML = items.map((it) => {
-      const km = (typeof it.distKm === 'number') ? `${String(it.distKm).replace('.', ',')} km` : '';
-      const maps = it.url
-        ? `<a class="discovery-maps" href="${esc(it.url)}" target="_blank" rel="noopener">Maps</a>`
+      const editorial = it.source === 'editorial';
+      const km = (!editorial && typeof it.distKm === 'number' && it.distKm > 0)
+        ? `${String(it.distKm).replace('.', ',')} km` : '';
+      const when = it.when ? esc(it.when) : '';
+      const linkLabel = editorial ? 'Lien' : 'Maps';
+      const link = it.url
+        ? `<a class="discovery-maps" href="${esc(it.url)}" target="_blank" rel="noopener">${linkLabel}</a>`
         : '';
+      const meta = [when, km, link].filter(Boolean).join(' · ');
+      const note = it.note ? `<div class="discovery-item-note">${esc(it.note)}</div>` : '';
       return `<div class="discovery-item">
         <div class="discovery-item-name">${esc(it.name || '')}</div>
-        <div class="discovery-item-meta">${esc(km)}${maps ? ' · ' + maps : ''}</div>
+        ${meta ? `<div class="discovery-item-meta">${meta}</div>` : ''}
+        ${note}
       </div>`;
     }).join('');
   }

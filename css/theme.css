@@ -1300,6 +1300,7 @@ a:visited { color: var(--accent); }
 .discovery-item:last-child { border-bottom: none; }
 .discovery-item-name { font-weight: 600; font-size: .88em; }
 .discovery-item-meta { font-size: .78em; color: var(--muted); margin-top: 2px; }
+.discovery-item-note { font-size: .78em; color: var(--muted); margin-top: 2px; }
 .discovery-maps { color: var(--sec); }
 
 /* ── Leo chat (Hermes proxy) ────────────────────────────────── */
