@@ -55,7 +55,7 @@ var PolarstepsPanel = (() => {
 
     container.innerHTML = `<div class="publish-section polarsteps-section">
       <h3 class="section-title">Polarsteps</h3>
-      <p class="leo-hint">Journal du jour, à coller dans Polarsteps.</p>
+      <p class="leo-hint">Journal à coller dans Polarsteps. Plusieurs steps par jour OK — on ne répète pas ce qui a déjà été généré.</p>
       <div class="leo-compose">
         <textarea id="polarsteps-note" rows="2"
           placeholder="ex. on a vu 3 baleines, resto changé, Baptiste à YUL"
