@@ -5,7 +5,8 @@
  * Past: trips I was on that already ended (collapsed like Documents).
  * Others: trips I can see but I am not a participant (collapsed).
  *
- * Same buckets for GH seed rows in « Publier depuis git ».
+ * GH publish rows (« Publier depuis git ») use isMySource / bucketSource
+ * to keep other families collapsed — they are not mixed into this list.
  *
  * "On the trip" = listed in travelers (any role) or trip.users, matching the
  * Authelia login (trip.users[login].defaultConf, people[].login, personId).
