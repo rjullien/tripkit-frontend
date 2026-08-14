@@ -5,7 +5,7 @@
  * Bump CACHE_NAME when deploying new shell versions.
  */
 
-const CACHE_NAME = 'tripkit-113';
+const CACHE_NAME = 'tripkit-114';
 
 
 const ASSETS = [
@@ -30,6 +30,7 @@ const ASSETS = [
   '/js/app.js',
   '/js/components/list.js',
   '/js/components/daily-view.js',
+  '/js/components/discovery-panel.js',
   '/js/components/hotel-card.js',
   '/js/components/bookings-view.js',
   '/js/components/day-cards.js',

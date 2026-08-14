@@ -124,6 +124,14 @@ export const test = base.extend({
         });
       }
 
+      if (url.includes(`/api/trips/${TRIP_ID}/discovery/`)) {
+        return route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ themes: [], items: [] }),
+        });
+      }
+
       // GET /api/trips/:id (single trip)
       if (url.includes(`/api/trips/${TRIP_ID}`) && !url.includes('/days') && !url.includes('/hotels') && !url.includes('/lists')) {
         return route.fulfill({

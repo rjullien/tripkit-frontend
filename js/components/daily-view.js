@@ -148,6 +148,9 @@ var DailyView = (() => {
       html += `<div id="weatherBox" class="card" style="margin-top:12px;text-align:center;color:var(--muted);font-size:.85em">🌤️ Chargement météo…</div>`;
     }
 
+    // ── Discovery (Autour de …) — collapsed; scope = this day ────────────
+    html += `<div id="discovery-panel"></div>`;
+
     // ── Timeline ───────────────────────────────────────────────────────────
     if (day.timeline && day.timeline.length) {
       html += `<div class="section-title">📋 Programme</div>`;
@@ -291,6 +294,12 @@ var DailyView = (() => {
     if (day.geo && navigator.onLine && typeof Weather !== 'undefined') {
       const wb = document.getElementById('weatherBox');
       if (wb) Weather.renderInline(wb, day);
+    }
+
+    const discEl = document.getElementById('discovery-panel');
+    if (discEl && typeof DiscoveryPanel !== 'undefined') {
+      const tripId = (window.Store && Store.getCurrentTripId()) || '';
+      DiscoveryPanel.render(discEl, { tripId, day, tripData });
     }
 
     // Swipe gesture — navigate between days
