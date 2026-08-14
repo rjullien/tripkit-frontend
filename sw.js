@@ -38,6 +38,7 @@ const ASSETS = [
   '/js/components/weather.js',
   '/js/components/trip-selector.js',
   '/js/components/publish-panel.js',
+  '/js/components/polarsteps-panel.js',
   '/js/components/leo-chat-stream.js',
   '/js/components/plus-chat-stream.js',
   '/js/components/edge-chat-stream.js',

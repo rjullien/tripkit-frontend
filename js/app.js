@@ -526,6 +526,7 @@ var App = (() => {
     html += `<div class="section-title" style="margin-top:24px">🌍 Voyage actif</div>`;
     html += `<div id="plus-trip-selector"></div>`;
     html += `<div id="plus-publish-panel"></div>`;
+    html += `<div id="plus-polarsteps-panel"></div>`;
     html += `<div id="plus-leo-chat-stream"></div>`;
     html += `<div class="section-wrap plus-docs-wrap plus-experimental-wrap" id="plus-experimental-wrap"
       style="margin-top:16px;border:none;background:transparent">
@@ -654,7 +655,12 @@ var App = (() => {
       });
     }
 
-    // Order: Léo → Bifrost → Local (edge)
+    const polarstepsEl = document.getElementById('plus-polarsteps-panel');
+    if (polarstepsEl && typeof PolarstepsPanel !== 'undefined') {
+      PolarstepsPanel.loadStatus().then(() => PolarstepsPanel.renderSection(polarstepsEl));
+    }
+
+    // Order: Polarsteps → Léo → Bifrost → Local (edge)
     const leoStreamEl = document.getElementById('plus-leo-chat-stream');
     if (leoStreamEl && typeof LeoChatStream !== 'undefined') {
       LeoChatStream.loadStatus().then(() => LeoChatStream.renderSection(leoStreamEl));

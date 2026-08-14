@@ -45,6 +45,7 @@ function quebecSeed() {
         meteoHtml: 'quebec-meteo.html',
         mapImage: 'route.jpg',
         homeTz: 'Europe/Paris',
+        polarsteps: { enabled: true, tripUrl: 'https://www.polarsteps.com/test/quebec/' },
         people: { alice: { id: 'alice', name: 'Alice', documents: [] } },
         users: { alice: { city: 'Paris' } },
         sharedLinks: [{ label: 'Drive', url: 'https://example.invalid' }],
@@ -87,7 +88,9 @@ test('every field read by route-view.js is declared in TRIP_META_FIELDS', () => 
     assert.ok(SeedMerge.TRIP_META_FIELDS.includes(f), `trip.${f} is read by route-view but missing from TRIP_META_FIELDS`);
   });
   assert.ok(SeedMerge.TRIP_META_FIELDS.includes('homeTz'), 'homeTz missing from TRIP_META_FIELDS');
+  assert.ok(SeedMerge.TRIP_META_FIELDS.includes('polarsteps'), 'polarsteps missing from TRIP_META_FIELDS');
   assert.strictEqual(SeedMerge.merge(quebecSeed(), {}).trip.homeTz, 'Europe/Paris', 'homeTz dropped');
+  assert.strictEqual(SeedMerge.merge(quebecSeed(), {}).trip.polarsteps.enabled, true, 'polarsteps dropped');
 });
 
 test('neither call site re-inlines its own trip meta field list', () => {

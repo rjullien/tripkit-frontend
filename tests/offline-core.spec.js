@@ -49,6 +49,7 @@ test.describe('SW precache list', () => {
     const text = await res.text();
     expect(text).toContain('leo-chat-stream.js');
     expect(text).toContain('plus-chat-stream.js');
+    expect(text).toContain('polarsteps-panel.js');
     expect(text).toContain('edge-chat-stream.js');
     expect(text).toContain('edge-model/engine.js');
     expect(text).toContain('tripkit-110');

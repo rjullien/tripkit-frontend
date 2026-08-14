@@ -666,6 +666,22 @@ var API = (() => {
     return requestJSON('/plus/chat/status');
   }
 
+  async function getPolarstepsStatus(tripId) {
+    return requestJSON(`/trips/${encodeURIComponent(tripId)}/polarsteps/status`);
+  }
+
+  async function getPolarstepsCaption(tripId) {
+    return requestJSON(`/trips/${encodeURIComponent(tripId)}/polarsteps/caption`);
+  }
+
+  async function postPolarstepsCaption(tripId, body = {}) {
+    return requestJSON(`/trips/${encodeURIComponent(tripId)}/polarsteps/caption`, {
+      method: 'POST',
+      body: JSON.stringify(body || {}),
+      timeoutMs: 90000,
+    });
+  }
+
   /**
    * Stream Plus Assistant (Bifrost direct). Events: delta | done | error
    * @param {{ tripId?: string, messages: Array<{role:string,content:string}>, signal?: AbortSignal }} body
@@ -726,6 +742,7 @@ var API = (() => {
     requestJSON, getPublishSources, createPublishJob, getPublishJob,
     getLeoStatus, leoChat, leoChatStream, leoJobStream, cancelLeoJob, netFailMessage,
     getPlusChatStatus, plusChatStream,
+    getPolarstepsStatus, getPolarstepsCaption, postPolarstepsCaption,
     assetUrl, getBaseUrl, warmTripAssets,
     probe, isReachable, getReachability, onReachabilityChange,
   };

@@ -32,6 +32,7 @@ var SeedMerge = (() => {
     'users',
     'sharedLinks',
     'homeTz',      // IANA home TZ for timeline dual times (default Europe/Paris)
+    'polarsteps',  // { enabled, tripUrl? } — Plus Polarsteps box
   ];
 
   /** Top-level tripData collections carried in trip.data (see seed-import.cjs). */
