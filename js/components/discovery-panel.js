@@ -4,7 +4,7 @@
  * Geo themes via Overpass; editorial (festivals / spectacles) via Léo web search.
  */
 var DiscoveryPanel = (() => {
-  let abort = null;
+  const aborts = new WeakMap();
 
   function esc(s) {
     return String(s || '')
@@ -15,13 +15,21 @@ var DiscoveryPanel = (() => {
     return String(day.to || day.from || day.label || '').trim();
   }
 
+  function cancel(root) {
+    const ac = aborts.get(root);
+    if (ac) {
+      ac.abort();
+      aborts.delete(root);
+    }
+  }
+
   /**
    * @param {HTMLElement} container
    * @param {{ tripId: string, day: object, tripData: object }} opts
    */
   function render(container, opts) {
     if (!container) return;
-    if (abort) { abort.abort(); abort = null; }
+    cancel(container);
     const tripId = opts && opts.tripId;
     const day = (opts && opts.day) || {};
     const tripData = (opts && opts.tripData) || {};
@@ -64,14 +72,14 @@ var DiscoveryPanel = (() => {
       toggle.setAttribute('aria-expanded', open ? 'false' : 'true');
       body.classList.toggle('hidden', open);
       toggle.querySelector('.discovery-chevron').textContent = open ? '▸' : '▾';
-      if (!open) loadThemesAndCache(tripId, dayNum, dateISO);
+      if (!open) loadThemesAndCache(container, tripId, dayNum, dateISO);
     });
   }
 
-  async function loadThemesAndCache(tripId, dayNum, dateISO) {
-    const themesEl = document.getElementById('discovery-themes');
-    const status = document.getElementById('discovery-status');
-    const btn = document.getElementById('discovery-search');
+  async function loadThemesAndCache(root, tripId, dayNum, dateISO) {
+    const themesEl = root.querySelector('#discovery-themes');
+    const status = root.querySelector('#discovery-status');
+    const btn = root.querySelector('#discovery-search');
     if (!themesEl || typeof API === 'undefined') return;
     try {
       const dataRes = await API.getDiscoveryThemes(tripId);
@@ -79,11 +87,11 @@ var DiscoveryPanel = (() => {
       paintThemes(themesEl, themes);
       if (btn) {
         btn.disabled = false;
-        btn.onclick = () => runSearch(tripId, dayNum, dateISO);
+        btn.onclick = () => runSearch(root, tripId, dayNum, dateISO);
       }
       const cached = await API.getDiscoveryResults(tripId, { dayNum });
       if (cached && cached.ok && cached.data && cached.data.items && cached.data.items.length) {
-        paintResults(cached.data);
+        paintResults(root, cached.data);
       }
     } catch (e) {
       if (status) {
@@ -96,21 +104,21 @@ var DiscoveryPanel = (() => {
   function paintThemes(el, themes) {
     el.innerHTML = themes.map((t) => {
       return `<label class="discovery-chip">
-        <input type="checkbox" value="${esc(t.id)}" checked>
+        <input type="checkbox" value="${esc(t.id)}"${t.engine === 'editorial' ? '' : ' checked'}>
         <span>${esc(t.emoji || '')} ${esc(t.label || t.id)}</span>
       </label>`;
     }).join('');
   }
 
-  function selectedThemeIds() {
-    return Array.from(document.querySelectorAll('#discovery-themes input[type="checkbox"]:checked:not(:disabled)'))
+  function selectedThemeIds(root) {
+    return Array.from(root.querySelectorAll('#discovery-themes input[type="checkbox"]:checked:not(:disabled)'))
       .map((i) => i.value);
   }
 
-  async function runSearch(tripId, dayNum, dateISO) {
-    const status = document.getElementById('discovery-status');
-    const btn = document.getElementById('discovery-search');
-    const themes = selectedThemeIds();
+  async function runSearch(root, tripId, dayNum, dateISO) {
+    const status = root.querySelector('#discovery-status');
+    const btn = root.querySelector('#discovery-search');
+    const themes = selectedThemeIds(root);
     if (!themes.length) {
       if (status) { status.hidden = false; status.textContent = 'Choisis au moins un thème.'; }
       return;
@@ -119,8 +127,9 @@ var DiscoveryPanel = (() => {
       if (status) { status.hidden = false; status.textContent = 'Hors-ligne — réessaie avec le réseau.'; }
       return;
     }
-    if (abort) abort.abort();
-    abort = new AbortController();
+    cancel(root);
+    const ac = new AbortController();
+    aborts.set(root, ac);
     if (btn) btn.disabled = true;
     if (status) { status.hidden = false; status.textContent = 'Recherche…'; }
     try {
@@ -135,12 +144,12 @@ var DiscoveryPanel = (() => {
       }
       const jobId = posted.data.jobId;
       let result = null;
-      for await (const ev of API.leoJobStream(jobId, 0, { signal: abort.signal })) {
+      for await (const ev of API.leoJobStream(jobId, 0, { signal: ac.signal })) {
         if (ev.event === 'theme' && ev.data) {
           const label = ev.data.text || (ev.data.tool && ev.data.tool.label) || '';
           if (status) status.textContent = label ? `${label}…` : 'Recherche…';
           if (ev.data.tool && Array.isArray(ev.data.tool.items)) {
-            mergeThemeItems(ev.data.tool.themeId, ev.data.tool.items);
+            mergeThemeItems(root, ev.data.tool.themeId, ev.data.tool.items);
           }
         }
         if (ev.event === 'result' && ev.data && ev.data.reply) {
@@ -153,17 +162,17 @@ var DiscoveryPanel = (() => {
         }
         if (ev.event === 'done') break;
       }
-      if (result) paintResults(result);
+      if (result) paintResults(root, result);
       else {
         const cached = await API.getDiscoveryResults(tripId, { dayNum });
-        if (cached && cached.ok && cached.data) paintResults(cached.data);
+        if (cached && cached.ok && cached.data) paintResults(root, cached.data);
       }
       if (status) status.hidden = true;
     } catch (e) {
       if (status) {
         status.hidden = false;
         status.textContent = (typeof API !== 'undefined' && API.netFailMessage)
-          ? API.netFailMessage(e, abort && abort.signal.aborted)
+          ? API.netFailMessage(e, ac.signal.aborted)
           : ((e && e.message) || 'Recherche impossible.');
       }
     } finally {
@@ -171,17 +180,17 @@ var DiscoveryPanel = (() => {
     }
   }
 
-  function mergeThemeItems(themeId, items) {
-    const wrap = document.getElementById('discovery-results');
+  function mergeThemeItems(root, themeId, items) {
+    const wrap = root.querySelector('#discovery-results');
     if (!wrap || !themeId || !items || !items.length) return;
     const existing = wrap._items || [];
     const rest = existing.filter((it) => it.themeId !== themeId);
     wrap._items = rest.concat(items);
-    paintResults({ items: wrap._items });
+    paintResults(root, { items: wrap._items });
   }
 
-  function paintResults(res) {
-    const wrap = document.getElementById('discovery-results');
+  function paintResults(root, res) {
+    const wrap = root.querySelector('#discovery-results');
     if (!wrap) return;
     const items = (res && res.items) || [];
     wrap._items = items;
