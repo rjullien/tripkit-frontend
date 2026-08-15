@@ -8,3 +8,15 @@ node_modules
 test-results
 playwright-report
 js/dist
+
+# Le stage 2 copie tout le contexte dans /usr/share/nginx/html : ce qui reste ici
+# est donc SERVI par nginx. Rien de tout ça n'est utile au runtime.
+tests
+docs
+js/seed
+seed-import.cjs
+playwright.config.js
+playwright-e2e-prod.config.js
+# Notes de conception (docs/, DATA-MODEL.md, LIST-SYNC-SPEC.md…) : le Dockerfile
+# supprimait déjà README.md un par un, autant les exclure du contexte.
+*.md
