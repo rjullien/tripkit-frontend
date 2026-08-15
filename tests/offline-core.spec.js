@@ -51,7 +51,7 @@ test.describe('SW precache list', () => {
     expect(text).toContain('/js/dist/bundle-core.js');
     expect(text).toContain('/js/dist/bundle-components.js');
     expect(text).toContain('/js/dist/bundle-edge.js');
-    expect(text).toContain('tripkit-123');
+    expect(text).toContain('tripkit-124');
     expect(text).toContain("url.origin !== self.location.origin");
     // Le shell est demandé avec ?v=<cache> alors qu'ASSETS précache les chemins
     // nus : sans ce repli, bundle-edge (jamais demandé au boot) serait perdu hors
