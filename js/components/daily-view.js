@@ -164,6 +164,42 @@ var DailyView = (() => {
       });
     }
 
+    // ── Activities for this day ────────────────────────────────────────────
+    if (tripData.activities) {
+      const dayNum = day.day !== undefined ? day.day : idx + 1;
+      const dayActivities = Object.values(tripData.activities).filter(
+        a => a && a.dayNum === dayNum
+      );
+      if (dayActivities.length) {
+        html += `<div class="section-title">🎯 Activités</div>`;
+        dayActivities.forEach(act => {
+          const emoji = activityThemeEmoji(act.theme);
+          const dur = activityDuration(act.durationMin);
+          let statusHtml = '';
+          if (act.bookingStatus && typeof HotelCard !== 'undefined') {
+            statusHtml = HotelCard.renderStatusBadge(act.bookingStatus);
+          }
+          html += `<div class="card" style="padding:12px 14px;margin-bottom:8px">`;
+          html += `<div style="display:flex;align-items:center;gap:8px">`;
+          html += `<span style="font-size:1.2em">${emoji}</span>`;
+          html += `<div style="flex:1">`;
+          html += `<div style="font-weight:600;font-size:.92em">${esc(act.name)}</div>`;
+          const chips = [];
+          if (dur) chips.push(`⏱️ ${esc(dur)}`);
+          if (act.price) chips.push(`💶 ${act.price} ${esc(act.currency || '')}`);
+          if (chips.length) {
+            html += `<div style="font-size:.8em;color:var(--muted);margin-top:2px">${chips.join(' · ')}</div>`;
+          }
+          html += `</div></div>`;
+          if (statusHtml) html += statusHtml;
+          if (act.bookingUrl) {
+            html += `<div style="margin-top:6px"><a href="${escAttr(act.bookingUrl)}" target="_blank" class="hotel-link-btn" style="font-size:.82em">🔗 Reserver</a></div>`;
+          }
+          html += `</div>`;
+        });
+      }
+    }
+
     // ── Highlights ─────────────────────────────────────────────────────────
     if (day.highlights && day.highlights.length) {
       html += `<div class="section-title">⭐ Points forts</div>`;
@@ -477,6 +513,33 @@ var DailyView = (() => {
   }
   function escAttr(s) {
     return String(s || '').replace(/"/g, '&quot;');
+  }
+
+  // ── Activity helpers ────────────────────────────────────────────────────────
+  function activityThemeEmoji(theme) {
+    if (!theme) return '🎯';
+    const map = {
+      eau: '🌊', water: '🌊',
+      nature: '🌿', randonnee: '🥾', hiking: '🥾',
+      culture: '🏛️', histoire: '🏛️', history: '🏛️',
+      sport: '⚽', aventure: '🧗', adventure: '🧗',
+      gastronomie: '🍷', food: '🍽️',
+      famille: '👨‍👩‍👧‍👦', family: '👨‍👩‍👧‍👦',
+      detente: '🧘', relaxation: '🧘',
+      animaux: '🐻', wildlife: '🐻',
+      urbain: '🏙️', city: '🏙️',
+      musique: '🎵', music: '🎵',
+    };
+    return map[theme.toLowerCase()] || '🎯';
+  }
+
+  function activityDuration(minutes) {
+    if (!minutes || minutes <= 0) return '';
+    const h = Math.floor(minutes / 60);
+    const m = minutes % 60;
+    if (h === 0) return `${m}min`;
+    if (m === 0) return `${h}h`;
+    return `${h}h ${m}min`;
   }
 
   return { render };

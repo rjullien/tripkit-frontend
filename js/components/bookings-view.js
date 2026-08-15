@@ -458,6 +458,100 @@ var BookingsView = (() => {
     return sectionTitle('🏨', 'Hébergements') + body;
   }
 
+  // ── Theme emoji mapping for activities ──────────────────────────────────
+  function themeEmoji(theme) {
+    if (!theme) return '🎯';
+    const map = {
+      eau: '🌊', water: '🌊',
+      nature: '🌿', randonnee: '🥾', hiking: '🥾',
+      culture: '🏛️', histoire: '🏛️', history: '🏛️',
+      sport: '⚽', aventure: '🧗', adventure: '🧗',
+      gastronomie: '🍷', food: '🍽️',
+      famille: '👨‍👩‍👧‍👦', family: '👨‍👩‍👧‍👦',
+      detente: '🧘', relaxation: '🧘',
+      animaux: '🐻', wildlife: '🐻',
+      urbain: '🏙️', city: '🏙️',
+      musique: '🎵', music: '🎵',
+    };
+    return map[theme.toLowerCase()] || '🎯';
+  }
+
+  /** Format duration in minutes to Xh Xmin display. */
+  function formatDuration(minutes) {
+    if (!minutes || minutes <= 0) return '';
+    const h = Math.floor(minutes / 60);
+    const m = minutes % 60;
+    if (h === 0) return `${m}min`;
+    if (m === 0) return `${h}h`;
+    return `${h}h ${m}min`;
+  }
+
+  function renderActivitiesSection(tripData) {
+    if (!tripData || !tripData.activities) return '';
+
+    const activities = tripData.activities;
+    const entries = Object.values(activities).filter(a => a && a.name);
+    if (!entries.length) return '';
+
+    // Group by dayNum
+    const byDay = {};
+    entries.forEach(act => {
+      const d = act.dayNum || 0;
+      if (!byDay[d]) byDay[d] = [];
+      byDay[d].push(act);
+    });
+
+    // Sort day keys
+    const dayKeys = Object.keys(byDay).map(Number).sort((a, b) => a - b);
+
+    let html = sectionTitle('🎯', 'Activites');
+
+    dayKeys.forEach(dayNum => {
+      html += `<div class="booking-hotel-day">Jour ${dayNum}</div>`;
+      byDay[dayNum].forEach(act => {
+        const emoji = themeEmoji(act.theme);
+        const duration = formatDuration(act.durationMin);
+        const price = act.price ? `${act.price} ${esc(act.currency || '')}` : '';
+
+        const meta = [];
+        if (duration) meta.push(`⏱️ ${esc(duration)}`);
+        if (price) meta.push(`💶 ${esc(price)}`);
+        if (act.locationId) {
+          const loc = act.locationId.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+          meta.push(`📍 ${esc(loc)}`);
+        }
+
+        let details = '';
+        // Booking status badge (reuse HotelCard pattern)
+        if (act.bookingStatus && typeof HotelCard !== 'undefined') {
+          details += HotelCard.renderStatusBadge(act.bookingStatus);
+        }
+        if (act.bookingUrl) {
+          details += `<div><a href="${esc(act.bookingUrl)}" target="_blank" class="hotel-link-btn" style="display:inline-flex;align-items:center;gap:4px;margin-top:4px">🔗 Reserver</a></div>`;
+        }
+        if (act.url) {
+          details += `<div><a href="${esc(act.url)}" target="_blank" class="hotel-link-btn" style="display:inline-flex;align-items:center;gap:4px;margin-top:4px">🌐 Info</a></div>`;
+        }
+        if (act.bookingRef) {
+          details += `<div style="margin-top:4px">🔖 Ref: <strong>${esc(act.bookingRef)}</strong></div>`;
+        }
+
+        html += bookingCard({
+          icon: emoji,
+          title: act.name,
+          metaLines: meta,
+          tagsHtml: renderBookingTags({
+            typeLabel: act.theme ? esc(act.theme) : 'Activite',
+            tags: [],
+          }),
+          detailsHtml: details,
+        });
+      });
+    });
+
+    return html;
+  }
+
   /**
    * @param {string} containerId
    * @param {Object} tripData
@@ -487,6 +581,7 @@ var BookingsView = (() => {
     html += renderFerrySection(tripData.ferries || tripData.ferry);
     html += renderEventsSection(tripData.events);
     html += renderHotelsSection(tripData);
+    html += renderActivitiesSection(tripData);
 
     const hasAnything = /booking-card|hotel-card/.test(html);
     if (!hasAnything) {
