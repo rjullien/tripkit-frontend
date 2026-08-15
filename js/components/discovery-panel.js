@@ -195,7 +195,7 @@ var DiscoveryPanel = (() => {
     const items = (res && res.items) || [];
     wrap._items = items;
     if (!items.length) {
-      wrap.innerHTML = `<p class="discovery-empty">Rien trouve autour pour ces themes.</p>`;
+      wrap.innerHTML = `<p class="discovery-empty">Rien trouvé autour pour ces thèmes.</p>`;
       return;
     }
     wrap.innerHTML = items.map((it, idx) => {
