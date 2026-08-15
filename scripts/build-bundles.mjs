@@ -14,7 +14,7 @@
  * Sort en 1 si une source de bundles.json manque sur le disque.
  *
  * Usage : node scripts/build-bundles.mjs [--manifest <fichier>] [--out-dir <dir>]
- * Les deux options n'existent que pour tests/build-bundles.test.cjs, qui vérifie
+ * Les deux options n'existent que pour tests/bundles.test.cjs, qui vérifie
  * le contrat de sortie en 1 sans toucher au vrai bundles.json ni à js/dist.
  */
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
