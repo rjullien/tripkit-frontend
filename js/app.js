@@ -19,6 +19,7 @@ var App = (() => {
   let _backendVersionFetch = null; // in-flight promise (dedupe)
   let _deferredInstallPrompt = null; // Android/Chrome install prompt
   let _edgeBundlePromise = null; // in-flight injection of js/dist/bundle-edge.js
+  let _edgeBundleAttempt = 0;    // compteur d'essais, cf. ensureEdgeBundle
   let _experimentalOpen = false; // « Expérimental » : état replié/déplié, survit aux re-render
 
   // ── PWA Install prompt capture (Android/Chrome) ─────────────────────────────
@@ -771,15 +772,17 @@ var App = (() => {
     return typeof EdgeChatStream !== 'undefined';
   }
 
-  // Plafond d'attente quand une action utilisateur dépend de bundle-edge
-  // (« Effacer données » : purge OPFS). `onerror` couvre l'échec net, pas la
-  // connexion qui pend.
+  // Plafond d'attente du chargement de bundle-edge. `onerror` couvre l'échec net
+  // (DNS, 404, abort) mais PAS la requête qui pend : sur un réseau capté sans
+  // sortie (portail WiFi, 3G morte), un <script> peut rester en attente sans
+  // jamais déclencher le moindre événement. Le plafond vaut donc pour tous les
+  // appelants — rendu de l'onglet Plus comme « Effacer données ».
   const EDGE_BUNDLE_TIMEOUT_MS = 5000;
 
-  // Resolves true when the bundle is available, false when its load failed.
-  // Never rejects and never throws: sans bundle-edge, le reste de l'onglet Plus
-  // doit continuer à fonctionner. Un échec remet la promesse à null pour qu'un
-  // rendu ultérieur puisse réessayer.
+  // Resolves true when the bundle is available, false when its load failed or
+  // timed out. Never rejects and never throws: sans bundle-edge, le reste de
+  // l'onglet Plus doit continuer à fonctionner. Un échec remet la promesse à null
+  // pour qu'un rendu ultérieur — ou le bouton « Réessayer » — puisse retenter.
   function ensureEdgeBundle() {
     if (edgeBundleLoaded()) return Promise.resolve(true);
     if (_edgeBundlePromise) return _edgeBundlePromise;
@@ -788,22 +791,52 @@ var App = (() => {
       // Same cache-busting semantics as the tags rewritten by the Dockerfile:
       // version.json is served no-store, so ?v=<cache> follows each release.
       const cache = _cachedVersion && _cachedVersion.cache;
-      s.src = 'js/dist/bundle-edge.js' + (cache ? '?v=' + cache : '');
-      s.async = false; // keep classic-script execution order deterministic
-      s.onload = () => resolve(true);
-      s.onerror = () => {
-        _edgeBundlePromise = null; // allow a retry on the next Plus render
-        resolve(false);
+      const query = [];
+      if (cache) query.push('v=' + cache);
+      // Après un essai raté, la requête précédente peut être encore EN ATTENTE
+      // (réseau qui pend) : le navigateur rattacherait le nouveau <script> à
+      // cette requête morte plutôt que d'en ouvrir une neuve, et « Réessayer »
+      // ne servirait à rien. Le numéro d'essai rend l'URL unique. Le service
+      // worker sait quand même la servir hors ligne (matchShell → ignoreSearch).
+      _edgeBundleAttempt += 1;
+      if (_edgeBundleAttempt > 1) query.push('r=' + _edgeBundleAttempt);
+      s.src = 'js/dist/bundle-edge.js' + (query.length ? '?' + query.join('&') : '');
+      // Volontairement PAS `s.async = false` : l'ordre d'exécution n'a rien à
+      // ordonner (bundle-edge est un seul fichier autonome, ses 7 sources sont
+      // déjà concaténées dans le bon ordre par le build), alors qu'un script
+      // injecté avec async=false rejoint la liste « à exécuter dans l'ordre » —
+      // une première requête qui pend y bloquerait indéfiniment l'exécution du
+      // script du « Réessayer ».
+
+      let settled = false;
+      const settle = (ok) => {
+        if (settled) return; // un onload tardif après le plafond ne rejoue rien
+        settled = true;
+        clearTimeout(timer);
+        if (!ok) {
+          _edgeBundlePromise = null; // allow a retry on the next render
+          // Le <script> abandonné ne sert plus à rien : on ne le laisse pas en
+          // travers du prochain essai.
+          if (s.parentNode) s.parentNode.removeChild(s);
+        }
+        resolve(ok);
       };
+      // Sans ce plafond, une requête qui pend laisse la promesse en suspens pour
+      // toujours : Léo / Bifrost / Local restent vides et le repli « Réessayer »
+      // n'est jamais rendu, puisque personne ne reçoit `false`.
+      const timer = setTimeout(() => settle(false), EDGE_BUNDLE_TIMEOUT_MS);
+      s.onload = () => settle(true);
+      s.onerror = () => settle(false);
       document.head.appendChild(s);
     });
     return _edgeBundlePromise;
   }
 
-  // Échec de chargement : les trois <div> resteraient vides, ce qui se lit comme
-  // un onglet cassé plutôt que dégradé. On affiche donc un état explicite avec un
-  // bouton « Réessayer » — indispensable depuis que la reprise d'app ne repeint
-  // plus l'onglet Plus : sans lui, il faudrait ressortir de l'onglet pour retenter.
+  // Échec de chargement (net ou par dépassement du plafond) : les trois <div>
+  // resteraient vides, ce qui se lit comme un onglet cassé plutôt que dégradé. On
+  // affiche donc un état explicite avec un bouton « Réessayer » — indispensable
+  // depuis que la reprise d'app ne repeint plus l'onglet Plus : sans lui, il
+  // faudrait ressortir de l'onglet pour retenter.
   function renderEdgeFallback() {
     const leoEl = document.getElementById('plus-leo-chat-stream');
     const target = leoEl || document.getElementById('plus-chat-stream');
@@ -985,19 +1018,20 @@ var App = (() => {
     // Edge GGUF lives in OPFS — must purge explicitly (clearCache does NOT).
     // The model can survive in OPFS from an earlier session, so bundle-edge is
     // loaded on demand here rather than skipping the purge when it is absent.
-    // Le chargement est borné : sur une connexion qui pend, `onerror` ne part
-    // jamais et l'effacement resterait bloqué sans rien afficher. Au-delà du
-    // délai on purge quand même le reste (le GGUF sera repurgé au prochain essai).
-    const bundleOrTimeout = Promise.race([
-      ensureEdgeBundle(),
-      new Promise(resolve => setTimeout(() => resolve(false), EDGE_BUNDLE_TIMEOUT_MS)),
-    ]);
-    bundleOrTimeout.then(() => {
-      if (typeof EdgeEngine !== 'undefined' && EdgeEngine.purge) {
+    // ensureEdgeBundle est borné par EDGE_BUNDLE_TIMEOUT_MS : cet appel ne peut
+    // donc pas rester bloqué, mais il peut échouer.
+    ensureEdgeBundle().then(ok => {
+      if (ok && typeof EdgeEngine !== 'undefined' && EdgeEngine.purge) {
         Promise.resolve(EdgeEngine.purge()).catch(() => {}).then(afterPurge);
-      } else {
-        afterPurge();
+        return;
       }
+      // Sans bundle-edge, EdgeEngine.purge est hors de portée : le modèle OPFS
+      // survivrait à l'effacement alors que le premier dialogue vient de promettre
+      // sa suppression. Et « ce sera purgé au prochain essai » ne tient pas : le
+      // prochain essai a besoin du réseau, précisément ce qui manque ici. On dit
+      // donc la vérité et on laisse l'utilisateur choisir.
+      if (!confirm('⚠️ Le modèle hors-ligne (OPFS) n\'a pas pu être supprimé : ses outils de suppression n\'ont pas pu être chargés (réseau indisponible).\n\nEffacer quand même les autres données locales ?\nLe modèle restera sur l\'appareil ; réessaie avec du réseau pour t\'en débarrasser.')) return;
+      afterPurge();
     });
   }
 
