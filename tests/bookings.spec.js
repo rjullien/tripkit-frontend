@@ -45,3 +45,44 @@ test.describe('Résa tab', () => {
     await expect(page.locator('#hotels-content')).toContainText('Réservations');
   });
 });
+
+test.describe('Résa — flux nuisances par hôtel', () => {
+  // Le contrôleur d'abandon d'un flux par hôtel vivait uniquement sur son bouton,
+  // et `BookingsView.render()` reconstruit `hotels-content` au retour sur
+  // l'onglet : le flux abandonné n'était alors plus annulable par personne et
+  // finissait par repeindre un nœud détaché. Preuve de la coupure : le GET du
+  // résultat final n'est jamais émis.
+  test("quitter l'onglet coupe le flux nuisances d'un hôtel", async ({ page }) => {
+    let finalFetches = 0;
+
+    await page.goto('/');
+    await page.waitForSelector('.bottom-nav button[data-tab]', { timeout: 8000 });
+
+    await page.route('**/nuisance-check', route => {
+      if (route.request().method() !== 'GET') {
+        return route.fulfill({ status: 202, contentType: 'application/json', body: '{"jobId":"job-hotel-nuis"}' });
+      }
+      finalFetches++;
+      return route.fulfill({ status: 200, contentType: 'application/json', body: '{"results":[]}' });
+    });
+    // Le `done` n'arrive qu'après un délai : on quitte l'onglet avant.
+    await page.route('**/leo/jobs/job-hotel-nuis/stream**', async route => {
+      await new Promise(r => setTimeout(r, 1200));
+      try {
+        await route.fulfill({ status: 200, contentType: 'text/event-stream', body: 'event: done\ndata: {}\n\n' });
+      } catch (_) { /* client parti : c'est exactement l'abandon attendu */ }
+    });
+
+    await page.locator('.bottom-nav button[data-tab="hotels"]').click();
+    const btn = page.locator('#hotels-content .hotel-nuisance-btn').first();
+    await expect(btn).toBeVisible();
+    await btn.click();
+    await expect(page.locator('#hotels-content .nuisance-progress').first()).toBeVisible();
+    expect(finalFetches).toBe(0);
+
+    await page.locator('.bottom-nav button[data-tab="programme"]').click();
+    await page.waitForTimeout(2200);
+
+    expect(finalFetches, "un flux d'hôtel abandonné ne doit plus aller chercher le résultat final").toBe(0);
+  });
+});

@@ -7,6 +7,22 @@
 
 var BookingsView = (() => {
 
+  // Contrôleurs des flux nuisances par hôtel, indexés par locationId.
+  //
+  // Les garder UNIQUEMENT sur le bouton (`btn._nuisanceAbort`) ne suffit pas :
+  // `render()` reconstruit `hotels-content` au retour sur l'onglet, donc un flux
+  // lancé puis abandonné n'était plus rattaché à rien d'atteignable — il tournait
+  // jusqu'à son `done`, allait chercher le résultat final et repeignait un nœud
+  // détaché. Cette table est ce que la sortie d'onglet (App._teardownTab) peut
+  // parcourir.
+  const _hotelNuisanceAborts = new Map();
+
+  /** Coupe tous les flux nuisances par hôtel (sortie d'onglet, ré-affichage). */
+  function abortHotelNuisanceStreams() {
+    _hotelNuisanceAborts.forEach(ac => { try { ac.abort(); } catch (_) { /* déjà terminé */ } });
+    _hotelNuisanceAborts.clear();
+  }
+
   function esc(s) {
     return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   }
@@ -663,26 +679,35 @@ var BookingsView = (() => {
         }
 
         // Un AbortController par hôtel : un second clic coupe le flux précédent
-        // de CE bouton sans toucher aux autres lignes.
-        if (btn._nuisanceAbort) btn._nuisanceAbort.abort();
+        // de CE bouton sans toucher aux autres lignes. Le contrôleur est aussi
+        // rangé dans _hotelNuisanceAborts pour rester joignable après un
+        // ré-affichage de l'onglet, qui remplace les boutons.
+        const previous = _hotelNuisanceAborts.get(locId) || btn._nuisanceAbort;
+        if (previous) previous.abort();
         const ac = new AbortController();
         btn._nuisanceAbort = ac;
+        _hotelNuisanceAborts.set(locId, ac);
 
         // Flux et rendu partagés (js/components/nuisance-stream.js) : une seule
         // implémentation pour Résa, le panneau Plus et l'onglet Construction.
-        await NuisanceStream.start(resultEl, {
-          tripId,
-          data: res.data,
-          signal: ac.signal,
-          compact: true,
-          locationId: locId,
-        });
+        try {
+          await NuisanceStream.start(resultEl, {
+            tripId,
+            data: res.data,
+            signal: ac.signal,
+            compact: true,
+            locationId: locId,
+          });
+        } finally {
+          if (_hotelNuisanceAborts.get(locId) === ac) _hotelNuisanceAborts.delete(locId);
+        }
       });
     });
   }
 
   return {
     render,
+    abortHotelNuisanceStreams,
     renderBookingTags,
     cancellationBadge,
     renderDocumentsCollapsed,

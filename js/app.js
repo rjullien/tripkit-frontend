@@ -398,12 +398,20 @@ var App = (() => {
    * ConstructionView le fait aussi au ré-affichage et au changement de voyage) ;
    * il manquait la sortie d'onglet.
    *
-   * Les contrôleurs par hôtel de l'onglet Résa (`btn._nuisanceAbort`) restent
-   * hors de portée d'ici : ils appartiennent à leurs boutons.
+   * Les flux par hôtel de l'onglet Résa comptent aussi : leur contrôleur vivait
+   * sur le bouton, et `renderHotels` reconstruit le contenu au retour sur
+   * l'onglet — le flux abandonné n'était alors plus annulable par personne.
+   * BookingsView les range désormais dans une table que cette sortie parcourt.
+   *
+   * Limite dans tous les cas : `abort()` ne coupe que la lecture côté client. Le
+   * job serveur continue d'interroger Overpass jusqu'à son terme.
    */
   function _teardownTab(tab) {
     if (tab === 'construction' && typeof ConstructionView !== 'undefined' && ConstructionView.abortNuisanceStream) {
       ConstructionView.abortNuisanceStream();
+    }
+    if (tab === 'hotels' && typeof BookingsView !== 'undefined' && BookingsView.abortHotelNuisanceStreams) {
+      BookingsView.abortHotelNuisanceStreams();
     }
     if (tab === 'plus' && _nuisanceAbort) {
       _nuisanceAbort.abort();

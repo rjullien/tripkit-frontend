@@ -37,6 +37,16 @@ const PROFILE = JSON.stringify({
   sources: ['test'],
 });
 
+/** Groupe mixte : la nationalité de Chen n'est visée par aucune règle de la base. */
+const PROFILE_MIXED = JSON.stringify({
+  people: {
+    alice: { id: 'alice', name: 'Alice', nationalities: ['FR'] },
+    chen: { id: 'chen', name: 'Chen', nationalities: ['CN'] },
+  },
+  travelProfile: { pace: 'lent' },
+  sources: ['test'],
+});
+
 async function openConstruction(page) {
   await page.goto('/');
   await page.waitForSelector('.bottom-nav button[data-tab]', { timeout: 8000 });
@@ -103,6 +113,45 @@ test.describe('Construction ActionBar', () => {
     await expect(results).toContainText('7 CAD');
     await expect(results.locator('a[href="https://www.canada.ca/eta"]')).toHaveCount(2);
     await expect(results).not.toContainText('Aucune formalité administrative requise');
+  });
+
+  // Le cas que la restriction de `appliesTo` a rendu atteignable : un voyageur
+  // dont aucune règle ne parle. La base ne couvre qu'une douzaine de destinations,
+  // donc « zéro item » veut dire « pas de règle connue », jamais « rien à faire » —
+  // un passeport chinois parti aux États-Unis a besoin d'un visa B1/B2.
+  test("Admin : un passeport que la base ne couvre pas n'est jamais annoncé en vert", async ({ page }) => {
+    await page.route('**/travel-profile', route => route.fulfill(json(PROFILE_MIXED)));
+    await page.route('**/admin-check', route => route.fulfill(json(ADMIN)));
+    await openConstruction(page);
+
+    await page.locator('#action-admin').click();
+    const results = page.locator('#action-bar-results');
+    await expect(results.locator('.admin-traveler')).toHaveCount(2);
+
+    // Alice (FR) reçoit l'eTA canadien ; Chen (CN) n'est visé par aucune règle.
+    const chen = results.locator('.admin-traveler').filter({ hasText: 'Chen' });
+    await expect(chen).toContainText('Aucune règle connue pour ce passeport');
+    await expect(chen).toContainText('à vérifier');
+    await expect(chen.locator('.admin-unknown')).toHaveCount(1);
+    await expect(chen).not.toContainText('Aucune démarche spécifique');
+    await expect(results).not.toContainText('✅ Aucune');
+
+    // Et la limite du moteur est dite dans le panneau, pas seulement dans un doc :
+    // la présence d'un item est calculée sur l'union des nationalités du voyage.
+    await expect(results.locator('.admin-limitation')).toContainText("pas passeport par passeport");
+  });
+
+  test("Admin : zéro item pour le voyage se lit « aucune règle connue », pas « rien à faire »", async ({ page }) => {
+    await page.route('**/travel-profile', route => route.fulfill(json(PROFILE)));
+    await page.route('**/admin-check', route => route.fulfill(json('{"verdict":"none","countries":["BR"],"items":[]}')));
+    await openConstruction(page);
+
+    await page.locator('#action-admin').click();
+    const results = page.locator('#action-bar-results');
+    await expect(results.locator('.admin-unknown')).toContainText('Aucune règle connue pour cette destination');
+    await expect(results).toContainText("Ce silence n'est pas un feu vert");
+    await expect(results).not.toContainText('Aucune formalité administrative requise');
+    await expect(results.locator('.action-result-ok')).toHaveCount(0);
   });
 
   test('Admin : une enveloppe inconnue affiche une erreur', async ({ page }) => {
@@ -193,6 +242,37 @@ test.describe('Construction ActionBar', () => {
     await page.waitForTimeout(2200);
 
     expect(finalFetches, 'le flux abandonné ne doit plus aller chercher le résultat final').toBe(0);
+  });
+
+  // L'autre porte de sortie : le routeur. Le clic sur la nav passe par
+  // switchTab() ; un retour navigateur ou un hash saisi à la main passe par
+  // handleHash(), qui appelle le même teardown — non couvert jusqu'ici.
+  test('retour navigateur : le hash change et coupe aussi le flux', async ({ page }) => {
+    let finalFetches = 0;
+    await page.route('**/nuisance-check', route => {
+      if (route.request().method() !== 'GET') {
+        return route.fulfill(json('{"jobId":"job-nuis-hash"}', 202));
+      }
+      finalFetches++;
+      return route.fulfill(json(NUISANCE));
+    });
+    await page.route('**/leo/jobs/job-nuis-hash/stream**', async route => {
+      await new Promise(r => setTimeout(r, 1200));
+      try {
+        await route.fulfill({ status: 200, contentType: 'text/event-stream', body: 'event: done\ndata: {}\n\n' });
+      } catch (_) { /* client parti : abandon attendu */ }
+    });
+
+    await openConstruction(page);
+    await page.locator('#action-nuisances').click();
+    await expect(page.locator('#action-bar-results .nuisance-progress')).toBeVisible();
+
+    // Retour navigateur : aucun onclick de la nav n'est joué, seul hashchange l'est.
+    await page.goBack();
+    await expect(page.locator('#tab-programme')).toHaveClass(/active/);
+    await page.waitForTimeout(2200);
+
+    expect(finalFetches, 'handleHash doit couper le flux comme switchTab').toBe(0);
   });
 
   test('Épingler : un 501 dit « pas encore disponible », jamais « Épinglé »', async ({ page }) => {

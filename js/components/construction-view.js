@@ -22,6 +22,21 @@ var ConstructionView = (() => {
   const PIN_LABEL = 'Épingler dans le seed ⏳';
   const PROFILE_SUBMIT_LABEL = 'Envoyer à Léo ⏳';
 
+  // La base de règles administratives ne couvre qu'une douzaine de destinations et
+  // quelques listes de nationalités. Zéro item pour un passeport ne veut donc PAS
+  // dire « rien à faire » : ça veut dire « pas de règle connue ». Un ✅ vert à cet
+  // endroit annoncerait à un passeport chinois parti aux États-Unis qu'il n'a
+  // aucune démarche, alors qu'il lui faut un visa B1/B2. Le silence d'un moteur
+  // partiel ne se rend jamais en vert, ici comme pour les nuisances.
+  const ADMIN_UNKNOWN_TRAVELER = "⚠️ Aucune règle connue pour ce passeport : à vérifier auprès du consulat ou de l'ambassade du pays de destination.";
+  const ADMIN_UNKNOWN_TRIP = "⚠️ Aucune règle connue pour cette destination : à vérifier auprès des sources officielles. Ce silence n'est pas un feu vert.";
+  // Limite assumée du moteur : la PRÉSENCE d'un item est décidée sur l'union des
+  // nationalités du voyage (un seul passeport américain dans le groupe retire
+  // l'ESTA pour tout le monde), seule son ATTRIBUTION est par voyageur. Tant que
+  // le backend ne produit pas les items par voyageur, la personne concernée doit
+  // le lire dans le panneau, pas seulement dans un doc de suivi.
+  const ADMIN_UNION_NOTE = "Liste indicative : la présence d'un item est calculée sur l'ensemble des nationalités du voyage, pas passeport par passeport. Un item peut donc manquer pour l'un si un autre passeport du groupe en dispense.";
+
   function esc(s) {
     return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   }
@@ -751,7 +766,7 @@ var ConstructionView = (() => {
     if (parsed.summary) html += `<div class="admin-summary">${esc(parsed.summary)}</div>`;
 
     if (!parsed.items.length) {
-      html += `<div class="action-result-ok">Aucune formalité administrative requise</div></div>`;
+      html += `<div class="admin-unknown">${ADMIN_UNKNOWN_TRIP}</div></div>`;
       showResults(html);
       return;
     }
@@ -765,7 +780,7 @@ var ConstructionView = (() => {
         if (t.items.length) {
           t.items.forEach(item => { html += adminItemHtml(item); });
         } else {
-          html += `<div class="admin-check-item admin-none">✅ Aucune démarche spécifique</div>`;
+          html += `<div class="admin-check-item admin-unknown">${ADMIN_UNKNOWN_TRAVELER}</div>`;
         }
         html += `</div>`;
       });
@@ -786,6 +801,7 @@ var ConstructionView = (() => {
       html += `</div>`;
     }
 
+    html += `<div class="admin-limitation">ℹ️ ${ADMIN_UNION_NOTE}</div>`;
     html += '</div>';
     showResults(html);
   }

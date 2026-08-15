@@ -164,3 +164,28 @@ inchangés.
 **Vérifications** (locales, comme la première passe — rien contre une instance qui tourne) :
 `npm run test:unit` (11 fichiers, 35 assertions dans `construction-contract.test.cjs`) et
 `npx playwright test` (130 passés, contre 128 avant cette passe : +2 tests).
+
+---
+
+## 7. Troisième passe — review v2 (verdict NEEDS_CHANGES, 8 constats dont 1 bloquant)
+
+La restriction de `appliesTo` de la passe précédente était juste, mais elle a rendu **atteignable**
+une branche de rendu qui ne l'était pas : un voyageur sans item recevait un `✅ Aucune démarche
+spécifique`. Côté frontend :
+
+| # | Constat v2 | Statut | Détail |
+|---|---|---|---|
+| 1 (bloquant) | Un panier de voyageur vide s'affichait en vert | ✅ | `js/components/construction-view.js` : la branche « aucun item pour ce voyageur » rend désormais « ⚠️ Aucune règle connue pour ce passeport : à vérifier auprès du consulat ou de l'ambassade du pays de destination. » (classe `.admin-unknown`, orange, jamais verte), et la branche « aucun item pour le voyage » « ⚠️ Aucune règle connue pour cette destination […] Ce silence n'est pas un feu vert. » La base ne couvre qu'une douzaine de destinations : zéro item veut dire « pas de règle connue », pas « rien à faire » (un passeport CN parti aux États-Unis a besoin d'un visa B1/B2, un passeport BR d'un visa canadien). Tests Playwright : groupe FR+CN sur la fixture réelle, et enveloppe à zéro item. Vérifié par mutation : remettre l'ancien libellé fait tomber les deux |
+| 2 | La présence d'un item reste calculée sur l'union des nationalités | ✅ (côté surface) | Le moteur reste inchangé (le corriger change l'enveloppe, cf. §6) mais la limite n'est plus seulement dans ce doc : le panneau porte une note `.admin-limitation` — « Liste indicative : la présence d'un item est calculée sur l'ensemble des nationalités du voyage, pas passeport par passeport. Un item peut donc manquer pour l'un si un autre passeport du groupe en dispense. » Épinglée par le même test Playwright |
+| 4 | Les flux nuisances de Résa survivaient à la sortie d'onglet | ✅ | `js/components/bookings-view.js` : les `AbortController` par hôtel sont rangés dans une `Map` de module (`_hotelNuisanceAborts`, clé `locationId`) en plus du bouton, et `BookingsView.abortHotelNuisanceStreams()` les coupe tous ; `js/app.js` l'appelle depuis `_teardownTab('hotels')`. Le contrôleur n'est donc plus perdu quand `render()` reconstruit `hotels-content`. Test Playwright dans `tests/bookings.spec.js` : le GET final n'est jamais émis après la sortie d'onglet (mutation vérifiée). **Limite inchangée et maintenant écrite dans le code** : `abort()` ne coupe que la lecture côté client, le job serveur continue d'interroger Overpass |
+| 8 | La coupure via le routeur n'était pas testée | ✅ | Le test existant passait par `switchTab` (clic de la nav). Nouveau test : `page.goBack()`, donc `hashchange` → `handleHash` → `_teardownTab`, aucun `onclick` joué. Mutation vérifiée : retirer l'appel dans `handleHash` fait tomber ce test et pas l'autre |
+
+Constats 3, 5, 6 et 7 (backend) : voir `tripkit-backend/docs/REVIEW-construction-fixes.md` §6.
+
+`sw.js` : `CACHE_NAME` passé à `tripkit-122` (contenu de `js/` et `css/` modifié) ;
+`tests/offline-core.spec.js` épingle ce nom. Aucun nouveau module : `ASSETS` et `index.html` sont
+inchangés.
+
+**Vérifications** (locales — rien contre une instance qui tourne, ni Overpass, ni Bifrost) :
+`npm run test:unit` (11 fichiers, 35 assertions de contrat) et `npx playwright test`
+(**134 passés**, contre 130 avant cette passe : +4 tests, aucune régression de compte).
