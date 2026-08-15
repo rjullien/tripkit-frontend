@@ -5,7 +5,7 @@
  * Bump CACHE_NAME when deploying new shell versions.
  */
 
-const CACHE_NAME = 'tripkit-120';
+const CACHE_NAME = 'tripkit-121';
 
 
 const ASSETS = [
@@ -19,37 +19,13 @@ const ASSETS = [
   '/icons/icon-192-v3.png',
   '/icons/icon-512-v3.png',
   '/css/theme.css',
-  '/js/store.js',
-  '/js/api.js',
-  '/js/seed-merge.js',
-  '/js/day-helpers.js',
-  '/js/tz-helpers.js',
-  '/js/people-helpers.js',
-  '/js/day-resolver.js',
-  '/js/trip-groups.js',
-  '/js/app.js',
-  '/js/components/list.js',
-  '/js/components/daily-view.js',
-  '/js/components/discovery-panel.js',
-  '/js/components/hotel-card.js',
-  '/js/components/bookings-view.js',
-  '/js/components/day-cards.js',
-  '/js/components/conference.js',
-  '/js/components/timeline.js',
-  '/js/components/weather.js',
-  '/js/components/trip-selector.js',
-  '/js/components/publish-panel.js',
-  '/js/components/polarsteps-panel.js',
-  '/js/components/leo-chat-stream.js',
-  '/js/components/plus-chat-stream.js',
-  '/js/components/edge-chat-stream.js',
-  '/js/edge-model/config.js',
-  '/js/edge-model/intent.js',
-  '/js/edge-model/prompt-builder.js',
-  '/js/edge-model/engine.js',
-  '/js/components/route-view.js',
-  '/js/components/culture-view.js',
-  '/js/lib/qrcode-svg.min.js',
+  // The shell's JS is now 3 generated bundles instead of 31 individual files:
+  // scripts/build-bundles.mjs concatenates the sources listed in bundles.json.
+  // bundle-edge stays precached whatever index.html does with it (deferred today,
+  // lazy later) — that is what keeps the local-AI panel usable offline.
+  '/js/dist/bundle-core.js',
+  '/js/dist/bundle-components.js',
+  '/js/dist/bundle-edge.js',
   // NOT precached: /js/lib/wllama/index.min.js (~300 Ko). No <script> tag loads
   // it — edge-model/engine.js does `import()` it, but only when the user opts in
   // to the local AI. networkFirstShell caches it at that moment, so the feature

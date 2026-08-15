@@ -1,0 +1,48 @@
+{
+  "_comment": [
+    "Source of truth for the JS bundles served by index.html.",
+    "Ordered map: output name -> ordered list of sources, concatenated as-is by",
+    "scripts/build-bundles.mjs into js/dist/<name>.js. Order matters: it is the",
+    "<script> order index.html used before bundling.",
+    "NOT bundled: config.js (generated at container start by docker-entrypoint.sh",
+    "from config.js.template, must stay its own request) and js/components/leo-chat.js",
+    "(dead code, loaded by nothing)."
+  ],
+  "bundle-core": [
+    "js/store.js",
+    "js/api.js",
+    "js/seed-merge.js",
+    "js/day-helpers.js",
+    "js/tz-helpers.js",
+    "js/people-helpers.js",
+    "js/day-resolver.js",
+    "js/trip-groups.js",
+    "js/app.js"
+  ],
+  "bundle-components": [
+    "js/lib/qrcode-svg.min.js",
+    "js/components/timeline.js",
+    "js/components/weather.js",
+    "js/components/hotel-card.js",
+    "js/components/bookings-view.js",
+    "js/components/day-cards.js",
+    "js/components/conference.js",
+    "js/components/daily-view.js",
+    "js/components/discovery-panel.js",
+    "js/components/list.js",
+    "js/components/route-view.js",
+    "js/components/culture-view.js",
+    "js/components/trip-selector.js",
+    "js/components/publish-panel.js",
+    "js/components/polarsteps-panel.js"
+  ],
+  "bundle-edge": [
+    "js/edge-model/config.js",
+    "js/edge-model/intent.js",
+    "js/edge-model/prompt-builder.js",
+    "js/edge-model/engine.js",
+    "js/components/leo-chat-stream.js",
+    "js/components/plus-chat-stream.js",
+    "js/components/edge-chat-stream.js"
+  ]
+}

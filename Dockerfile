@@ -1,14 +1,27 @@
+# ── Stage 1 : génération des bundles JS ──────────────────────────────────────
+# Aucune dépendance npm : scripts/build-bundles.mjs n'utilise que node:*.
+FROM node:22-alpine AS build
+WORKDIR /src
+COPY . .
+RUN node scripts/build-bundles.mjs
+
+# ── Stage 2 : image nginx servie en prod ─────────────────────────────────────
 FROM nginx:alpine
 RUN apk add --no-cache jq
 RUN rm -rf /usr/share/nginx/html/*
-COPY . /usr/share/nginx/html
+COPY --from=build /src /usr/share/nginx/html
 RUN rm -f /usr/share/nginx/html/Dockerfile \
           /usr/share/nginx/html/nginx.conf \
           /usr/share/nginx/html/.gitignore \
+          /usr/share/nginx/html/.dockerignore \
           /usr/share/nginx/html/README.md \
           /usr/share/nginx/html/config.js.template \
-          /usr/share/nginx/html/docker-entrypoint.sh && \
-    rm -rf /usr/share/nginx/html/.github
+          /usr/share/nginx/html/docker-entrypoint.sh \
+          /usr/share/nginx/html/bundles.json \
+          /usr/share/nginx/html/package.json \
+          /usr/share/nginx/html/package-lock.json && \
+    rm -rf /usr/share/nginx/html/.github \
+           /usr/share/nginx/html/scripts
 
 # Cache-buster: inject ?v=CACHE_VER into all JS/CSS references in index.html
 RUN CACHE_VER=$(jq -r '.cache' /usr/share/nginx/html/version.json) && \

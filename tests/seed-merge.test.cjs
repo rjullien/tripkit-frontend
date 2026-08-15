@@ -102,13 +102,25 @@ test('neither call site re-inlines its own trip meta field list', () => {
   });
 });
 
-test('index.html loads seed-merge.js before its consumers', () => {
-  const html = fs.readFileSync('index.html', 'utf8');
-  const iMerge = html.indexOf('js/seed-merge.js');
-  const iSelector = html.indexOf('js/components/trip-selector.js');
-  const iApp = html.indexOf('js/app.js');
-  assert.ok(iMerge > -1, 'seed-merge.js is not in index.html');
+// index.html no longer lists the sources: it loads the bundles generated from
+// bundles.json, which is now where the load order lives.
+test('bundles.json loads seed-merge.js before its consumers', () => {
+  const manifest = JSON.parse(fs.readFileSync('bundles.json', 'utf8'));
+  const order = Object.keys(manifest)
+    .filter(k => !k.startsWith('_'))
+    .flatMap(k => manifest[k]);
+  const iMerge = order.indexOf('js/seed-merge.js');
+  const iSelector = order.indexOf('js/components/trip-selector.js');
+  const iApp = order.indexOf('js/app.js');
+  assert.ok(iMerge > -1, 'seed-merge.js is in no bundle');
+  assert.ok(iSelector > -1, 'trip-selector.js is in no bundle');
+  assert.ok(iApp > -1, 'app.js is in no bundle');
   assert.ok(iMerge < iSelector && iMerge < iApp, 'seed-merge.js must load before trip-selector.js and app.js');
+
+  const html = fs.readFileSync('index.html', 'utf8');
+  ['bundle-core', 'bundle-components', 'bundle-edge'].forEach(b => {
+    assert.ok(html.includes(`js/dist/${b}.js`), `${b}.js is not loaded by index.html`);
+  });
 });
 
 test('days are sorted, _deleted days filtered, hotels merged by day_num', () => {

@@ -4,7 +4,8 @@
   "description": "PWA vanilla JS/HTML/CSS pour planifier des voyages. Offline-first, léger, mobile-first.",
   "main": "seed-import.js",
   "scripts": {
-    "test": "npx playwright test",
+    "build": "node scripts/build-bundles.mjs",
+    "test": "npm run build && npx playwright test",
     "test:unit": "node tests/store-api-contract.test.cjs && node tests/seed-merge.test.cjs && node tests/list-unit.test.cjs && node tests/list-sync-two-devices.test.cjs && node tests/tz-helpers.test.cjs && node tests/people-helpers.test.cjs && node tests/trip-groups.test.cjs && node tests/edge-intent.test.cjs && node tests/edge-prompt.test.cjs",
     "test:ui": "npx playwright test --ui",
     "test:headed": "npx playwright test --headed"

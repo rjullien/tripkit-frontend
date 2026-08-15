@@ -25,6 +25,10 @@ jobs:
         run: npm ci
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium
+      # js/dist/*.js est généré (gitignoré) : un script de build cassé doit
+      # échouer ici, pas au milieu de la suite Playwright.
+      - name: Build JS bundles
+        run: npm run build
       - name: Run unit tests (Node.js)
         run: |
           for f in tests/*.test.cjs; do node "$f"; done

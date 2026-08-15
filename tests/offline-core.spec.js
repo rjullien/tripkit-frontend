@@ -2,6 +2,7 @@
  * tests/offline-core.spec.js — Jour / Route / Résa usable without network
  * (seed already in localStorage via fixtures; browser goes offline).
  */
+import { existsSync, readFileSync } from 'node:fs';
 import { test, expect } from './fixtures.js';
 
 test.describe('Offline core tabs', () => {
@@ -43,22 +44,39 @@ test.describe('Offline core tabs', () => {
 });
 
 test.describe('SW precache list', () => {
-  test('precache includes leo-chat-stream.js', async ({ request }) => {
+  test('precache includes the three generated bundles', async ({ request }) => {
     const res = await request.get('/sw.js');
     expect(res.ok()).toBeTruthy();
     const text = await res.text();
-    expect(text).toContain('leo-chat-stream.js');
-    expect(text).toContain('plus-chat-stream.js');
-    expect(text).toContain('polarsteps-panel.js');
-    expect(text).toContain('discovery-panel.js');
-    expect(text).toContain('edge-chat-stream.js');
-    expect(text).toContain('edge-model/engine.js');
-    expect(text).toContain('tripkit-120');
-    expect(text).toContain('trip-groups.js');
+    expect(text).toContain('/js/dist/bundle-core.js');
+    expect(text).toContain('/js/dist/bundle-components.js');
+    expect(text).toContain('/js/dist/bundle-edge.js');
+    expect(text).toContain('tripkit-121');
     expect(text).toContain("url.origin !== self.location.origin");
     expect(text).not.toContain('/js/components/leo-chat.js');
     // Wllama runtime (~300 Ko) is opt-in: it must NOT be in the install precache.
     expect(text).not.toContain("'/js/lib/wllama/index.min.js'");
+  });
+
+  // The old test listed every shell script by name; the real invariant behind that
+  // list is "no source silently dropped from the shell". bundles.json is now that
+  // list, so it is what gets checked — plus the fact that each source is on disk.
+  test('every source in bundles.json exists on disk', () => {
+    const manifest = JSON.parse(
+      readFileSync(new URL('../bundles.json', import.meta.url), 'utf8')
+    );
+    const names = Object.keys(manifest).filter(k => !k.startsWith('_'));
+    expect(names).toEqual(['bundle-core', 'bundle-components', 'bundle-edge']);
+
+    const sources = names.flatMap(n => manifest[n]);
+    expect(sources.length).toBe(31);
+    for (const rel of sources) {
+      expect(existsSync(new URL('../' + rel, import.meta.url)), `missing ${rel}`).toBe(true);
+    }
+    // config.js is envsubst-generated at container start and js/components/leo-chat.js
+    // is dead code: neither belongs in a bundle.
+    expect(sources).not.toContain('config.js');
+    expect(sources).not.toContain('js/components/leo-chat.js');
   });
 
   // A stray `*/` inside the header comment once ended it early and turned the

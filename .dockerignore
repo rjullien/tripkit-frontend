@@ -1,0 +1,10 @@
+# Le build stage fait `COPY . .` : sans ça node_modules (~200 Mo) et un js/dist
+# local périmé partiraient dans l'image. js/dist est TOUJOURS régénéré par
+# `node scripts/build-bundles.mjs` dans le stage de build.
+node_modules
+.git
+.github
+.agents
+test-results
+playwright-report
+js/dist
