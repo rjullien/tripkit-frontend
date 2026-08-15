@@ -108,8 +108,8 @@ test.describe('Onglet Plus — refresh au retour dans l\'app', () => {
     expect(calls.warmTripAssets).toBeGreaterThanOrEqual(1);
     // backgroundSyncTrip enchaîne sur flushOutbox par sa liaison interne
     // (js/api.js), non interceptable depuis la page : c'est backgroundSyncTrip
-    // qui garantit le flush de l'outbox à chaque reprise.
-    expect(calls.flushOutbox).toBeGreaterThanOrEqual(0);
+    // qui garantit le flush de l'outbox à chaque reprise. On ne l'assert donc
+    // pas ici : le compteur resterait à 0 même quand le flush a bien lieu.
     // …et toujours aucun repaint parasite
     await expect(page.locator(MARKER)).toHaveCount(1);
   });
