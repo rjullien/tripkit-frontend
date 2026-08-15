@@ -707,6 +707,45 @@ var API = (() => {
     });
   }
 
+  // ── Construction checks ────────────────────────────────────────────────────
+
+  async function runQA(tripId) {
+    return requestJSON(`/trips/${encodeURIComponent(tripId)}/construction/qa`, {
+      method: 'POST',
+      body: '{}',
+      timeoutMs: 30000,
+    });
+  }
+
+  async function runAdminCheck(tripId) {
+    return requestJSON(`/trips/${encodeURIComponent(tripId)}/admin-check`, {
+      method: 'POST',
+      body: '{}',
+      timeoutMs: 30000,
+    });
+  }
+
+  async function runHealthCheck(tripId) {
+    return requestJSON(`/trips/${encodeURIComponent(tripId)}/health-check`, {
+      method: 'POST',
+      body: '{}',
+      timeoutMs: 30000,
+    });
+  }
+
+  async function runNuisanceCheck(tripId, locationIds) {
+    const body = locationIds ? { locationIds } : { all: true };
+    return requestJSON(`/trips/${encodeURIComponent(tripId)}/nuisance-check`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+      timeoutMs: 30000,
+    });
+  }
+
+  async function getNuisanceCheck(tripId) {
+    return requestJSON(`/trips/${encodeURIComponent(tripId)}/nuisance-check`);
+  }
+
   // ── Discovery ─────────────────────────────────────────────────────────────
 
   async function getDiscoveryThemes(tripId) {
@@ -793,6 +832,7 @@ var API = (() => {
     getPolarstepsStatus, getPolarstepsCaption, postPolarstepsCaption,
     getDiscoveryThemes, getDiscoveryResults, postDiscoverySearch,
     getTravelProfile, getConstruction, transitionPhase, createProfileRequest,
+    runQA, runAdminCheck, runHealthCheck, runNuisanceCheck, getNuisanceCheck,
     assetUrl, getBaseUrl, warmTripAssets,
     probe, isReachable, getReachability, onReachabilityChange,
   };

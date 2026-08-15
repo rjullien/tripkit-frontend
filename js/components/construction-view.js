@@ -359,6 +359,304 @@ var ConstructionView = (() => {
     }
   }
 
+  // ── ActionBar (checks: QA, Nuisances, Admin, Sante) ──────────────────────
+
+  function renderActionBar() {
+    return `<div class="construction-action-bar" id="construction-action-bar">
+      <h3>Verifications</h3>
+      <div class="action-bar-buttons">
+        <button class="btn btn-sm action-bar-btn" id="action-qa" data-action="qa">QA</button>
+        <button class="btn btn-sm action-bar-btn" id="action-nuisances" data-action="nuisances">Nuisances</button>
+        <button class="btn btn-sm action-bar-btn" id="action-admin" data-action="admin">Admin</button>
+        <button class="btn btn-sm action-bar-btn" id="action-sante" data-action="sante">Sante</button>
+      </div>
+      <div id="action-bar-results"></div>
+    </div>`;
+  }
+
+  function bindActionBar(tripId) {
+    const qaBtn = document.getElementById('action-qa');
+    const nuiBtn = document.getElementById('action-nuisances');
+    const adminBtn = document.getElementById('action-admin');
+    const santeBtn = document.getElementById('action-sante');
+
+    if (qaBtn) qaBtn.addEventListener('click', () => handleQA(tripId));
+    if (nuiBtn) nuiBtn.addEventListener('click', () => handleNuisances(tripId));
+    if (adminBtn) adminBtn.addEventListener('click', () => handleAdmin(tripId));
+    if (santeBtn) santeBtn.addEventListener('click', () => handleSante(tripId));
+  }
+
+  function setButtonLoading(btnId, loading) {
+    const btn = document.getElementById(btnId);
+    if (!btn) return;
+    if (loading) {
+      btn.disabled = true;
+      btn._origText = btn.textContent;
+      btn.textContent = '...';
+    } else {
+      btn.disabled = false;
+      btn.textContent = btn._origText || btn.textContent;
+    }
+  }
+
+  function showResults(html) {
+    const el = document.getElementById('action-bar-results');
+    if (el) el.innerHTML = html;
+  }
+
+  // ── QA check ──
+
+  async function handleQA(tripId) {
+    setButtonLoading('action-qa', true);
+    const res = await API.runQA(tripId);
+    setButtonLoading('action-qa', false);
+
+    if (!res.ok) {
+      showResults(`<div class="construction-error">Erreur QA : ${esc(res.error || 'HTTP ' + res.status)}</div>`);
+      return;
+    }
+
+    const data = res.data;
+    const items = Array.isArray(data) ? data : (data && Array.isArray(data.results) ? data.results : []);
+
+    if (!items.length) {
+      showResults(`<div class="action-result-ok">Aucun probleme detecte</div>`);
+      return;
+    }
+
+    // Sort: red (blocker) first, then yellow (warning), then rest
+    const severityOrder = { blocker: 0, red: 0, error: 0, warning: 1, yellow: 1, info: 2 };
+    items.sort((a, b) => {
+      const sa = severityOrder[String(a.severity || '').toLowerCase()] ?? 3;
+      const sb = severityOrder[String(b.severity || '').toLowerCase()] ?? 3;
+      return sa - sb;
+    });
+
+    let html = '<div class="action-results-qa">';
+    html += `<div class="action-results-header">QA : ${items.length} probleme${items.length > 1 ? 's' : ''}</div>`;
+    items.forEach(item => {
+      const sev = String(item.severity || 'info').toLowerCase();
+      const cls = (sev === 'blocker' || sev === 'red' || sev === 'error') ? 'qa-red'
+        : (sev === 'warning' || sev === 'yellow') ? 'qa-yellow' : 'qa-info';
+      const badge = cls === 'qa-red' ? '🔴' : cls === 'qa-yellow' ? '🟡' : 'ℹ️';
+      html += `<div class="qa-item ${cls}">`;
+      html += `<span class="qa-badge">${badge}</span>`;
+      html += `<span class="qa-code">${esc(item.code || '')}</span>`;
+      if (item.dayNum != null) html += ` <span class="qa-day">J${item.dayNum}</span>`;
+      html += `<div class="qa-msg">${esc(item.message || item.msg || '')}</div>`;
+      html += `</div>`;
+    });
+    html += '</div>';
+    showResults(html);
+  }
+
+  // ── Nuisances check ──
+
+  async function handleNuisances(tripId, locationIds) {
+    const btnId = 'action-nuisances';
+    setButtonLoading(btnId, true);
+    const res = await API.runNuisanceCheck(tripId, locationIds || null);
+    setButtonLoading(btnId, false);
+
+    if (!res.ok) {
+      showResults(`<div class="construction-error">Erreur nuisances : ${esc(res.error || 'HTTP ' + res.status)}</div>`);
+      return;
+    }
+
+    const data = res.data;
+
+    // If job-based (async), subscribe to SSE stream
+    if (data && data.jobId) {
+      showResults(`<div class="action-result-loading" id="nuisance-progress">Analyse en cours...</div>`);
+      subscribeNuisanceJob(data.jobId, tripId);
+      return;
+    }
+
+    // Synchronous result
+    renderNuisanceResults(data);
+  }
+
+  async function subscribeNuisanceJob(jobId, tripId) {
+    const progressEl = document.getElementById('nuisance-progress');
+    try {
+      for await (const frame of API.leoJobStream(jobId, 0)) {
+        if (frame.event === 'done') {
+          // Fetch final results
+          const final = await API.getNuisanceCheck(tripId);
+          if (final.ok) {
+            renderNuisanceResults(final.data);
+          } else {
+            showResults(`<div class="action-result-ok">Analyse terminee</div>`);
+          }
+          return;
+        }
+        if (frame.event === 'error') {
+          const errMsg = (frame.data && frame.data.error) || 'Erreur lors de l\'analyse';
+          showResults(`<div class="construction-error">${esc(errMsg)}</div>`);
+          return;
+        }
+        // Progress
+        if (frame.event === 'delta' || frame.event === 'progress') {
+          const text = (frame.data && (frame.data.text || frame.data.location || frame.data.message)) || '';
+          if (progressEl && text) {
+            progressEl.textContent = 'Analyse : ' + text;
+          }
+        }
+      }
+    } catch (e) {
+      showResults(`<div class="construction-error">Connexion perdue. Reessaie.</div>`);
+    }
+  }
+
+  function renderNuisanceResults(data) {
+    if (!data) {
+      showResults(`<div class="action-result-ok">Aucune donnee nuisance</div>`);
+      return;
+    }
+
+    const locations = Array.isArray(data) ? data : (data.locations || data.results || []);
+    const verdict = data.verdict || '';
+
+    let html = '<div class="action-results-nuisance">';
+    if (verdict) {
+      const vcls = /bad|high|severe/i.test(verdict) ? 'verdict-bad'
+        : /ok|low|good/i.test(verdict) ? 'verdict-ok' : 'verdict-moderate';
+      html += `<div class="nuisance-verdict ${vcls}">${esc(verdict)}</div>`;
+    }
+
+    if (!locations.length && !verdict) {
+      showResults(`<div class="action-result-ok">Aucune nuisance detectee</div>`);
+      return;
+    }
+
+    locations.forEach(loc => {
+      const name = loc.name || loc.locationId || loc.location || '';
+      html += `<div class="nuisance-location">`;
+      html += `<div class="nuisance-loc-name">${esc(name)}</div>`;
+
+      const categories = loc.categories || loc.nuisances || [];
+      if (Array.isArray(categories)) {
+        categories.forEach(cat => {
+          const emoji = cat.emoji || categoryEmoji(cat.category || cat.name || '');
+          const level = cat.level || cat.severity || '';
+          const distance = cat.distance || '';
+          const detail = cat.detail || cat.description || '';
+          html += `<div class="nuisance-cat">`;
+          html += `<span class="nuisance-emoji">${emoji}</span>`;
+          html += `<span class="nuisance-cat-name">${esc(cat.category || cat.name || '')}</span>`;
+          if (level) html += ` <span class="nuisance-level">${esc(level)}</span>`;
+          if (distance) html += ` <span class="nuisance-distance">${esc(distance)}</span>`;
+          if (detail) html += `<div class="nuisance-detail">${esc(detail)}</div>`;
+          html += `</div>`;
+        });
+      }
+      html += `</div>`;
+    });
+    html += '</div>';
+    showResults(html);
+  }
+
+  function categoryEmoji(cat) {
+    const c = String(cat).toLowerCase();
+    if (/bruit|noise/i.test(c)) return '🔊';
+    if (/pollution|air/i.test(c)) return '💨';
+    if (/construction|travaux/i.test(c)) return '🚧';
+    if (/traffic|trafic/i.test(c)) return '🚗';
+    if (/insect|moustique/i.test(c)) return '🦟';
+    if (/odeur|smell/i.test(c)) return '👃';
+    return '⚠️';
+  }
+
+  // ── Admin check ──
+
+  async function handleAdmin(tripId) {
+    setButtonLoading('action-admin', true);
+    const res = await API.runAdminCheck(tripId);
+    setButtonLoading('action-admin', false);
+
+    if (!res.ok) {
+      showResults(`<div class="construction-error">Erreur admin : ${esc(res.error || 'HTTP ' + res.status)}</div>`);
+      return;
+    }
+
+    const data = res.data;
+    const travelers = Array.isArray(data) ? data : (data && Array.isArray(data.travelers) ? data.travelers : (data && data.results ? data.results : []));
+
+    if (!travelers.length) {
+      showResults(`<div class="action-result-ok">Aucune verification admin requise</div>`);
+      return;
+    }
+
+    let html = '<div class="action-results-admin">';
+    html += `<div class="action-results-header">Admin : ${travelers.length} voyageur${travelers.length > 1 ? 's' : ''}</div>`;
+    travelers.forEach(traveler => {
+      const name = traveler.name || traveler.traveler || '';
+      html += `<div class="admin-traveler">`;
+      html += `<div class="admin-traveler-name">${esc(name)}</div>`;
+      const checks = traveler.checks || traveler.items || traveler.countries || [];
+      if (Array.isArray(checks)) {
+        checks.forEach(chk => {
+          const status = chk.status || chk.state || '';
+          const badge = /ok|done|valid/i.test(status) ? '✅'
+            : /warning|attention/i.test(status) ? '⚠️'
+            : /action|needed|missing/i.test(status) ? '🔴' : '❓';
+          const label = chk.label || chk.country || chk.document || chk.name || '';
+          const detail = chk.detail || chk.note || '';
+          html += `<div class="admin-check-item">`;
+          html += `<span class="admin-badge">${badge}</span>`;
+          html += `<span class="admin-label">${esc(label)}</span>`;
+          if (status) html += ` <span class="admin-status">${esc(status)}</span>`;
+          if (detail) html += `<div class="admin-detail">${esc(detail)}</div>`;
+          html += `</div>`;
+        });
+      }
+      html += `</div>`;
+    });
+    html += '</div>';
+    showResults(html);
+  }
+
+  // ── Health check ──
+
+  async function handleSante(tripId) {
+    setButtonLoading('action-sante', true);
+    const res = await API.runHealthCheck(tripId);
+    setButtonLoading('action-sante', false);
+
+    if (!res.ok) {
+      showResults(`<div class="construction-error">Erreur sante : ${esc(res.error || 'HTTP ' + res.status)}</div>`);
+      return;
+    }
+
+    const data = res.data;
+    const recommendations = Array.isArray(data) ? data
+      : (data && Array.isArray(data.recommendations) ? data.recommendations
+        : (data && Array.isArray(data.results) ? data.results : []));
+
+    if (!recommendations.length) {
+      showResults(`<div class="action-result-ok">Aucun conseil necessaire</div>`);
+      return;
+    }
+
+    let html = '<div class="action-results-health">';
+    html += `<div class="action-results-header">Sante : ${recommendations.length} conseil${recommendations.length > 1 ? 's' : ''}</div>`;
+    recommendations.forEach(rec => {
+      const title = rec.title || rec.name || rec.country || '';
+      const detail = rec.detail || rec.description || rec.recommendation || '';
+      const severity = rec.severity || rec.level || '';
+      const badge = /obligatoire|required|high/i.test(severity) ? '🔴'
+        : /recommand|suggested|medium/i.test(severity) ? '🟡' : '💚';
+      html += `<div class="health-item">`;
+      html += `<span class="health-badge">${badge}</span>`;
+      html += `<span class="health-title">${esc(title)}</span>`;
+      if (severity) html += ` <span class="health-severity">${esc(severity)}</span>`;
+      if (detail) html += `<div class="health-detail">${esc(detail)}</div>`;
+      html += `</div>`;
+    });
+    html += '</div>';
+    showResults(html);
+  }
+
   // ── GuidedForm ──────────────────────────────────────────────────────────────
 
   function renderGuidedForm() {
@@ -448,18 +746,21 @@ var ConstructionView = (() => {
       return;
     }
 
-    // Build layout: PhaseBar, TravelerContextBox, GuidedForm, Leo chat, ActionBar placeholder
+    // Build layout: PhaseBar, TravelerContextBox, GuidedForm, Leo chat, ActionBar
     container.innerHTML = `
       <div class="page-header"><h1>🏗️ Mode Construction</h1></div>
       ${renderPhaseBarLoading()}
       ${renderContextLoading()}
       ${renderGuidedForm()}
       <div id="construction-leo-section"></div>
-      <div id="construction-action-bar"></div>
+      ${renderActionBar()}
     `;
 
     // Bind guided form submit
     bindGuidedForm();
+
+    // Bind ActionBar check buttons
+    bindActionBar(tripId);
 
     // Load async data
     loadPhaseBar(tripId);
@@ -483,5 +784,5 @@ var ConstructionView = (() => {
     }
   }
 
-  return { render };
+  return { render, handleNuisances };
 })();

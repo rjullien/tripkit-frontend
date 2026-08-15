@@ -405,6 +405,9 @@ var BookingsView = (() => {
   function renderHotelsSection(tripData) {
     if (!tripData || !tripData.days) return '';
 
+    const tripId = (typeof Store !== 'undefined' && Store.getCurrentTripId)
+      ? Store.getCurrentTripId() : null;
+
     let body = '';
     const seen = new Set();
     const days = tripData.days.map(d => (typeof DayHelpers !== 'undefined' ? DayHelpers.enrich(d, tripData) : d));
@@ -438,6 +441,17 @@ var BookingsView = (() => {
       // day.day is already the calendar day index (0 = veille, 1 = startDate)
       body += `<div class="booking-hotel-day">Jour ${day.day} · ${esc(headerDate)} — ${esc(headerCity)}</div>`;
       body += HotelCard.render(hotelData);
+
+      // Nuisance check button per hotel
+      const locId = day.locationId || key;
+      if (locId) {
+        body += `<div class="hotel-nuisance-action" style="margin:-4px 0 12px;padding:0 12px">
+          <button class="btn btn-sm hotel-nuisance-btn" data-location-id="${esc(locId)}" data-trip-id="${esc(tripId || '')}">
+            ⚠️ Nuisances
+          </button>
+          <div class="hotel-nuisance-result" data-loc="${esc(locId)}"></div>
+        </div>`;
+      }
     });
 
     if (!body) return '';
@@ -480,6 +494,107 @@ var BookingsView = (() => {
     }
 
     container.innerHTML = html;
+
+    // Bind hotel nuisance buttons
+    bindHotelNuisanceButtons(container);
+  }
+
+  function bindHotelNuisanceButtons(container) {
+    if (!container) return;
+    container.querySelectorAll('.hotel-nuisance-btn').forEach(btn => {
+      if (btn.dataset.bound === '1') return;
+      btn.dataset.bound = '1';
+      btn.addEventListener('click', async () => {
+        const locId = btn.dataset.locationId;
+        const tripId = btn.dataset.tripId || (typeof Store !== 'undefined' && Store.getCurrentTripId ? Store.getCurrentTripId() : null);
+        if (!locId || !tripId) return;
+
+        const resultEl = btn.parentElement.querySelector('.hotel-nuisance-result');
+        btn.disabled = true;
+        btn.textContent = '...';
+
+        const res = await API.runNuisanceCheck(tripId, [locId]);
+
+        btn.disabled = false;
+        btn.textContent = '⚠️ Nuisances';
+
+        if (!res.ok) {
+          if (resultEl) resultEl.innerHTML = `<div class="construction-error" style="font-size:.82em;margin-top:6px">${esc(res.error || 'Erreur')}</div>`;
+          return;
+        }
+
+        const data = res.data;
+
+        // If job-based, subscribe
+        if (data && data.jobId) {
+          if (resultEl) resultEl.innerHTML = `<div style="font-size:.82em;margin-top:6px;color:var(--muted)">Analyse en cours...</div>`;
+          subscribeHotelNuisanceJob(data.jobId, tripId, locId, resultEl);
+          return;
+        }
+
+        renderHotelNuisanceResult(data, resultEl);
+      });
+    });
+  }
+
+  async function subscribeHotelNuisanceJob(jobId, tripId, locId, resultEl) {
+    try {
+      for await (const frame of API.leoJobStream(jobId, 0)) {
+        if (frame.event === 'done') {
+          const final = await API.getNuisanceCheck(tripId);
+          if (final.ok) {
+            renderHotelNuisanceResult(final.data, resultEl, locId);
+          } else if (resultEl) {
+            resultEl.innerHTML = `<div style="font-size:.82em;margin-top:6px;color:var(--green)">Analyse terminee</div>`;
+          }
+          return;
+        }
+        if (frame.event === 'error') {
+          if (resultEl) resultEl.innerHTML = `<div class="construction-error" style="font-size:.82em;margin-top:6px">${esc((frame.data && frame.data.error) || 'Erreur')}</div>`;
+          return;
+        }
+        if ((frame.event === 'delta' || frame.event === 'progress') && resultEl) {
+          const text = (frame.data && (frame.data.text || frame.data.message)) || '';
+          if (text) resultEl.innerHTML = `<div style="font-size:.82em;margin-top:6px;color:var(--muted)">${esc(text)}</div>`;
+        }
+      }
+    } catch (e) {
+      if (resultEl) resultEl.innerHTML = `<div class="construction-error" style="font-size:.82em;margin-top:6px">Connexion perdue</div>`;
+    }
+  }
+
+  function renderHotelNuisanceResult(data, resultEl, filterLocId) {
+    if (!resultEl) return;
+    if (!data) {
+      resultEl.innerHTML = `<div style="font-size:.82em;margin-top:6px;color:var(--green)">Aucune nuisance</div>`;
+      return;
+    }
+
+    let locations = Array.isArray(data) ? data : (data.locations || data.results || []);
+    if (filterLocId) {
+      locations = locations.filter(l => (l.locationId || l.location || '') === filterLocId || (l.name || '') === filterLocId);
+    }
+
+    if (!locations.length) {
+      const verdict = data.verdict || '';
+      resultEl.innerHTML = `<div style="font-size:.82em;margin-top:6px;color:var(--green)">${verdict ? esc(verdict) : 'Aucune nuisance detectee'}</div>`;
+      return;
+    }
+
+    let html = '<div style="font-size:.82em;margin-top:6px">';
+    locations.forEach(loc => {
+      const cats = loc.categories || loc.nuisances || [];
+      if (Array.isArray(cats)) {
+        cats.forEach(cat => {
+          const emoji = cat.emoji || '⚠️';
+          const name = cat.category || cat.name || '';
+          const level = cat.level || cat.severity || '';
+          html += `<div style="margin:2px 0">${emoji} ${esc(name)}${level ? ' — ' + esc(level) : ''}</div>`;
+        });
+      }
+    });
+    html += '</div>';
+    resultEl.innerHTML = html;
   }
 
   return {

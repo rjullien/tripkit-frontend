@@ -558,6 +558,12 @@ var App = (() => {
       <div class="section-body hidden plus-docs-body" id="plus-experimental-body">
         <div id="plus-chat-stream"></div>
         <div id="plus-edge-chat-stream"></div>
+        <div style="margin-top:12px;padding:12px;background:var(--card);border-radius:var(--radius)">
+          <button class="btn btn-sm" id="plus-nuisance-all" style="width:100%;background:var(--accent);color:#000;font-weight:600">
+            ⚠️ Analyse nuisances (tous les hotels)
+          </button>
+          <div id="plus-nuisance-result" style="margin-top:8px"></div>
+        </div>
       </div>
     </div>`;
 
@@ -665,6 +671,7 @@ var App = (() => {
       BookingsView.bindDocumentsCollapse(container);
     }
     bindExperimentalCollapse(container);
+    bindPlusNuisanceButton();
 
     // Trip list first, then GH publish (uses Store trips to mark « my » families).
     const selectorEl = document.getElementById('plus-trip-selector');
@@ -730,6 +737,106 @@ var App = (() => {
         toggle();
       }
     });
+  }
+
+  function bindPlusNuisanceButton() {
+    const btn = document.getElementById('plus-nuisance-all');
+    if (!btn || btn.dataset.bound === '1') return;
+    btn.dataset.bound = '1';
+    btn.addEventListener('click', async () => {
+      const tripId = Store.getCurrentTripId();
+      if (!tripId) return;
+      const resultEl = document.getElementById('plus-nuisance-result');
+
+      btn.disabled = true;
+      btn.textContent = '...';
+
+      const res = await API.runNuisanceCheck(tripId, null);
+
+      btn.disabled = false;
+      btn.textContent = '⚠️ Analyse nuisances (tous les hotels)';
+
+      if (!res.ok) {
+        if (resultEl) resultEl.innerHTML = `<div class="construction-error" style="font-size:.82em">${esc(res.error || 'Erreur')}</div>`;
+        return;
+      }
+
+      const data = res.data;
+
+      if (data && data.jobId) {
+        if (resultEl) resultEl.innerHTML = `<div style="font-size:.82em;color:var(--muted)" id="plus-nuisance-progress">Analyse en cours...</div>`;
+        subscribePlusNuisanceJob(data.jobId, tripId);
+        return;
+      }
+
+      renderPlusNuisanceResult(data);
+    });
+  }
+
+  async function subscribePlusNuisanceJob(jobId, tripId) {
+    const resultEl = document.getElementById('plus-nuisance-result');
+    try {
+      for await (const frame of API.leoJobStream(jobId, 0)) {
+        if (frame.event === 'done') {
+          const final = await API.getNuisanceCheck(tripId);
+          if (final.ok) {
+            renderPlusNuisanceResult(final.data);
+          } else if (resultEl) {
+            resultEl.innerHTML = `<div style="font-size:.82em;color:var(--green)">Analyse terminee</div>`;
+          }
+          return;
+        }
+        if (frame.event === 'error') {
+          if (resultEl) resultEl.innerHTML = `<div class="construction-error" style="font-size:.82em">${esc((frame.data && frame.data.error) || 'Erreur')}</div>`;
+          return;
+        }
+        if ((frame.event === 'delta' || frame.event === 'progress') && resultEl) {
+          const text = (frame.data && (frame.data.text || frame.data.message)) || '';
+          if (text) {
+            const progressEl = document.getElementById('plus-nuisance-progress') || resultEl;
+            progressEl.textContent = text;
+          }
+        }
+      }
+    } catch (e) {
+      if (resultEl) resultEl.innerHTML = `<div class="construction-error" style="font-size:.82em">Connexion perdue</div>`;
+    }
+  }
+
+  function renderPlusNuisanceResult(data) {
+    const resultEl = document.getElementById('plus-nuisance-result');
+    if (!resultEl) return;
+    if (!data) {
+      resultEl.innerHTML = `<div style="font-size:.82em;color:var(--green)">Aucune nuisance detectee</div>`;
+      return;
+    }
+
+    const locations = Array.isArray(data) ? data : (data.locations || data.results || []);
+    const verdict = data.verdict || '';
+
+    let html = '<div style="font-size:.82em">';
+    if (verdict) {
+      html += `<div style="font-weight:600;margin-bottom:4px">${esc(verdict)}</div>`;
+    }
+    if (!locations.length && !verdict) {
+      resultEl.innerHTML = `<div style="font-size:.82em;color:var(--green)">Aucune nuisance detectee</div>`;
+      return;
+    }
+    locations.forEach(loc => {
+      const name = loc.name || loc.locationId || loc.location || '';
+      html += `<div style="margin-top:6px;font-weight:600">${esc(name)}</div>`;
+      const cats = loc.categories || loc.nuisances || [];
+      if (Array.isArray(cats)) {
+        cats.forEach(cat => {
+          const emoji = cat.emoji || '⚠️';
+          const catName = cat.category || cat.name || '';
+          const level = cat.level || cat.severity || '';
+          html += `<div style="margin:2px 0 2px 8px">${emoji} ${esc(catName)}${level ? ' — ' + esc(level) : ''}</div>`;
+        });
+      }
+    });
+    html += '</div>';
+    resultEl.innerHTML = html;
   }
 
   function formatBackendVersion(v) {
