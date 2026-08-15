@@ -5,7 +5,7 @@
  * Bump CACHE_NAME when deploying new shell versions.
  */
 
-const CACHE_NAME = 'tripkit-122';
+const CACHE_NAME = 'tripkit-123';
 
 
 const ASSETS = [
@@ -22,8 +22,12 @@ const ASSETS = [
   // The shell's JS is now 3 generated bundles instead of 31 individual files:
   // scripts/build-bundles.mjs concatenates the sources listed in bundles.json.
   // bundle-edge is NOT in index.html anymore: App injects it on demand on the
-  // first Plus render (ensureEdgeBundle in js/app.js). It stays precached here —
-  // that is what keeps the Léo / Bifrost / local-AI panels usable offline.
+  // first Plus render (ensureEdgeBundle in js/app.js). It stays precached here so
+  // the Léo / Bifrost / local-AI panels survive offline even for a user who never
+  // opened the Plus tab while online. Careful: what the page requests is
+  // `bundle-edge.js?v=<cache>` (cache-buster), while this list precaches the bare
+  // path — the offline lookups below therefore retry with `ignoreSearch`, without
+  // which the precached entry would never be hit and those panels would be lost.
   '/js/dist/bundle-core.js',
   '/js/dist/bundle-components.js',
   '/js/dist/bundle-edge.js',
@@ -64,6 +68,23 @@ self.addEventListener('activate', event => {
   self.clients.claim();
 });
 
+/**
+ * Cache lookup for a shell asset: exact URL first, then the same path with the
+ * query string ignored. The shell is served with a `?v=<cache>` buster injected
+ * by the Dockerfile (and by App.ensureEdgeBundle for bundle-edge), while ASSETS
+ * precaches bare paths: without the second attempt, a precached-but-never-fetched
+ * asset (typically /js/dist/bundle-edge.js) is a miss offline.
+ * API responses never reach this helper (they return early in the fetch handler),
+ * and trip assets keep an exact-match cacheFirst so the dev « no cache images »
+ * buster still bypasses the cache.
+ */
+function matchShell(request) {
+  return caches.match(request).then(cached => {
+    if (cached) return cached;
+    return caches.match(request, { ignoreSearch: true });
+  });
+}
+
 function cacheFirst(request) {
   return caches.open(CACHE_NAME).then(cache =>
     cache.match(request).then(cached => {
@@ -92,7 +113,7 @@ function networkFirstShell(request) {
       return response;
     })
     .catch(() =>
-      caches.match(request).then(cached => {
+      matchShell(request).then(cached => {
         if (cached) return cached;
         if (request.mode === 'navigate') {
           return caches.match('/index.html');
@@ -129,7 +150,7 @@ self.addEventListener('fetch', event => {
   // Offline: never wait on a hung network for the app shell
   if (!self.navigator.onLine) {
     event.respondWith(
-      caches.match(event.request).then(cached => {
+      matchShell(event.request).then(cached => {
         if (cached) return cached;
         if (event.request.mode === 'navigate') {
           return caches.match('/index.html');

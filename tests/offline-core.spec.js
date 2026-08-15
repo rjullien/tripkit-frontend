@@ -51,8 +51,12 @@ test.describe('SW precache list', () => {
     expect(text).toContain('/js/dist/bundle-core.js');
     expect(text).toContain('/js/dist/bundle-components.js');
     expect(text).toContain('/js/dist/bundle-edge.js');
-    expect(text).toContain('tripkit-122');
+    expect(text).toContain('tripkit-123');
     expect(text).toContain("url.origin !== self.location.origin");
+    // Le shell est demandé avec ?v=<cache> alors qu'ASSETS précache les chemins
+    // nus : sans ce repli, bundle-edge (jamais demandé au boot) serait perdu hors
+    // ligne. Détail et régression : tests/sw-offline.test.cjs.
+    expect(text).toContain('ignoreSearch: true');
     expect(text).not.toContain('/js/components/leo-chat.js');
     // Wllama runtime (~300 Ko) is opt-in: it must NOT be in the install precache.
     expect(text).not.toContain("'/js/lib/wllama/index.min.js'");
@@ -96,6 +100,53 @@ test.describe('SW precache list', () => {
       return reg && reg.active ? 'active' : 'not-active';
     });
     expect(state).toBe('active');
+  });
+});
+
+test.describe('bundle-edge hors ligne', () => {
+  // Scénario réel de la régression : boot en ligne, l'utilisateur ne va JAMAIS
+  // dans l'onglet Plus (donc bundle-edge n'est jamais demandé), puis il perd le
+  // réseau. Seul le précache peut alors le servir — et l'URL demandée porte le
+  // cache-buster que la liste de précache n'a pas.
+  test('servi depuis le précache après un boot sans ouvrir Plus', async ({ page, context }) => {
+    await page.goto('/');
+    await page.waitForSelector('.bottom-nav', { timeout: 8000 });
+
+    const cached = await page.evaluate(async () => {
+      await navigator.serviceWorker.register('/sw.js');
+      await navigator.serviceWorker.ready;
+      // Attendre la fin du précache (install → cache.add un par un).
+      for (let i = 0; i < 80; i++) {
+        const hit = await caches.match('/js/dist/bundle-edge.js');
+        // Le worker doit aussi contrôler la page, sinon le fetch hors ligne
+        // partirait sur le réseau sans passer par lui.
+        if (hit && navigator.serviceWorker.controller) return true;
+        await new Promise(r => setTimeout(r, 100));
+      }
+      return false;
+    });
+    expect(cached, 'bundle-edge n\'est pas arrivé dans le précache').toBe(true);
+
+    await context.setOffline(true);
+
+    const res = await page.evaluate(async () => {
+      // Exactement ce qu'injecte App.ensureEdgeBundle : chemin + cache-buster.
+      const cache = await fetch('/version.json').then(r => r.json()).then(v => v.cache).catch(() => 163);
+      const r = await fetch('js/dist/bundle-edge.js?v=' + cache);
+      const body = r.status === 200 ? await r.text() : '';
+      return {
+        status: r.status,
+        head: body.slice(0, 120),
+        hasEdgeChat: body.includes('var EdgeChatStream'),
+        hasEngine: body.includes('js/edge-model/engine.js'),
+      };
+    });
+
+    expect(res.status, 'bundle-edge est injoignable hors ligne : Léo / Bifrost / Local seraient vides').toBe(200);
+    // …et c'est bien bundle-edge qui est servi, pas un autre bundle.
+    expect(res.head).toContain('bundle-edge.js');
+    expect(res.hasEngine).toBe(true);
+    expect(res.hasEdgeChat).toBe(true);
   });
 });
 
