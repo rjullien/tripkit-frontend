@@ -236,6 +236,7 @@ var App = (() => {
     if (!verRes.ok || !verRes.data) {
       console.debug('[App] Version check failed for', tripId, verRes.status || verRes.error);
       // Keep current trip usable offline / when backend is flaky
+      if (hasLocal) await syncConstructionData(tripId);
       return hasLocal ? 'unchanged' : false;
     }
     const ver = verRes.data;
@@ -245,12 +246,16 @@ var App = (() => {
     // A leftover *-data-version without tk-trip-* must NOT skip (boot would stall).
     if (hasLocal && cachedVersion && String(cachedVersion) === String(ver.version)) {
       console.debug('[App] Data up to date (v' + ver.version + ') — skip refresh');
+      await syncConstructionData(tripId);
       return 'unchanged';
     }
 
     console.log('[App] Fetching seed:', tripId, 'version', cachedVersion, '→', ver.version);
     const seed = await API.fetchSeed(tripId);
-    if (!seed) return hasLocal ? 'unchanged' : false;
+    if (!seed) {
+      if (hasLocal) await syncConstructionData(tripId);
+      return hasLocal ? 'unchanged' : false;
+    }
 
     const tripData = SeedMerge.merge(seed, Store.getTripData(tripId) || {});
     Store.registerTrip(tripId);
@@ -260,6 +265,7 @@ var App = (() => {
     Store.set(tripId + '-data-version', ver.version);
     console.log('[App] Backend data refreshed:', tripId, tripData.days?.length, 'days, version:', ver.version);
     if (typeof API.warmTripAssets === 'function') API.warmTripAssets(tripId, tripData);
+    await syncConstructionData(tripId);
     return 'updated';
   }
 
@@ -1298,6 +1304,26 @@ var App = (() => {
     btn.style.display = enabled ? '' : 'none';
   }
 
+  /**
+   * Toggle Plus = préférence utilisateur (inchangé). Les *données* Construction
+   * (phase, lastQA) viennent du voyage chargé : seed + GET /construction.
+   */
+  async function syncConstructionData(tripId) {
+    tripId = tripId || (typeof Store !== 'undefined' && Store.getCurrentTripId && Store.getCurrentTripId());
+    if (!tripId || typeof API === 'undefined' || !API.getConstruction) return;
+    const res = await API.getConstruction(tripId);
+    if (!res || !res.ok || !res.data) return;
+    const td = Store.getTripData(tripId);
+    if (td) {
+      td.trip = td.trip || {};
+      td.trip.construction = Object.assign({}, td.trip.construction, res.data);
+      Store.setTripData(tripId, td);
+    }
+    if (currentTab === 'construction' && typeof ConstructionView !== 'undefined' && ConstructionView.render) {
+      ConstructionView.render('construction-content', Store.getTripData(tripId));
+    }
+  }
+
   function toggleConstructionMode(checked) {
     Store.set('tk-construction-mode', !!checked);
     paintConstructionNav();
@@ -1327,6 +1353,7 @@ var App = (() => {
     toggleNoCache,
     paintConstructionNav,
     toggleConstructionMode,
+    syncConstructionData,
     ensureEdgeBundle,
   };
 })();
