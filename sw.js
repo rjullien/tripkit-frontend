@@ -5,7 +5,7 @@
  * Bump CACHE_NAME when deploying new shell versions.
  */
 
-const CACHE_NAME = 'tripkit-123';
+const CACHE_NAME = 'tripkit-124';
 
 
 const ASSETS = [
@@ -77,12 +77,22 @@ self.addEventListener('activate', event => {
  * API responses never reach this helper (they return early in the fetch handler),
  * and trip assets keep an exact-match cacheFirst so the dev « no cache images »
  * buster still bypasses the cache.
+ *
+ * La recherche est bornée au cache de la release courante. Le global
+ * `caches.match()` parcourait TOUS les caches de l'origine dans leur ordre de
+ * création : comme `install` appelle `skipWaiting()`, le nouveau worker répond
+ * déjà aux fetches pendant que `activate` supprime encore l'ancien cache dans son
+ * `waitUntil`. Sur cette fenêtre d'une à deux secondes, un iPhone hors ligne
+ * demandant `bundle-core.js?v=<nouveau>` tombait en repli `ignoreSearch` sur le
+ * chemin nu de l'ANCIEN cache, donc sur l'ancien bundle.
  */
 function matchShell(request) {
-  return caches.match(request).then(cached => {
-    if (cached) return cached;
-    return caches.match(request, { ignoreSearch: true });
-  });
+  return caches.open(CACHE_NAME).then(cache =>
+    cache.match(request).then(cached => {
+      if (cached) return cached;
+      return cache.match(request, { ignoreSearch: true });
+    })
+  );
 }
 
 function cacheFirst(request) {
@@ -116,7 +126,7 @@ function networkFirstShell(request) {
       matchShell(request).then(cached => {
         if (cached) return cached;
         if (request.mode === 'navigate') {
-          return caches.match('/index.html');
+          return matchShell('/index.html');
         }
         return new Response('Offline', { status: 503 });
       })
@@ -153,7 +163,7 @@ self.addEventListener('fetch', event => {
       matchShell(event.request).then(cached => {
         if (cached) return cached;
         if (event.request.mode === 'navigate') {
-          return caches.match('/index.html');
+          return matchShell('/index.html');
         }
         return new Response('Offline', { status: 503 });
       })

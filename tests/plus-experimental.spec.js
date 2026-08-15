@@ -108,6 +108,79 @@ test.describe('bundle-edge indisponible', () => {
     await expect(page.locator('#plus-leo-chat-stream')).toContainText('Léo', { timeout: 8000 });
     await expect(page.locator('#plus-edge-fallback')).toHaveCount(0);
   });
+
+  // Le cas iPhone : réseau capté mais sans sortie (portail WiFi, 3G morte). La
+  // requête PEND — elle n'échoue pas. `onerror` ne part donc jamais et, sans
+  // plafond, la promesse d'ensureEdgeBundle ne se règle jamais : Léo / Bifrost /
+  // Local restent vides pour toujours, sans même le repli « Réessayer ».
+  test('requête qui pend : le plafond mène au repli, puis « Réessayer »', async ({ page }) => {
+    let hanging = true;
+    const pending = [];
+    await page.route('**/js/dist/bundle-edge.js*', route => {
+      if (!hanging) return route.continue();
+      pending.push(route); // jamais résolue : ni onload ni onerror
+    });
+
+    await page.goto('/');
+    await page.waitForSelector('.bottom-nav', { timeout: 8000 });
+    await page.locator('.bottom-nav button[data-tab="plus"]').click();
+    await page.waitForSelector('#plus-experimental-head', { timeout: 8000 });
+
+    // Le reste de l'onglet ne doit pas attendre le bundle.
+    await expect(page.locator('#plus-content')).toContainText('Infos app');
+
+    // EDGE_BUNDLE_TIMEOUT_MS = 5 s : la marge couvre la lenteur du CI.
+    const fallback = page.locator('#plus-edge-fallback');
+    await expect(fallback).toBeVisible({ timeout: 20000 });
+    await expect(fallback).toContainText('Assistants indisponibles');
+
+    hanging = false;
+    await page.locator('#plus-edge-retry').click();
+    await expect(page.locator('#plus-leo-chat-stream')).toContainText('Léo', { timeout: 8000 });
+    await expect(page.locator('#plus-edge-fallback')).toHaveCount(0);
+
+    for (const route of pending) await route.abort('failed').catch(() => {});
+  });
+
+  // « Effacer données » promet la suppression du modèle hors-ligne (OPFS). Cette
+  // purge passe par EdgeEngine, donc par bundle-edge : quand il ne charge pas, le
+  // dialogue mentait et l'effacement partait quand même sans le GGUF.
+  test('« Effacer données » sans bundle-edge : deuxième confirmation honnête', async ({ page }) => {
+    await page.route('**/js/dist/bundle-edge.js*', route => route.abort('failed'));
+
+    await page.goto('/');
+    await page.waitForSelector('.bottom-nav', { timeout: 8000 });
+    await page.locator('.bottom-nav button[data-tab="plus"]').click();
+    await page.waitForSelector('#plus-edge-fallback', { timeout: 20000 });
+
+    const markersOf = () => page.evaluate(() =>
+      Object.keys(localStorage).filter(k => k.endsWith('-data-version')));
+    const before = await markersOf();
+    expect(before.length, 'le scénario a besoin de données locales à effacer').toBeGreaterThan(0);
+
+    // 1er dialogue accepté, 2e refusé : rien ne doit être effacé.
+    const messages = [];
+    let handler = d => { messages.push(d.message()); messages.length === 1 ? d.accept() : d.dismiss(); };
+    page.on('dialog', d => handler(d));
+
+    await page.locator('#plus-content button:has-text("Effacer données")').click();
+    await expect.poll(() => messages.length, { timeout: 15000 }).toBe(2);
+    expect(messages[0]).toContain('Le modèle hors-ligne (OPFS) sera aussi supprimé');
+    expect(messages[1]).toContain('n\'a pas pu être supprimé');
+    expect(messages[1]).toContain('Effacer quand même');
+    expect(await markersOf(), 'refuser la 2e confirmation ne doit rien effacer').toEqual(before);
+
+    // Même parcours, 2e dialogue accepté cette fois : l'effacement a bien lieu.
+    // Il se termine par un location.reload(), donc le témoin posé sur window
+    // disparaît (et les marqueurs, eux, sont réécrits par le rechargement).
+    await page.evaluate(() => { window.__beforeClearData = 1; });
+    messages.length = 0;
+    handler = d => { messages.push(d.message()); d.accept(); };
+    await page.locator('#plus-content button:has-text("Effacer données")').click();
+    await expect.poll(() => page.evaluate(() => window.__beforeClearData), { timeout: 20000 })
+      .toBeUndefined();
+    expect(messages.length, 'les deux dialogues doivent avoir été présentés').toBe(2);
+  });
 });
 
 test.describe('bundle-components concaténé', () => {

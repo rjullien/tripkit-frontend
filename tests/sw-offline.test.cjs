@@ -27,8 +27,14 @@ function test(name, fn) {
 
 const ORIGIN = 'https://tripkit.test';
 
-/** Fabrique un environnement de service worker jouable. */
-function makeSW({ network }) {
+/**
+ * Fabrique un environnement de service worker jouable.
+ * @param {object} o
+ * @param {object|null} o.network  table chemin -> corps servi, ou null = hors ligne
+ * @param {string} [o.cacheName]   remplace CACHE_NAME pour rejouer une release passée
+ */
+function makeSW({ network, cacheName }) {
+  let net = network; // mutable : goOffline() coupe le réseau après le boot
   const caches = new Map(); // name -> Map<url, {url, body, status}>
   const listeners = {};
 
@@ -37,8 +43,8 @@ function makeSW({ network }) {
 
   const fetchImpl = (req) => {
     const href = urlOf(req);
-    if (!network) return Promise.reject(new Error('offline'));
-    const body = network[pathOf(href)];
+    if (!net) return Promise.reject(new Error('offline'));
+    const body = net[pathOf(href)];
     if (body === undefined) {
       return Promise.resolve({ url: href, status: 404, body: '', clone() { return this; } });
     }
@@ -86,7 +92,7 @@ function makeSW({ network }) {
     skipWaiting: () => {},
     clients: { claim: () => {} },
     location: { origin: ORIGIN },
-    navigator: { onLine: !!network },
+    navigator: { get onLine() { return !!net; } },
     registration: {},
   };
 
@@ -97,8 +103,14 @@ function makeSW({ network }) {
     },
     setTimeout, clearTimeout, Promise,
   };
+  let source = fs.readFileSync('sw.js', 'utf8');
+  if (cacheName) {
+    const patched = source.replace(/const CACHE_NAME = '[^']+'/, `const CACHE_NAME = '${cacheName}'`);
+    assert.notStrictEqual(patched, source, 'CACHE_NAME introuvable dans sw.js');
+    source = patched;
+  }
   vm.createContext(sandbox);
-  vm.runInContext(fs.readFileSync('sw.js', 'utf8'), sandbox, { filename: 'sw.js' });
+  vm.runInContext(source, sandbox, { filename: 'sw.js' });
 
   const dispatch = (type, event) => {
     const fns = listeners[type] || [];
@@ -113,6 +125,13 @@ function makeSW({ network }) {
       dispatch('install', { waitUntil: p => waits.push(p) });
       return Promise.all(waits);
     },
+    /** Comme `activate` : suppression des caches des releases précédentes. */
+    activate() {
+      const waits = [];
+      dispatch('activate', { waitUntil: p => waits.push(p) });
+      return Promise.all(waits);
+    },
+    goOffline() { net = null; },
     /** @returns {Promise<{status:number, body:string}|null>} null = pas de respondWith */
     request(url, extra) {
       let responded = null;
@@ -132,7 +151,13 @@ const NETWORK = {};
 ].forEach(p => { NETWORK[ORIGIN + p] = 'body:' + p; });
 NETWORK[ORIGIN + '/js/dist/bundle-edge.js'] = 'var EdgeChatStream = 1;';
 
+// Le même shell, tel que le servait la release précédente : mêmes chemins, autres
+// contenus. C'est ce qui remplit le cache `tripkit-previous`.
+const STALE_NETWORK = {};
+Object.keys(NETWORK).forEach(href => { STALE_NETWORK[href] = 'ANCIENNE_RELEASE ' + NETWORK[href]; });
+
 const CACHE_BUSTER = '?v=' + JSON.parse(fs.readFileSync('version.json', 'utf8')).cache;
+const CACHE_NAME = (fs.readFileSync('sw.js', 'utf8').match(/const CACHE_NAME = '([^']+)'/) || [])[1];
 
 async function bootOnlineThenOffline() {
   // 1) boot en ligne : le SW précache la liste ASSETS…
@@ -146,6 +171,23 @@ async function bootOnlineThenOffline() {
   offline.caches.clear();
   for (const [name, store] of snapshot) offline.caches.set(name, store);
   return offline;
+}
+
+/**
+ * Fenêtre de bascule de release, hors ligne. `install` appelle `skipWaiting()`, donc
+ * le nouveau worker répond déjà aux fetches pendant qu'`activate` supprime encore
+ * l'ancien cache dans son `waitUntil`. Les deux caches coexistent, l'ancien créé en
+ * premier — c'est-à-dire trouvé en premier par le global `caches.match()`.
+ */
+async function bootDuringActivateWindow() {
+  const previous = makeSW({ network: STALE_NETWORK, cacheName: 'tripkit-previous' });
+  await previous.install();
+
+  const current = makeSW({ network: NETWORK });
+  for (const [name, store] of previous.caches) current.caches.set(name, store);
+  await current.install();
+  current.goOffline(); // iPhone hors ligne, activate pas encore terminé
+  return current;
 }
 
 (async () => {
@@ -201,6 +243,35 @@ async function bootOnlineThenOffline() {
       'la réponse réseau n\'a pas été mise en cache');
   });
 
+  await test('bascule de release hors ligne : le shell vient du cache courant, pas de l\'ancien', async () => {
+    const sw = await bootDuringActivateWindow();
+    assert.strictEqual(sw.caches.size, 2, 'les deux caches doivent coexister sur cette fenêtre');
+    assert.strictEqual([...sw.caches.keys()][0], 'tripkit-previous',
+      'l\'ancien cache doit être le premier créé, sinon le scénario ne prouve rien');
+
+    for (const p of ['/js/dist/bundle-core.js', '/js/dist/bundle-components.js', '/css/theme.css']) {
+      const res = await sw.request(p + CACHE_BUSTER);
+      assert.strictEqual(res.status, 200, p + ' indisponible hors ligne');
+      assert.ok(!String(res.body).includes('ANCIENNE_RELEASE'),
+        p + ' est servi depuis le cache de la release précédente : shell mélangé sur iPhone');
+    }
+  });
+
+  await test('bascule de release hors ligne : la navigation retombe sur le nouvel index.html', async () => {
+    const sw = await bootDuringActivateWindow();
+    const res = await sw.request('/route/inconnue', { mode: 'navigate' });
+    assert.strictEqual(res.status, 200);
+    assert.ok(!String(res.body).includes('ANCIENNE_RELEASE'),
+      'le repli de navigation sert l\'index.html de la release précédente');
+  });
+
+  await test('bascule de release : après activate, il ne reste que le cache courant', async () => {
+    const sw = await bootDuringActivateWindow();
+    await sw.activate();
+    assert.deepStrictEqual([...sw.caches.keys()], [CACHE_NAME],
+      'activate doit supprimer les caches des releases précédentes');
+  });
+
   await test('les assets de voyage gardent une correspondance exacte (mode dev sans cache)', async () => {
     // cacheFirst ne doit PAS ignorer la query : sinon le buster « Mode dev (pas de
     // cache images) » resservirait l'image en cache.
@@ -214,6 +285,19 @@ async function bootOnlineThenOffline() {
     const src = fs.readFileSync('sw.js', 'utf8');
     assert.ok(src.includes('matchShell(request)'), 'networkFirstShell n\'utilise pas matchShell');
     assert.ok(src.includes('matchShell(event.request)'), 'la branche hors ligne n\'utilise pas matchShell');
+    // Le repli de navigation aussi : `caches.match('/index.html')` irait chercher
+    // dans tous les caches de l'origine.
+    assert.ok(!src.includes("caches.match('/index.html')"),
+      'le repli de navigation doit passer par matchShell, pas par le global caches.match');
+  });
+
+  await test('matchShell est borné au cache de la release courante', async () => {
+    const src = fs.readFileSync('sw.js', 'utf8');
+    const body = src.slice(src.indexOf('function matchShell'), src.indexOf('function cacheFirst'));
+    assert.ok(body.includes('caches.open(CACHE_NAME)'),
+      'matchShell doit ouvrir CACHE_NAME');
+    assert.ok(!/[^.]\bcaches\.match\(/.test(body),
+      'matchShell ne doit pas utiliser le global caches.match : il parcourt tous les caches de l\'origine');
   });
 
   console.log(`\n  ${pass} passed\n`);
