@@ -123,7 +123,7 @@ test.describe('Construction ActionBar', () => {
     await expect(results.locator('.action-results-header')).toContainText('Santé : 4 recommandations');
     await expect(results.locator('.health-item')).toHaveCount(4);
     await expect(results).toContainText('Pays détectés : TH');
-    await expect(results).toContainText('Vaccinations recommandees');
+    await expect(results).toContainText('Vaccinations recommandées');
     await expect(results).toContainText('Risque de paludisme');
   });
 
