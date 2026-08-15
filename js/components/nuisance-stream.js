@@ -82,7 +82,9 @@ var NuisanceStream = (() => {
       return `<div style="margin:2px 0 2px 8px">${emoji} ${esc(name)}${bits ? ' — ' + bits : ''}</div>`;
     }
 
-    const cls = cat.unavailable === true ? 'nuisance-cat nuisance-cat-unavailable' : 'nuisance-cat';
+    const cls = cat.unavailable === true
+      ? 'nuisance-cat nuisance-cat-unavailable'
+      : (String(level).toUpperCase() === 'INDETERMINE' ? 'nuisance-cat nuisance-cat-unknown' : 'nuisance-cat');
     let html = `<div class="${cls}">`;
     html += `<span class="nuisance-emoji">${emoji}</span>`;
     html += `<span class="nuisance-cat-name">${esc(name)}</span>`;
@@ -128,6 +130,9 @@ var NuisanceStream = (() => {
 
       if (!compact) {
         if (loc.recommendation) html += `<div class="nuisance-recommendation">${esc(loc.recommendation)}</div>`;
+        if (Array.isArray(loc.alternatives) && loc.alternatives.length) {
+          html += `<div class="nuisance-alts">Alternatives : ${loc.alternatives.map(a => esc(a)).join(', ')}</div>`;
+        }
         html += `</div>`;
       }
     });

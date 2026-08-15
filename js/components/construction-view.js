@@ -784,6 +784,7 @@ var ConstructionView = (() => {
     html += `<span class="admin-label">${esc(item.label || item.type || '')}</span>`;
     if (item.status) html += ` <span class="admin-status">${esc(statusLabel(item.status))}</span>`;
     if (item.detail) html += `<div class="admin-detail">${esc(item.detail)}</div>`;
+    if (item.deadline) html += `<div class="admin-deadline">Échéance : ${esc(item.deadline)}</div>`;
     if (item.cost && item.cost !== item.detail) html += `<div class="admin-cost">Coût : ${esc(item.cost)}</div>`;
     if (item.url) html += `<div class="admin-url"><a href="${esc(item.url)}" target="_blank" rel="noopener noreferrer">Site officiel</a></div>`;
     html += `</div>`;
@@ -1045,5 +1046,5 @@ var ConstructionView = (() => {
     mountConstructionLeo('construction:ideation');
   }
 
-  return { render, handleNuisances, abortNuisanceStream, leoModeForPhase };
+  return { render, handleNuisances, handleAdmin, handleSante, abortNuisanceStream, leoModeForPhase, statusBadge };
 })();

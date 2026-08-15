@@ -394,6 +394,25 @@ test('NuisanceStream.render affiche une analyse incomplète, jamais du vert', ()
   assert.ok(!/Aucune nuisance/.test(el.innerHTML), 'aucun message rassurant');
 });
 
+test('NuisanceStream.render affiche les alternatives Bifrost', () => {
+  const el = { innerHTML: '' };
+  NuisanceStream.render(el, {
+    results: [{
+      locationId: 'h1',
+      locationName: 'Hôtel du Port',
+      verdict: 'ELEVE',
+      recommendation: 'Changer de quartier.',
+      alternatives: ['Rue calme', 'Airbnb intérieur'],
+      categories: [{ category: 'nightlife', level: 'ELEVE', emoji: '🎵' }],
+    }],
+  }, {});
+  assert.ok(el.innerHTML.includes('Hôtel du Port'), 'locationName, pas l\'id');
+  assert.ok(el.innerHTML.includes('Changer de quartier'), 'recommendation');
+  assert.ok(el.innerHTML.includes('Alternatives'), 'liste d\'alternatives');
+  assert.ok(el.innerHTML.includes('Rue calme'));
+  assert.ok(el.innerHTML.includes('Airbnb intérieur'));
+});
+
 test('NuisanceStream.render affiche une erreur sur enveloppe non reconnue', () => {
   const el = { innerHTML: '' };
   const parsed = NuisanceStream.render(el, { locations: [] }, {});

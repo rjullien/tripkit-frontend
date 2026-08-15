@@ -744,11 +744,14 @@ var API = (() => {
     });
   }
 
+  // 60 s : admin et santé incluent un appel Bifrost (SPEC §7), et le client
+  // Go Bifrost lui-même autorise jusqu'à 60 s. 30 s coupait le flux avant la
+  // prose. Nuisances reste à 30 s (Overpass, pas Bifrost sur le POST).
   async function runAdminCheck(tripId) {
     return requestJSON(`/trips/${encodeURIComponent(tripId)}/admin-check`, {
       method: 'POST',
       body: '{}',
-      timeoutMs: 30000,
+      timeoutMs: 60000,
     });
   }
 
@@ -756,7 +759,7 @@ var API = (() => {
     return requestJSON(`/trips/${encodeURIComponent(tripId)}/health-check`, {
       method: 'POST',
       body: '{}',
-      timeoutMs: 30000,
+      timeoutMs: 60000,
     });
   }
 

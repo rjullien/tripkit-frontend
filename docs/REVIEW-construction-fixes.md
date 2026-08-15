@@ -5,7 +5,9 @@
 **Pendant backend** : `tripkit-backend/docs/REVIEW-construction-fixes.md` — #61 reste à rebaser sur le backend courant.
 **Verdict de départ** : NEEDS_CHANGES (corrigé ici pour le frontend).
 
-Cette PR ne merge **pas** #74 tel quel : un merge naïf aurait reverté les 3 bundles (`bundle-core` / `bundle-components` / `bundle-edge`). Les modules Construction sont listés dans `bundles.json` ; Léo Construction charge `bundle-edge` via `App.ensureEdgeBundle()`. Le mode Léo suit la phase (`construction:ideation` / `route` / `activities`) ; le formulaire profil utilise `construction:profile-edit`.
+Cette PR ne merge **pas** #74 ni #76 tels quels. #76 (`feat/construction-checks-live`, empilée sur #74) visait à afficher vraiment admin / santé / nuisances (SPEC §7–§8) : la review de #74 a ensuite posé `construction-contract.js`, qui **remplace** la lecture `travelers[]` / `recommendations` de #76. Le lot unique encore utile de #76 est repris ici : timeouts admin/santé 60 s (Bifrost), échéance admin, alternatives nuisances, exports `handleAdmin` / `handleSante`.
+
+Un merge naïf de #74/#76 aurait reverté les 3 bundles (`bundle-core` / `bundle-components` / `bundle-edge`). Les modules Construction sont listés dans `bundles.json` ; Léo Construction charge `bundle-edge` via `App.ensureEdgeBundle()`. Le mode Léo suit la phase (`construction:ideation` / `route` / `activities`) ; le formulaire profil utilise `construction:profile-edit`.
 
 Légende : ✅ **corrigé** · 🟡 **partiellement corrigé** · ⏸️ **différé** (non implémenté, tracé).
 

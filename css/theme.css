@@ -1793,7 +1793,9 @@ a:visited { color: var(--accent); }
 .nuisance-cat { padding: 3px 0 3px 8px; }
 .nuisance-cat-unavailable { color: var(--muted); }
 .nuisance-level, .nuisance-count, .nuisance-distance { color: var(--muted); }
-.nuisance-detail, .nuisance-recommendation { color: var(--muted); font-size: .92em; }
+.nuisance-detail, .nuisance-recommendation, .nuisance-alts { color: var(--muted); font-size: .92em; }
+.nuisance-cat-unknown { color: var(--muted); }
+.admin-deadline, .admin-url { color: var(--muted); font-size: .92em; margin-top: 2px; }
 .nuisance-progress { color: var(--muted); }
 .nuisance-pin-wrap { margin-top: 8px; }
 .hotel-nuisance-result:not(:empty) { margin-top: 6px; }
