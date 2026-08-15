@@ -369,18 +369,31 @@ var App = (() => {
   // le réseau doit resynchroniser tout de suite.
   const RESUME_MIN_INTERVAL_MS = 10000;
 
+  /**
+   * Intervalle minimum effectif entre deux reprises de visibilité.
+   * Crochet de test uniquement : sans `window.__tripkitResumeMinIntervalMs`
+   * (le cas en production, où rien ne le définit), renvoie toujours
+   * RESUME_MIN_INTERVAL_MS. Il permet à tests/plus-refresh.spec.js de vérifier
+   * que la reprise différée a bien lieu sans attendre 10 s de sommeil réel.
+   */
+  function resumeMinIntervalMs() {
+    const override = window.__tripkitResumeMinIntervalMs;
+    return (typeof override === 'number' && override > 0) ? override : RESUME_MIN_INTERVAL_MS;
+  }
+
   /** Resume when network is really back (probe), not merely navigator.onLine. */
   function setupConnectivityResume() {
     let _resumeTimer = null;
     let _lastResumeAt = 0;
     const kick = (force) => {
+      const minInterval = resumeMinIntervalMs();
       const since = _lastResumeAt ? Date.now() - _lastResumeAt : Infinity;
-      if (!force && since < RESUME_MIN_INTERVAL_MS) {
+      if (!force && since < minInterval) {
         // L'intervalle minimum DIFFÈRE la reprise, il ne l'annule pas : un vrai
         // retour dans l'app 9 s après le précédent (souvent sur un autre réseau)
         // doit finir par resynchroniser. Un seul report est armé à la fois.
         clearTimeout(_resumeTimer);
-        _resumeTimer = setTimeout(() => kick(true), RESUME_MIN_INTERVAL_MS - since);
+        _resumeTimer = setTimeout(() => kick(true), minInterval - since);
         // L'indicateur de connectivité, lui, ne coûte rien : il est repeint tout
         // de suite pour ne pas rester périmé pendant la fenêtre.
         paintConnectivity();

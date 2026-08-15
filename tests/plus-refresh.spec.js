@@ -167,11 +167,18 @@ test.describe('Onglet Plus — refresh au retour dans l\'app', () => {
     await expect(page.locator('#plus-experimental-body')).toBeVisible();
   });
 
-  test('reprise différée : une bascule dans la fenêtre de 10 s n\'est pas perdue', async ({ page }) => {
+  test('reprise différée : une bascule dans la fenêtre minimale n\'est pas perdue', async ({ page }) => {
     // L'intervalle minimum ne doit pas JETER la reprise : un vrai retour dans
-    // l'app 9 s après le précédent (souvent sur un autre réseau) doit finir par
-    // resynchroniser. Le test attend donc réellement la fin de la fenêtre.
-    test.setTimeout(60_000);
+    // l'app juste avant la fin de la fenêtre (souvent sur un autre réseau) doit
+    // finir par resynchroniser. Le test attend donc réellement la fin de la
+    // fenêtre — mais via le crochet window.__tripkitResumeMinIntervalMs, qui la
+    // raccourcit à 3 s au lieu des 10 s de production. Le mécanisme testé est le
+    // même (report armé puis rejoué), seule sa durée change : sans le crochet,
+    // ce test coûtait 13 s de sommeil réel.
+    test.setTimeout(25_000);
+
+    const WINDOW_MS = 3000;
+    await page.addInitScript(ms => { window.__tripkitResumeMinIntervalMs = ms; }, WINDOW_MS);
 
     const probes = [];
     page.on('request', req => {
@@ -182,6 +189,8 @@ test.describe('Onglet Plus — refresh au retour dans l\'app', () => {
 
     await page.goto('/');
     await page.waitForSelector('.bottom-nav', { timeout: 8000 });
+    // La fenêtre doit bien être celle du crochet, sinon le test ne prouve rien.
+    expect(await page.evaluate(() => window.__tripkitResumeMinIntervalMs)).toBe(WINDOW_MS);
     await openPlusAndStamp(page);
     await page.waitForTimeout(600);
     probes.length = 0;
@@ -190,13 +199,19 @@ test.describe('Onglet Plus — refresh au retour dans l\'app', () => {
     await page.waitForTimeout(900);
     expect(probes).toHaveLength(1);
 
-    await resumeByVisibility(page); // ignorée sur le moment (< 10 s)…
+    await resumeByVisibility(page); // ignorée sur le moment (< WINDOW_MS)…
     await page.waitForTimeout(900);
-    expect(probes).toHaveLength(1);
+    expect(probes, 'la 2e bascule n\'a pas été différée').toHaveLength(1);
 
     // …mais rejouée à la fin de la fenêtre : sinon cette reprise était perdue.
-    await page.waitForTimeout(11_000);
-    expect(probes.length, 'la reprise différée n\'a jamais eu lieu').toBe(2);
+    await expect.poll(() => probes.length, {
+      message: 'la reprise différée n\'a jamais eu lieu',
+      timeout: WINDOW_MS + 4000,
+    }).toBe(2);
+
+    // Un seul report est armé à la fois : la reprise différée ne se dédouble pas.
+    await page.waitForTimeout(1000);
+    expect(probes).toHaveLength(2);
 
     // Et toujours aucun repaint parasite (la version n'a pas changé).
     await expect(page.locator(MARKER)).toHaveCount(1);
