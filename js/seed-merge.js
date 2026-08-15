@@ -33,6 +33,8 @@ var SeedMerge = (() => {
     'sharedLinks',
     'homeTz',      // IANA home TZ for timeline dual times (default Europe/Paris)
     'polarsteps',  // { enabled, tripUrl? } — Plus Polarsteps box
+    'construction', // { phase, dates? } — onglet Construction à jour au chargement
+    'travelProfile', // overlay Publish (travel-profile.js)
   ];
 
   /** Top-level tripData collections carried in trip.data (see seed-import.cjs). */

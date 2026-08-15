@@ -46,6 +46,8 @@ function quebecSeed() {
         mapImage: 'route.jpg',
         homeTz: 'Europe/Paris',
         polarsteps: { enabled: true, tripUrl: 'https://www.polarsteps.com/test/quebec/' },
+        construction: { phase: 5, dates: { startDate: '2026-08-14', days: 19 } },
+        travelProfile: { family: 'jullien', travelStyle: { pace: 'modéré' } },
         people: { alice: { id: 'alice', name: 'Alice', documents: [] } },
         users: { alice: { city: 'Paris' } },
         sharedLinks: [{ label: 'Drive', url: 'https://example.invalid' }],
@@ -89,8 +91,12 @@ test('every field read by route-view.js is declared in TRIP_META_FIELDS', () => 
   });
   assert.ok(SeedMerge.TRIP_META_FIELDS.includes('homeTz'), 'homeTz missing from TRIP_META_FIELDS');
   assert.ok(SeedMerge.TRIP_META_FIELDS.includes('polarsteps'), 'polarsteps missing from TRIP_META_FIELDS');
+  assert.ok(SeedMerge.TRIP_META_FIELDS.includes('construction'), 'construction missing from TRIP_META_FIELDS');
+  assert.ok(SeedMerge.TRIP_META_FIELDS.includes('travelProfile'), 'travelProfile missing from TRIP_META_FIELDS');
   assert.strictEqual(SeedMerge.merge(quebecSeed(), {}).trip.homeTz, 'Europe/Paris', 'homeTz dropped');
   assert.strictEqual(SeedMerge.merge(quebecSeed(), {}).trip.polarsteps.enabled, true, 'polarsteps dropped');
+  assert.strictEqual(SeedMerge.merge(quebecSeed(), {}).trip.construction.phase, 5, 'construction dropped');
+  assert.strictEqual(SeedMerge.merge(quebecSeed(), {}).trip.travelProfile.family, 'jullien', 'travelProfile dropped');
 });
 
 test('neither call site re-inlines its own trip meta field list', () => {

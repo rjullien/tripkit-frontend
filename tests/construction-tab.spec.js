@@ -75,6 +75,34 @@ test.describe('Construction Tab', () => {
     await expect(page.locator('#construction-content')).toContainText('Mode Construction');
   });
 
+  test('loading a trip syncs construction data without flipping the toggle', async ({ page }) => {
+    await page.route('**/api/trips/*/construction', (route) => {
+      const url = route.request().url();
+      if (url.includes('/qa') || url.includes('/phase')) return route.fallback();
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ phase: 5, dates: { startDate: '2026-08-14', days: 19 } }),
+      });
+    });
+    await page.evaluate(() => {
+      Store.set('tk-construction-mode', false);
+      App.paintConstructionNav();
+    });
+    await expect(page.locator(NAV_BTN)).toBeHidden();
+
+    await page.evaluate(async () => {
+      await App.syncConstructionData(Store.getCurrentTripId());
+    });
+
+    await expect(page.locator(NAV_BTN)).toBeHidden();
+    const phase = await page.evaluate(() => {
+      const td = Store.getTripData(Store.getCurrentTripId());
+      return td && td.trip && td.trip.construction && td.trip.construction.phase;
+    });
+    expect(phase).toBe(5);
+  });
+
   test('Leo mode follows construction phase', async ({ page }) => {
     const modes = await page.evaluate(() => ({
       p0: ConstructionView.leoModeForPhase(0),
