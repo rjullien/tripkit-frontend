@@ -217,7 +217,25 @@ var BookingsView = (() => {
     const inOk = isRealFlightLeg(inbound);
     if (!outOk && !inOk) return '';
 
-    let html = sectionTitle('✈️', 'Vols');
+    let html = sectionTitle('✈️', 'Transport principal');
+
+    // Resolve effective booking status at flight level (retrocompat: bookingRef without bookingStatus = booked)
+    const effectiveFlightStatus = flights.bookingStatus || (flights.bookingRef ? 'booked' : '');
+
+    // Booking status badge (flight-level)
+    if (effectiveFlightStatus && typeof HotelCard !== 'undefined') {
+      html += HotelCard.renderStatusBadge(effectiveFlightStatus);
+    }
+
+    // Booking URL (flight-level agency link)
+    if (flights.bookingUrl) {
+      html += `<div style="margin:0 0 8px 12px"><a href="${esc(flights.bookingUrl)}" target="_blank" class="hotel-link-btn" style="display:inline-flex;align-items:center;gap:4px">🔗 Agence / Compagnie</a></div>`;
+    }
+
+    // Booking ref at flight level
+    if (flights.bookingRef && !effectiveFlightStatus) {
+      html += `<div style="margin:0 0 8px 12px">🔖 Ref: <strong>${esc(flights.bookingRef)}</strong></div>`;
+    }
 
     function flightCard(leg, label) {
       if (!isRealFlightLeg(leg)) return '';
@@ -237,7 +255,19 @@ var BookingsView = (() => {
       if (leg.price) meta.push(`💶 ${esc(leg.price)}`);
       if (leg.airline) meta.push(`✈️ ${esc(leg.airline)}${leg.class ? ' · ' + esc(leg.class) : ''}`);
 
+      // Per-leg booking status (retrocompat)
+      const legStatus = leg.bookingStatus || (leg.bookingRef ? 'booked' : '');
+
       let details = '';
+      // Leg-level booking status badge
+      if (legStatus && typeof HotelCard !== 'undefined') {
+        details += HotelCard.renderStatusBadge(legStatus);
+      }
+      // Leg-level booking URL
+      if (leg.bookingUrl) {
+        details += `<div><a href="${esc(leg.bookingUrl)}" target="_blank" class="hotel-link-btn" style="display:inline-flex;align-items:center;gap:4px;margin-top:4px">🔗 Reserver</a></div>`;
+      }
+
       if (segs && segs.length) {
         details += segs.map(s =>
           `<div>${esc(s.flight || '')} ${esc(s.from)}→${esc(s.to)} · ${esc(formatDateTime(s.dep))} → ${esc(formatDateTime(s.arr))}${s.duration ? ' (' + esc(s.duration) + ')' : ''}</div>`
@@ -269,7 +299,10 @@ var BookingsView = (() => {
 
   function renderCarRentalSection(car) {
     if (!car) return '';
-    let html = sectionTitle('🚗', 'Location voiture');
+    let html = sectionTitle('🚗', 'Location de voiture');
+
+    // Resolve effective booking status (retrocompat: bookingRef without bookingStatus = booked)
+    const effectiveStatus = car.bookingStatus || (car.bookingRef ? 'booked' : '');
 
     const pickup = car.pickup || {};
     const ret = car.return || {};
@@ -288,6 +321,17 @@ var BookingsView = (() => {
 
     const mapsUrl = (q) => `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(q)}`;
     let details = '';
+
+    // Booking status badge
+    if (effectiveStatus && typeof HotelCard !== 'undefined') {
+      details += HotelCard.renderStatusBadge(effectiveStatus);
+    }
+
+    // Booking URL (agency link)
+    if (car.bookingUrl) {
+      details += `<div><a href="${esc(car.bookingUrl)}" target="_blank" class="hotel-link-btn" style="display:inline-flex;align-items:center;gap:4px;margin-bottom:6px">🔗 Agence</a></div>`;
+    }
+
     if (pickup.agency || pickup.address) {
       const addr = pickup.address || '';
       details += `<div>📍 Prise: ${esc(pickup.agency || '')}${addr ? ' — ' + esc(addr) + ' <a href="' + mapsUrl(addr) + '" target="_blank" class="hotel-link-btn">📍 Maps</a>' : ''}</div>`;
