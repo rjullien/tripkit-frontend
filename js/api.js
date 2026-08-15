@@ -703,6 +703,87 @@ var API = (() => {
     });
   }
 
+  async function retainDiscoveryItem(tripId, item) {
+    return requestJSON(`/trips/${encodeURIComponent(tripId)}/discovery/retain`, {
+      method: 'POST',
+      body: JSON.stringify({ item }),
+      timeoutMs: 15000,
+    });
+  }
+
+  // ── Construction ─────────────────────────────────────────────────────────
+
+  async function getTravelProfile(tripId) {
+    return requestJSON(`/trips/${encodeURIComponent(tripId)}/travel-profile`);
+  }
+
+  async function getConstruction(tripId) {
+    return requestJSON(`/trips/${encodeURIComponent(tripId)}/construction`);
+  }
+
+  async function transitionPhase(tripId, phase, force) {
+    const qs = force ? '?force=1' : '';
+    return requestJSON(`/trips/${encodeURIComponent(tripId)}/construction/phase${qs}`, {
+      method: 'PUT',
+      body: JSON.stringify({ phase }),
+    });
+  }
+
+  async function createProfileRequest(tripId, target, text) {
+    return requestJSON(`/trips/${encodeURIComponent(tripId)}/travel-profile/request`, {
+      method: 'POST',
+      body: JSON.stringify({ target, text }),
+    });
+  }
+
+  async function runQA(tripId) {
+    return requestJSON(`/trips/${encodeURIComponent(tripId)}/construction/qa`, {
+      method: 'POST',
+      body: '{}',
+      timeoutMs: 30000,
+    });
+  }
+
+  // 60 s : admin et santé incluent un appel Bifrost (SPEC §7), et le client
+  // Go Bifrost lui-même autorise jusqu'à 60 s. 30 s coupait le flux avant la
+  // prose. Nuisances reste à 30 s (Overpass, pas Bifrost sur le POST).
+  async function runAdminCheck(tripId) {
+    return requestJSON(`/trips/${encodeURIComponent(tripId)}/admin-check`, {
+      method: 'POST',
+      body: '{}',
+      timeoutMs: 60000,
+    });
+  }
+
+  async function runHealthCheck(tripId) {
+    return requestJSON(`/trips/${encodeURIComponent(tripId)}/health-check`, {
+      method: 'POST',
+      body: '{}',
+      timeoutMs: 60000,
+    });
+  }
+
+  async function runNuisanceCheck(tripId, locationIds) {
+    const body = locationIds ? { locationIds } : { all: true };
+    return requestJSON(`/trips/${encodeURIComponent(tripId)}/nuisance-check`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+      timeoutMs: 30000,
+    });
+  }
+
+  async function getNuisanceCheck(tripId) {
+    return requestJSON(`/trips/${encodeURIComponent(tripId)}/nuisance-check`);
+  }
+
+  async function pinNuisanceToSeed(tripId) {
+    return requestJSON(`/trips/${encodeURIComponent(tripId)}/nuisance-check/pin`, {
+      method: 'POST',
+      body: '{}',
+      timeoutMs: 15000,
+    });
+  }
+
   /**
    * Stream Plus Assistant (Bifrost direct). Events: delta | done | error
    * @param {{ tripId?: string, messages: Array<{role:string,content:string}>, signal?: AbortSignal }} body
@@ -765,6 +846,9 @@ var API = (() => {
     getPlusChatStatus, plusChatStream,
     getPolarstepsStatus, getPolarstepsCaption, postPolarstepsCaption,
     getDiscoveryThemes, getDiscoveryResults, postDiscoverySearch,
+    retainDiscoveryItem, pinNuisanceToSeed,
+    getTravelProfile, getConstruction, transitionPhase, createProfileRequest,
+    runQA, runAdminCheck, runHealthCheck, runNuisanceCheck, getNuisanceCheck,
     assetUrl, getBaseUrl, warmTripAssets,
     probe, isReachable, getReachability, onReachabilityChange,
   };

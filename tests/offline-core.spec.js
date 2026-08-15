@@ -38,7 +38,7 @@ test.describe('Offline core tabs', () => {
     await page.waitForTimeout(400);
     const resa = page.locator('#hotels-content');
     await expect(resa).toContainText('Réservations');
-    await expect(resa).toContainText('Vols');
+    await expect(resa).toContainText('Transport principal');
     await expect(resa).toContainText('TESTPNR');
   });
 });
@@ -51,7 +51,7 @@ test.describe('SW precache list', () => {
     expect(text).toContain('/js/dist/bundle-core.js');
     expect(text).toContain('/js/dist/bundle-components.js');
     expect(text).toContain('/js/dist/bundle-edge.js');
-    expect(text).toContain('tripkit-124');
+    expect(text).toContain('tripkit-127');
     expect(text).toContain("url.origin !== self.location.origin");
     // Le shell est demandé avec ?v=<cache> alors qu'ASSETS précache les chemins
     // nus : sans ce repli, bundle-edge (jamais demandé au boot) serait perdu hors
@@ -73,7 +73,7 @@ test.describe('SW precache list', () => {
     expect(names).toEqual(['bundle-core', 'bundle-components', 'bundle-edge']);
 
     const sources = names.flatMap(n => manifest[n]);
-    expect(sources.length).toBe(31);
+    expect(sources.length).toBe(34);
     for (const rel of sources) {
       expect(existsSync(new URL('../' + rel, import.meta.url)), `missing ${rel}`).toBe(true);
     }

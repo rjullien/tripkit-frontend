@@ -217,10 +217,11 @@ test.describe('bundle-components concaténé', () => {
 
     const missing = await page.evaluate(() => [
       'QRCode', 'Timeline', 'Weather', 'HotelCard', 'BookingsView', 'DayCards',
-      'ConferenceView', 'DailyView', 'DiscoveryPanel', 'ListComponent', 'RouteView',
+      'ConferenceView', 'DailyView', 'DiscoveryPanel', 'NuisanceStream', 'ConstructionView',
+      'ListComponent', 'RouteView',
       'CultureView', 'TripSelector', 'PublishPanel', 'PolarstepsPanel',
       'App', 'API', 'Store', 'SeedMerge', 'DayHelpers', 'TzHelpers', 'PeopleHelpers',
-      'DayResolver', 'TripGroups',
+      'DayResolver', 'TripGroups', 'ConstructionContract',
     ].filter(name => typeof window[name] === 'undefined'));
 
     expect(missing).toEqual([]);

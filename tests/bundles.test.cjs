@@ -3,7 +3,7 @@
  *
  * Ce que rien ne verrouillait avant : le build sort-il vraiment en 1 quand une
  * source manque (sinon un bundle amputé partirait en prod sans bruit), et les
- * bundles générés contiennent-ils bien les 31 sources ? Le manifeste seul était
+ * bundles générés contiennent-ils bien les 34 sources ? Le manifeste seul était
  * vérifié, donc une source silencieusement sautée passait.
  *
  * L'ordre de chargement, déplacé de index.html vers bundles.json, est également
@@ -63,9 +63,9 @@ test('chaque source du manifeste est présente dans son bundle, avec son contenu
   }
 });
 
-test('les 31 sources sont couvertes, sans doublon entre bundles', () => {
-  assert.strictEqual(allSources.length, 31, 'le manifeste ne déclare plus 31 sources');
-  assert.strictEqual(new Set(allSources).size, 31, 'une source apparaît dans deux bundles');
+test('les 34 sources sont couvertes, sans doublon entre bundles', () => {
+  assert.strictEqual(allSources.length, 34, 'le manifeste ne déclare plus 34 sources');
+  assert.strictEqual(new Set(allSources).size, 34, 'une source apparaît dans deux bundles');
 });
 
 test('le prologue du bundle neutralise le "use strict" de qrcode-svg.min.js', () => {
@@ -112,6 +112,16 @@ test('bundle-edge : le moteur avant les flux de chat qui l\'utilisent', () => {
 test('seed-merge.js précède ses consommateurs', () => {
   assert.ok(at('js/seed-merge.js') < at('js/components/trip-selector.js'));
   assert.ok(at('js/seed-merge.js') < at('js/app.js'));
+});
+
+test('construction-contract est dans bundle-core, avant app.js', () => {
+  const core = manifest['bundle-core'];
+  assert.ok(core.includes('js/construction-contract.js'), 'construction-contract.js doit rester dans bundle-core (pur, pas de DOM)');
+  assert.ok(at('js/construction-contract.js') < at('js/app.js'));
+});
+
+test('nuisance-stream précède construction-view dans bundle-components', () => {
+  assert.ok(at('js/components/nuisance-stream.js') < at('js/components/construction-view.js'));
 });
 
 // ── Contrat d'échec : rien ne l'épinglait ────────────────────────────────────

@@ -30,6 +30,9 @@
   <div id="tab-hotels" class="tab-view">
     <div class="page" id="hotels-content"></div>
   </div>
+  <div id="tab-construction" class="tab-view">
+    <div class="page" id="construction-content"></div>
+  </div>
   <div id="tab-plus" class="tab-view">
     <div class="page" id="plus-content"></div>
   </div>
@@ -52,6 +55,10 @@
       <span class="nav-icon">📋</span>
       Résa
     </button>
+    <button data-tab="construction" id="nav-construction" onclick="App.switchTab('construction')" style="display:none">
+      <span class="nav-icon">🏗️</span>
+      Constr.
+    </button>
     <button data-tab="plus" onclick="App.switchTab('plus')">
       <span class="nav-icon">⚙️</span>
       Plus
@@ -63,7 +70,7 @@
 
   <!-- ── Scripts ────────────────────────────────────────────────────── -->
   <!-- Les trois bundles sont générés par scripts/build-bundles.mjs à partir de
-       bundles.json (`npm run build`, aussi exécuté dans le Dockerfile) : les 31
+       bundles.json (`npm run build`, aussi exécuté dans le Dockerfile) : les 34
        sources de js/ y sont concaténées dans l'ordre, sans minification.
        config.js reste une requête à part : il est généré au démarrage du
        conteneur par docker-entrypoint.sh (envsubst config.js.template).
@@ -71,8 +78,8 @@
        de l'appel, et app.js démarre sur DOMContentLoaded, qui n'est émis
        qu'après l'exécution de tous les scripts différés.
        js/dist/bundle-edge.js n'est PAS référencé ici : il est injecté à la
-       demande par App au premier rendu de l'onglet Plus (voir ensureEdgeBundle
-       dans js/app.js). Il reste précaché par le service worker. -->
+       demande par App au premier rendu de Plus ou Construction (voir
+       ensureEdgeBundle dans js/app.js). Il reste précaché par le service worker. -->
   <script defer src="config.js"></script>
   <script defer src="js/dist/bundle-core.js"></script>
   <script defer src="js/dist/bundle-components.js"></script>

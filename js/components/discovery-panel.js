@@ -6,6 +6,12 @@
 var DiscoveryPanel = (() => {
   const aborts = new WeakMap();
 
+  // L'écriture dans le seed par Léo n'est pas branchée : POST /discovery/retain
+  // répond 501. Le bouton le dit AVANT le clic. Le bouton reste cliquable
+  // (la réponse 501 porte le détail exact du backend).
+  const DEFERRED_HINT = "Pas encore branché : Léo n'écrit pas encore dans le seed, rien ne sera enregistré.";
+  const RETAIN_LABEL = 'Retenir ⏳';
+
   function esc(s) {
     return String(s || '')
       .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -198,7 +204,7 @@ var DiscoveryPanel = (() => {
       wrap.innerHTML = `<p class="discovery-empty">Rien trouvé autour pour ces thèmes.</p>`;
       return;
     }
-    wrap.innerHTML = items.map((it) => {
+    wrap.innerHTML = items.map((it, idx) => {
       const editorial = it.source === 'editorial';
       const km = (!editorial && typeof it.distKm === 'number' && it.distKm > 0)
         ? `${String(it.distKm).replace('.', ',')} km` : '';
@@ -209,12 +215,100 @@ var DiscoveryPanel = (() => {
         : '';
       const meta = [when, km, link].filter(Boolean).join(' · ');
       const note = it.note ? `<div class="discovery-item-note">${esc(it.note)}</div>` : '';
+      const retainBtn = `<button type="button" class="btn btn-sm discovery-retain-btn deferred" data-idx="${idx}"
+        title="${DEFERRED_HINT}">${RETAIN_LABEL}</button>`;
       return `<div class="discovery-item">
-        <div class="discovery-item-name">${esc(it.name || '')}</div>
+        <div class="discovery-item-row">
+          <div class="discovery-item-name">${esc(it.name || '')}</div>
+          ${retainBtn}
+        </div>
         ${meta ? `<div class="discovery-item-meta">${meta}</div>` : ''}
         ${note}
       </div>`;
     }).join('');
+
+    wrap.querySelectorAll('.discovery-retain-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const idx = parseInt(btn.getAttribute('data-idx'), 10);
+        const item = wrap._items[idx];
+        if (item) handleRetain(btn, item);
+      });
+    });
+  }
+
+  async function handleRetain(btn, item) {
+    const tripId = getTripIdForDiscovery();
+    if (!tripId) return;
+
+    btn.disabled = true;
+    btn.textContent = 'Envoi à Léo...';
+
+    const res = await API.retainDiscoveryItem(tripId, {
+      id: item.id || '',
+      name: item.name || '',
+      themeId: item.themeId || '',
+      lat: item.lat || 0,
+      lon: item.lon || 0,
+      distKm: item.distKm || 0,
+      url: item.url || '',
+      source: item.source || '',
+    });
+
+    // L'endpoint renvoie 501 not_implemented : rien n'est écrit dans le seed,
+    // donc pas de « Retenu ✓ ».
+    if (res && (res.status === 501 || (res.data && res.data.error === 'not_implemented'))) {
+      btn.textContent = 'Pas encore disponible';
+      btn.className = 'btn btn-sm discovery-retain-btn unavailable';
+      btn.title = (res.data && typeof res.data.detail === 'string' && res.data.detail)
+        || "Léo n'écrit pas encore dans le seed.";
+      btn.disabled = true;
+      return;
+    }
+
+    if (!res || !res.ok || !res.data || !res.data.jobId) {
+      retainFailed(btn, 'Erreur');
+      return;
+    }
+
+    let done = false;
+    try {
+      for await (const ev of API.leoJobStream(res.data.jobId, 0)) {
+        if (ev.event === 'done') { done = true; break; }
+        if (ev.event === 'error') {
+          retainFailed(btn, 'Erreur');
+          return;
+        }
+      }
+    } catch (_) {
+      retainFailed(btn, 'Connexion perdue');
+      return;
+    }
+
+    if (!done) {
+      retainFailed(btn, 'Erreur');
+      return;
+    }
+
+    btn.textContent = 'Retenu ✓';
+    btn.className = 'btn btn-sm discovery-retain-btn done';
+  }
+
+  function retainFailed(btn, msg) {
+    btn.textContent = msg;
+    btn.className = 'btn btn-sm discovery-retain-btn error';
+    setTimeout(() => {
+      btn.textContent = RETAIN_LABEL;
+      btn.disabled = false;
+      btn.className = 'btn btn-sm discovery-retain-btn deferred';
+      btn.title = DEFERRED_HINT;
+    }, 2500);
+  }
+
+  function getTripIdForDiscovery() {
+    if (typeof Store !== 'undefined' && Store.getCurrentTripId) {
+      return Store.getCurrentTripId();
+    }
+    return null;
   }
 
   return { render };

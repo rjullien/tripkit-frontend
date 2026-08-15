@@ -7,6 +7,13 @@
 
 var BookingsView = (() => {
 
+  const _hotelNuisanceAborts = new Map();
+
+  function abortHotelNuisanceStreams() {
+    _hotelNuisanceAborts.forEach(ac => { try { ac.abort(); } catch (_) { /* déjà terminé */ } });
+    _hotelNuisanceAborts.clear();
+  }
+
   function esc(s) {
     return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   }
@@ -217,7 +224,18 @@ var BookingsView = (() => {
     const inOk = isRealFlightLeg(inbound);
     if (!outOk && !inOk) return '';
 
-    let html = sectionTitle('✈️', 'Vols');
+    let html = sectionTitle('✈️', 'Transport principal');
+
+    const effectiveFlightStatus = flights.bookingStatus || (flights.bookingRef ? 'booked' : '');
+    if (effectiveFlightStatus && typeof HotelCard !== 'undefined') {
+      html += HotelCard.renderStatusBadge(effectiveFlightStatus);
+    }
+    if (flights.bookingUrl) {
+      html += `<div style="margin:0 0 8px 12px"><a href="${esc(flights.bookingUrl)}" target="_blank" class="hotel-link-btn" style="display:inline-flex;align-items:center;gap:4px">🔗 Agence / Compagnie</a></div>`;
+    }
+    if (flights.bookingRef && !effectiveFlightStatus) {
+      html += `<div style="margin:0 0 8px 12px">🔖 Ref: <strong>${esc(flights.bookingRef)}</strong></div>`;
+    }
 
     function flightCard(leg, label) {
       if (!isRealFlightLeg(leg)) return '';
@@ -237,7 +255,16 @@ var BookingsView = (() => {
       if (leg.price) meta.push(`💶 ${esc(leg.price)}`);
       if (leg.airline) meta.push(`✈️ ${esc(leg.airline)}${leg.class ? ' · ' + esc(leg.class) : ''}`);
 
+      const legStatus = leg.bookingStatus || (leg.bookingRef ? 'booked' : '');
+
       let details = '';
+      if (legStatus && typeof HotelCard !== 'undefined') {
+        details += HotelCard.renderStatusBadge(legStatus);
+      }
+      if (leg.bookingUrl) {
+        details += `<div><a href="${esc(leg.bookingUrl)}" target="_blank" class="hotel-link-btn" style="display:inline-flex;align-items:center;gap:4px;margin-top:4px">🔗 Réserver</a></div>`;
+      }
+
       if (segs && segs.length) {
         details += segs.map(s =>
           `<div>${esc(s.flight || '')} ${esc(s.from)}→${esc(s.to)} · ${esc(formatDateTime(s.dep))} → ${esc(formatDateTime(s.arr))}${s.duration ? ' (' + esc(s.duration) + ')' : ''}</div>`
@@ -269,7 +296,9 @@ var BookingsView = (() => {
 
   function renderCarRentalSection(car) {
     if (!car) return '';
-    let html = sectionTitle('🚗', 'Location voiture');
+    let html = sectionTitle('🚗', 'Location de voiture');
+
+    const effectiveStatus = car.bookingStatus || (car.bookingRef ? 'booked' : '');
 
     const pickup = car.pickup || {};
     const ret = car.return || {};
@@ -288,6 +317,14 @@ var BookingsView = (() => {
 
     const mapsUrl = (q) => `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(q)}`;
     let details = '';
+
+    if (effectiveStatus && typeof HotelCard !== 'undefined') {
+      details += HotelCard.renderStatusBadge(effectiveStatus);
+    }
+    if (car.bookingUrl) {
+      details += `<div><a href="${esc(car.bookingUrl)}" target="_blank" class="hotel-link-btn" style="display:inline-flex;align-items:center;gap:4px;margin-bottom:6px">🔗 Agence</a></div>`;
+    }
+
     if (pickup.agency || pickup.address) {
       const addr = pickup.address || '';
       details += `<div>📍 Prise: ${esc(pickup.agency || '')}${addr ? ' — ' + esc(addr) + ' <a href="' + mapsUrl(addr) + '" target="_blank" class="hotel-link-btn">📍 Maps</a>' : ''}</div>`;
@@ -405,6 +442,9 @@ var BookingsView = (() => {
   function renderHotelsSection(tripData) {
     if (!tripData || !tripData.days) return '';
 
+    const tripId = (typeof Store !== 'undefined' && Store.getCurrentTripId)
+      ? Store.getCurrentTripId() : null;
+
     let body = '';
     const seen = new Set();
     const days = tripData.days.map(d => (typeof DayHelpers !== 'undefined' ? DayHelpers.enrich(d, tripData) : d));
@@ -438,10 +478,109 @@ var BookingsView = (() => {
       // day.day is already the calendar day index (0 = veille, 1 = startDate)
       body += `<div class="booking-hotel-day">Jour ${day.day} · ${esc(headerDate)} — ${esc(headerCity)}</div>`;
       body += HotelCard.render(hotelData);
+
+      const locId = day.locationId || key;
+      if (locId) {
+        body += `<div class="hotel-nuisance-action" style="margin:-4px 0 12px;padding:0 12px">
+          <button class="btn btn-sm hotel-nuisance-btn" data-location-id="${esc(locId)}" data-trip-id="${esc(tripId || '')}">
+            ⚠️ Nuisances
+          </button>
+          <div class="hotel-nuisance-result" data-loc="${esc(locId)}"></div>
+        </div>`;
+      }
     });
 
     if (!body) return '';
     return sectionTitle('🏨', 'Hébergements') + body;
+  }
+
+  function themeEmoji(theme) {
+    if (!theme) return '🎯';
+    const map = {
+      eau: '🌊', water: '🌊',
+      nature: '🌿', randonnee: '🥾', hiking: '🥾',
+      culture: '🏛️', histoire: '🏛️', history: '🏛️',
+      sport: '⚽', aventure: '🧗', adventure: '🧗',
+      gastronomie: '🍷', food: '🍽️',
+      famille: '👨‍👩‍👧‍👦', family: '👨‍👩‍👧‍👦',
+      detente: '🧘', relaxation: '🧘',
+      animaux: '🐻', wildlife: '🐻',
+      urbain: '🏙️', city: '🏙️',
+      musique: '🎵', music: '🎵',
+    };
+    return map[theme.toLowerCase()] || '🎯';
+  }
+
+  function formatDuration(minutes) {
+    if (!minutes || minutes <= 0) return '';
+    const h = Math.floor(minutes / 60);
+    const m = minutes % 60;
+    if (h === 0) return `${m}min`;
+    if (m === 0) return `${h}h`;
+    return `${h}h ${m}min`;
+  }
+
+  function renderActivitiesSection(tripData) {
+    if (!tripData || !tripData.activities) return '';
+
+    const activities = tripData.activities;
+    const entries = Object.values(activities).filter(a => a && a.name);
+    if (!entries.length) return '';
+
+    const byDay = {};
+    entries.forEach(act => {
+      const d = act.dayNum || 0;
+      if (!byDay[d]) byDay[d] = [];
+      byDay[d].push(act);
+    });
+
+    const dayKeys = Object.keys(byDay).map(Number).sort((a, b) => a - b);
+
+    let html = sectionTitle('🎯', 'Activités');
+
+    dayKeys.forEach(dayNum => {
+      html += `<div class="booking-hotel-day">Jour ${dayNum}</div>`;
+      byDay[dayNum].forEach(act => {
+        const emoji = themeEmoji(act.theme);
+        const duration = formatDuration(act.durationMin);
+        const price = act.price ? `${act.price} ${esc(act.currency || '')}` : '';
+
+        const meta = [];
+        if (duration) meta.push(`⏱️ ${esc(duration)}`);
+        if (price) meta.push(`💶 ${esc(price)}`);
+        if (act.locationId) {
+          const loc = act.locationId.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+          meta.push(`📍 ${esc(loc)}`);
+        }
+
+        let details = '';
+        if (act.bookingStatus && typeof HotelCard !== 'undefined') {
+          details += HotelCard.renderStatusBadge(act.bookingStatus);
+        }
+        if (act.bookingUrl) {
+          details += `<div><a href="${esc(act.bookingUrl)}" target="_blank" class="hotel-link-btn" style="display:inline-flex;align-items:center;gap:4px;margin-top:4px">🔗 Réserver</a></div>`;
+        }
+        if (act.url) {
+          details += `<div><a href="${esc(act.url)}" target="_blank" class="hotel-link-btn" style="display:inline-flex;align-items:center;gap:4px;margin-top:4px">🌐 Info</a></div>`;
+        }
+        if (act.bookingRef) {
+          details += `<div style="margin-top:4px">🔖 Réf: <strong>${esc(act.bookingRef)}</strong></div>`;
+        }
+
+        html += bookingCard({
+          icon: emoji,
+          title: act.name,
+          metaLines: meta,
+          tagsHtml: renderBookingTags({
+            typeLabel: act.theme ? esc(act.theme) : 'Activité',
+            tags: [],
+          }),
+          detailsHtml: details,
+        });
+      });
+    });
+
+    return html;
   }
 
   /**
@@ -453,6 +592,8 @@ var BookingsView = (() => {
       ? document.getElementById(containerId)
       : containerId;
     if (!container) return;
+
+    abortHotelNuisanceStreams();
 
     if (!tripData) {
       container.innerHTML = `<div class="empty-state">
@@ -469,10 +610,10 @@ var BookingsView = (() => {
 
     html += renderFlightsSection(tripData.flights);
     html += renderCarRentalSection(tripData.carRental);
-    // ferries[] (multi) preferred; ferry (singular) kept for quebec-style seeds
     html += renderFerrySection(tripData.ferries || tripData.ferry);
     html += renderEventsSection(tripData.events);
     html += renderHotelsSection(tripData);
+    html += renderActivitiesSection(tripData);
 
     const hasAnything = /booking-card|hotel-card/.test(html);
     if (!hasAnything) {
@@ -480,10 +621,57 @@ var BookingsView = (() => {
     }
 
     container.innerHTML = html;
+    bindHotelNuisanceButtons(container);
+  }
+
+  function bindHotelNuisanceButtons(container) {
+    if (!container) return;
+    container.querySelectorAll('.hotel-nuisance-btn').forEach(btn => {
+      if (btn.dataset.bound === '1') return;
+      btn.dataset.bound = '1';
+      btn.addEventListener('click', async () => {
+        const locId = btn.dataset.locationId;
+        const tripId = btn.dataset.tripId || (typeof Store !== 'undefined' && Store.getCurrentTripId ? Store.getCurrentTripId() : null);
+        if (!locId || !tripId) return;
+
+        const resultEl = btn.parentElement.querySelector('.hotel-nuisance-result');
+        btn.disabled = true;
+        btn.textContent = '...';
+
+        const res = await API.runNuisanceCheck(tripId, [locId]);
+
+        btn.disabled = false;
+        btn.textContent = '⚠️ Nuisances';
+
+        if (!res.ok) {
+          if (resultEl) resultEl.innerHTML = `<div class="construction-error" style="font-size:.82em;margin-top:6px">${esc(res.error || 'Erreur')}</div>`;
+          return;
+        }
+
+        const previous = _hotelNuisanceAborts.get(locId) || btn._nuisanceAbort;
+        if (previous) previous.abort();
+        const ac = new AbortController();
+        btn._nuisanceAbort = ac;
+        _hotelNuisanceAborts.set(locId, ac);
+
+        try {
+          await NuisanceStream.start(resultEl, {
+            tripId,
+            data: res.data,
+            signal: ac.signal,
+            compact: true,
+            locationId: locId,
+          });
+        } finally {
+          if (_hotelNuisanceAborts.get(locId) === ac) _hotelNuisanceAborts.delete(locId);
+        }
+      });
+    });
   }
 
   return {
     render,
+    abortHotelNuisanceStreams,
     renderBookingTags,
     cancellationBadge,
     renderDocumentsCollapsed,

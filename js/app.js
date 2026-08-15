@@ -21,6 +21,7 @@ var App = (() => {
   let _edgeBundlePromise = null; // in-flight injection of js/dist/bundle-edge.js
   let _edgeBundleAttempt = 0;    // compteur d'essais, cf. ensureEdgeBundle
   let _experimentalOpen = false; // « Expérimental » : état replié/déplié, survit aux re-render
+  let _nuisanceAbort = null;     // AbortController du flux nuisances (onglet Plus)
 
   // ── PWA Install prompt capture (Android/Chrome) ─────────────────────────────
   window.addEventListener('beforeinstallprompt', (e) => {
@@ -125,6 +126,8 @@ var App = (() => {
     // Magic link: intercept ?token=xxx in URL → exchange for JWT.
     // Started here, not awaited: the UI below paints during the exchange.
     const magicLink = startMagicLink();
+
+    paintConstructionNav();
 
     // Load version.json (non-blocking, best-effort)
     fetch('version.json').then(r => r.ok ? r.json() : null)
@@ -452,8 +455,13 @@ var App = (() => {
     const parts = hash.split('/');
     const tab = parts[0];
 
-    if (['programme', 'route', 'culture', 'hotels', 'plus'].includes(tab)) {
+    if (['programme', 'route', 'culture', 'hotels', 'construction', 'plus'].includes(tab)) {
+      if (tab === 'construction' && !Store.get('tk-construction-mode')) {
+        window.location.hash = 'programme';
+        return;
+      }
       _updateTabUI(tab);
+      if (currentTab && currentTab !== tab) _teardownTab(currentTab);
       currentTab = tab;
 
       if (tab === 'programme' && parts[1] !== undefined) {
@@ -479,8 +487,33 @@ var App = (() => {
     });
   }
 
+  /**
+   * Coupe les flux SSE de l'onglet qu'on quitte.
+   *
+   * Un flux nuisances survit à l'abandon de son panneau : il continue jusqu'au
+   * `done` puis repeint un panneau que l'utilisateur ne regarde plus. Chaque
+   * panneau annule déjà son propre flux avant d'en ouvrir un autre ;
+   * il manquait la sortie d'onglet.
+   *
+   * Limite : `abort()` ne coupe que la lecture côté client. Le job serveur
+   * continue d'interroger Overpass jusqu'à son terme.
+   */
+  function _teardownTab(tab) {
+    if (tab === 'construction' && typeof ConstructionView !== 'undefined' && ConstructionView.abortNuisanceStream) {
+      ConstructionView.abortNuisanceStream();
+    }
+    if (tab === 'hotels' && typeof BookingsView !== 'undefined' && BookingsView.abortHotelNuisanceStreams) {
+      BookingsView.abortHotelNuisanceStreams();
+    }
+    if (tab === 'plus' && _nuisanceAbort) {
+      _nuisanceAbort.abort();
+      _nuisanceAbort = null;
+    }
+  }
+
   // ── Tab switching ─────────────────────────────────────────────────────────
   function switchTab(tab) {
+    if (currentTab && currentTab !== tab) _teardownTab(currentTab);
     currentTab = tab;
     _updateTabUI(tab);
     if (tab !== 'listes') currentListId = null;
@@ -504,6 +537,7 @@ var App = (() => {
       case 'route':     renderRoute(tripData);     break;
       case 'culture':   renderCulture(tripData);   break;
       case 'hotels':    renderHotels(tripData);    break;
+      case 'construction': renderConstruction(tripData); break;
       case 'plus':      renderPlus(tripData);      break;
     }
   }
@@ -565,6 +599,17 @@ var App = (() => {
     const container = document.getElementById('hotels-content');
     container.innerHTML = `<div class="empty-state">
       <div class="empty-emoji">📋</div><h3>Réservations indisponibles</h3></div>`;
+  }
+
+  // ── Construction tab ──────────────────────────────────────────────────────
+  function renderConstruction(tripData) {
+    if (typeof ConstructionView !== 'undefined') {
+      ConstructionView.render('construction-content', tripData);
+      return;
+    }
+    const container = document.getElementById('construction-content');
+    if (container) container.innerHTML = `<div class="empty-state">
+      <div class="empty-emoji">🏗️</div><h3>Mode Construction</h3></div>`;
   }
 
   // ── Plus tab (listes + settings) ──────────────────────────────────────────
@@ -642,6 +687,12 @@ var App = (() => {
       <div class="section-body${_experimentalOpen ? '' : ' hidden'} plus-docs-body" id="plus-experimental-body">
         <div id="plus-chat-stream"></div>
         <div id="plus-edge-chat-stream"></div>
+        <div style="margin-top:12px;padding:12px;background:var(--card);border-radius:var(--radius)">
+          <button class="btn btn-sm" id="plus-nuisance-all" style="width:100%;background:var(--accent);color:#000;font-weight:600">
+            ⚠️ Analyse nuisances (tous les hôtels)
+          </button>
+          <div id="plus-nuisance-result" style="margin-top:8px"></div>
+        </div>
       </div>
     </div>`;
 
@@ -735,6 +786,12 @@ var App = (() => {
           🛠️ Mode dev (pas de cache images)
         </label>
       </div>
+      <div id="construction-mode-toggle-wrap" style="display:none;align-items:center;gap:10px;margin-top:8px;padding:10px 12px;background:var(--card);border-radius:var(--radius)">
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;flex:1;color:var(--text);font-size:.85em">
+          <input type="checkbox" id="construction-toggle" ${Store.get('tk-construction-mode') ? 'checked' : ''} onchange="App.toggleConstructionMode(this.checked)" style="width:18px;height:18px">
+          🏗️ Mode construction
+        </label>
+      </div>
     </div>`;
 
     container.innerHTML = html;
@@ -743,6 +800,7 @@ var App = (() => {
       BookingsView.bindDocumentsCollapse(container);
     }
     bindExperimentalCollapse(container);
+    bindPlusNuisanceButton();
 
     // Trip list first, then GH publish (uses Store trips to mark « my » families).
     const selectorEl = document.getElementById('plus-trip-selector');
@@ -755,6 +813,10 @@ var App = (() => {
       tripsReady.then(() => PublishPanel.loadSources()).then(() => {
         PublishPanel.renderSection(publishEl);
         PublishPanel.resumeIfNeeded();
+        const cWrap = document.getElementById('construction-mode-toggle-wrap');
+        if (cWrap && PublishPanel.sources && PublishPanel.sources().length > 0) {
+          cWrap.style.display = 'flex';
+        }
       });
     }
 
@@ -923,6 +985,41 @@ var App = (() => {
         e.preventDefault();
         toggle();
       }
+    });
+  }
+
+  function bindPlusNuisanceButton() {
+    const btn = document.getElementById('plus-nuisance-all');
+    if (!btn || btn.dataset.bound === '1') return;
+    btn.dataset.bound = '1';
+    btn.addEventListener('click', async () => {
+      const tripId = Store.getCurrentTripId();
+      if (!tripId) return;
+      const resultEl = document.getElementById('plus-nuisance-result');
+
+      btn.disabled = true;
+      btn.textContent = '...';
+
+      const res = await API.runNuisanceCheck(tripId, null);
+
+      btn.disabled = false;
+      btn.textContent = '⚠️ Analyse nuisances (tous les hôtels)';
+
+      if (!res.ok) {
+        if (resultEl) resultEl.innerHTML = `<div class="construction-error" style="font-size:.82em">${esc(res.error || 'Erreur')}</div>`;
+        return;
+      }
+
+      if (_nuisanceAbort) _nuisanceAbort.abort();
+      const ac = new AbortController();
+      _nuisanceAbort = ac;
+
+      await NuisanceStream.start(resultEl, {
+        tripId,
+        data: res.data,
+        signal: ac.signal,
+        compact: true,
+      });
     });
   }
 
@@ -1191,6 +1288,28 @@ var App = (() => {
     }
   }
 
+  function paintConstructionNav() {
+    const btn = document.getElementById('nav-construction');
+    if (!btn) return;
+    const enabled = !!Store.get('tk-construction-mode');
+    btn.style.display = enabled ? '' : 'none';
+  }
+
+  function toggleConstructionMode(checked) {
+    Store.set('tk-construction-mode', !!checked);
+    paintConstructionNav();
+    if (checked) {
+      showToast('🏗️ Mode construction activé');
+    } else {
+      showToast('✅ Mode construction désactivé');
+      if (currentTab === 'construction') {
+        switchTab('programme');
+        return;
+      }
+    }
+    renderCurrentTab();
+  }
+
   return {
     switchTab,
     openList,
@@ -1203,5 +1322,8 @@ var App = (() => {
     clearCache,
     installPWA,
     toggleNoCache,
+    paintConstructionNav,
+    toggleConstructionMode,
+    ensureEdgeBundle,
   };
 })();
