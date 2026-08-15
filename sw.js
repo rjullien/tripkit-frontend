@@ -5,7 +5,7 @@
  * Bump CACHE_NAME when deploying new shell versions.
  */
 
-const CACHE_NAME = 'tripkit-121';
+const CACHE_NAME = 'tripkit-122';
 
 
 const ASSETS = [
@@ -21,8 +21,9 @@ const ASSETS = [
   '/css/theme.css',
   // The shell's JS is now 3 generated bundles instead of 31 individual files:
   // scripts/build-bundles.mjs concatenates the sources listed in bundles.json.
-  // bundle-edge stays precached whatever index.html does with it (deferred today,
-  // lazy later) — that is what keeps the local-AI panel usable offline.
+  // bundle-edge is NOT in index.html anymore: App injects it on demand on the
+  // first Plus render (ensureEdgeBundle in js/app.js). It stays precached here —
+  // that is what keeps the Léo / Bifrost / local-AI panels usable offline.
   '/js/dist/bundle-core.js',
   '/js/dist/bundle-components.js',
   '/js/dist/bundle-edge.js',

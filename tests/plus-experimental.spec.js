@@ -37,3 +37,36 @@ test.describe('Plus Expérimental', () => {
     await expect(page.locator('#plus-experimental-head')).toHaveAttribute('aria-expanded', 'false');
   });
 });
+
+test.describe('bundle-edge chargé à la demande', () => {
+  test('aucune requête au boot, exactement une à l\'ouverture de l\'onglet Plus', async ({ page }) => {
+    const edgeRequests = [];
+    page.on('request', req => {
+      // Ignore the service worker's precache: what is measured here is the boot
+      // path of the page itself.
+      if (req.serviceWorker()) return;
+      let pathname;
+      try {
+        pathname = new URL(req.url()).pathname;
+      } catch (_) {
+        return;
+      }
+      if (pathname === '/js/dist/bundle-edge.js') edgeRequests.push(req.url());
+    });
+
+    await page.goto('/');
+    await page.waitForSelector('.bottom-nav', { timeout: 8000 });
+    await expect(page.locator('#programme-content')).toBeVisible();
+    expect(edgeRequests).toHaveLength(0);
+
+    await page.locator('.bottom-nav button[data-tab="plus"]').click();
+    await expect(page.locator('#plus-leo-chat-stream')).toContainText('Léo');
+    expect(edgeRequests).toHaveLength(1);
+
+    // Re-rendering the Plus tab must not re-fetch the bundle.
+    await page.locator('.bottom-nav button[data-tab="programme"]').click();
+    await page.locator('.bottom-nav button[data-tab="plus"]').click();
+    await expect(page.locator('#plus-leo-chat-stream')).toContainText('Léo');
+    expect(edgeRequests).toHaveLength(1);
+  });
+});

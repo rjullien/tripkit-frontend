@@ -69,11 +69,13 @@
        conteneur par docker-entrypoint.sh (envsubst config.js.template).
        `defer` est sûr : chaque module ne touche les autres globales qu'au moment
        de l'appel, et app.js démarre sur DOMContentLoaded, qui n'est émis
-       qu'après l'exécution de tous les scripts différés. -->
+       qu'après l'exécution de tous les scripts différés.
+       js/dist/bundle-edge.js n'est PAS référencé ici : il est injecté à la
+       demande par App au premier rendu de l'onglet Plus (voir ensureEdgeBundle
+       dans js/app.js). Il reste précaché par le service worker. -->
   <script defer src="config.js"></script>
   <script defer src="js/dist/bundle-core.js"></script>
   <script defer src="js/dist/bundle-components.js"></script>
-  <script defer src="js/dist/bundle-edge.js"></script>
 
 </body>
 </html>

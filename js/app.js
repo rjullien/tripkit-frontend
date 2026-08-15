@@ -18,6 +18,7 @@ var App = (() => {
   let _backendVersion = null; // from GET /health — survives Plus tab re-renders
   let _backendVersionFetch = null; // in-flight promise (dedupe)
   let _deferredInstallPrompt = null; // Android/Chrome install prompt
+  let _edgeBundlePromise = null; // in-flight injection of js/dist/bundle-edge.js
 
   // ── PWA Install prompt capture (Android/Chrome) ─────────────────────────────
   window.addEventListener('beforeinstallprompt', (e) => {
@@ -694,6 +695,54 @@ var App = (() => {
     }
 
     // Order: Polarsteps → Léo → Bifrost → Local (edge)
+    // Those three sections live in bundle-edge, which is kept off the boot path:
+    // render straight away when it is already there, otherwise fetch it first.
+    if (edgeBundleLoaded()) renderEdgeSections();
+    else ensureEdgeBundle().then(ok => { if (ok) renderEdgeSections(); });
+
+    // If /health hasn't resolved yet (or failed earlier), retry now that the
+    // Plus DOM exists — paintBackendVersion will fill #tripkit-backend-info.
+    if (!_backendVersion) fetchBackendVersion();
+    paintConnectivity();
+    if (typeof API !== 'undefined' && API.probe) API.probe().then(() => paintConnectivity());
+  }
+
+  // ── bundle-edge : chargement à la demande ─────────────────────────────────
+  // Léo / Bifrost / Local (appareil) et le moteur d'IA locale ne servent qu'à
+  // l'onglet Plus : bundle-edge n'est donc pas dans index.html, il est injecté
+  // ici au premier besoin. Le service worker le précache quand même, pour que le
+  // shell reste complet hors ligne une fois mis en cache.
+  function edgeBundleLoaded() {
+    return typeof EdgeChatStream !== 'undefined';
+  }
+
+  // Resolves true when the bundle is available, false when its load failed.
+  // Never rejects and never throws: sans bundle-edge, le reste de l'onglet Plus
+  // doit continuer à fonctionner. Un échec remet la promesse à null pour qu'un
+  // rendu ultérieur puisse réessayer.
+  function ensureEdgeBundle() {
+    if (edgeBundleLoaded()) return Promise.resolve(true);
+    if (_edgeBundlePromise) return _edgeBundlePromise;
+    _edgeBundlePromise = new Promise(resolve => {
+      const s = document.createElement('script');
+      // Same cache-busting semantics as the tags rewritten by the Dockerfile:
+      // version.json is served no-store, so ?v=<cache> follows each release.
+      const cache = _cachedVersion && _cachedVersion.cache;
+      s.src = 'js/dist/bundle-edge.js' + (cache ? '?v=' + cache : '');
+      s.async = false; // keep classic-script execution order deterministic
+      s.onload = () => resolve(true);
+      s.onerror = () => {
+        _edgeBundlePromise = null; // allow a retry on the next Plus render
+        resolve(false);
+      };
+      document.head.appendChild(s);
+    });
+    return _edgeBundlePromise;
+  }
+
+  // Idempotent: the Plus tab re-renders often, so the elements are re-queried
+  // every time and each global keeps its typeof guard.
+  function renderEdgeSections() {
     const leoStreamEl = document.getElementById('plus-leo-chat-stream');
     if (leoStreamEl && typeof LeoChatStream !== 'undefined') {
       LeoChatStream.loadStatus().then(() => LeoChatStream.renderSection(leoStreamEl));
@@ -708,12 +757,6 @@ var App = (() => {
     if (edgeChatEl && typeof EdgeChatStream !== 'undefined') {
       EdgeChatStream.renderSection(edgeChatEl);
     }
-
-    // If /health hasn't resolved yet (or failed earlier), retry now that the
-    // Plus DOM exists — paintBackendVersion will fill #tripkit-backend-info.
-    if (!_backendVersion) fetchBackendVersion();
-    paintConnectivity();
-    if (typeof API !== 'undefined' && API.probe) API.probe().then(() => paintConnectivity());
   }
 
   function bindExperimentalCollapse(root) {
@@ -838,11 +881,15 @@ var App = (() => {
       caches.keys().then(keys => Promise.all(keys.map(k => caches.delete(k)))).then(() => location.reload(true));
     };
     // Edge GGUF lives in OPFS — must purge explicitly (clearCache does NOT).
-    if (typeof EdgeEngine !== 'undefined' && EdgeEngine.purge) {
-      Promise.resolve(EdgeEngine.purge()).catch(() => {}).then(afterPurge);
-    } else {
-      afterPurge();
-    }
+    // The model can survive in OPFS from an earlier session, so bundle-edge is
+    // loaded on demand here rather than skipping the purge when it is absent.
+    ensureEdgeBundle().then(() => {
+      if (typeof EdgeEngine !== 'undefined' && EdgeEngine.purge) {
+        Promise.resolve(EdgeEngine.purge()).catch(() => {}).then(afterPurge);
+      } else {
+        afterPurge();
+      }
+    });
   }
 
   // ── Swipe navigation (programme tab) ──────────────────────────────────────

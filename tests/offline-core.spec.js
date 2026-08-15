@@ -51,7 +51,7 @@ test.describe('SW precache list', () => {
     expect(text).toContain('/js/dist/bundle-core.js');
     expect(text).toContain('/js/dist/bundle-components.js');
     expect(text).toContain('/js/dist/bundle-edge.js');
-    expect(text).toContain('tripkit-121');
+    expect(text).toContain('tripkit-122');
     expect(text).toContain("url.origin !== self.location.origin");
     expect(text).not.toContain('/js/components/leo-chat.js');
     // Wllama runtime (~300 Ko) is opt-in: it must NOT be in the install precache.
