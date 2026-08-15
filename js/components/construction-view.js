@@ -746,15 +746,17 @@ var ConstructionView = (() => {
 
   // ── Admin check ──
 
+  // Vocabulaire backend uniquement (`ok` / `warning` / `action_required`).
+  // Une regex `/ok|done|valid/` faisait retomber `invalid` et `not_ok` sur ✅
+  // (lot #76). Une valeur inconnue rend ❓, jamais un tick vert.
   function statusBadge(status) {
-    const s = String(status || '').toLowerCase();
-    if (s === 'ok') return '✅';
-    if (s === 'warning') return '⚠️';
-    if (s === 'action_required') return '🔴';
-    if (/ok|done|valid/.test(s)) return '✅';
-    if (/warning|attention/.test(s)) return '⚠️';
-    if (/action|needed|missing/.test(s)) return '🔴';
-    return '❓';
+    switch (String(status || '').toLowerCase()) {
+      case 'ok': return '✅';
+      case 'warning': return '⚠️';
+      case 'action_required': return '🔴';
+      case 'none': return '';
+      default: return '❓';
+    }
   }
 
   function statusLabel(status) {
@@ -826,7 +828,7 @@ var ConstructionView = (() => {
     // il s'afficherait au-dessus de lui.
     const sentence = parsed.items.length ? verdictSentence(parsed.verdict) : '';
     if (sentence) html += `<div class="admin-verdict admin-verdict-${esc(parsed.verdict)}">${sentence}</div>`;
-    if (parsed.summary) html += `<div class="admin-summary">${esc(parsed.summary)}</div>`;
+    if (parsed.summary) html += `<div class="admin-summary action-result-summary">${esc(parsed.summary)}</div>`;
 
     if (!parsed.items.length) {
       const empty = parsed.countries.length ? ADMIN_UNKNOWN_TRIP : UNKNOWN_DESTINATION;
@@ -911,7 +913,7 @@ var ConstructionView = (() => {
     if (parsed.countries.length) {
       html += `<div class="health-countries">Pays détectés : ${esc(parsed.countries.join(', '))}</div>`;
     }
-    if (parsed.summary) html += `<div class="health-summary">${esc(parsed.summary)}</div>`;
+    if (parsed.summary) html += `<div class="health-summary action-result-summary">${esc(parsed.summary)}</div>`;
     parsed.items.forEach(item => {
       html += `<div class="health-item">`;
       html += `<span class="check-badge">${statusBadge(item.status)}</span>`;

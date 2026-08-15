@@ -224,3 +224,31 @@ inchangés.
 météo qui comptent les appels Open-Meteo bouchonnés échouent par intermittence sous charge
 parallèle et passent en isolation — reproduit sur la base **avant** cette passe (`7ad1e0f`, où
 `tests/route-weather-iso.spec.js:19` est tombé), donc préexistant et étranger à ce diff.
+
+---
+
+## 9. Cinquième passe — leftovers de la PR #76
+
+#76 (`feat/construction-checks-live`, empilée sur #74, CONFLICTING) visait à afficher vraiment
+admin / santé / nuisances. La review de #74 a ensuite posé `construction-contract.js`, qui
+**remplace** la lecture `data.travelers[]` / `data.recommendations` / silence santé vide. Ne pas
+merger #76.
+
+Lot déjà repris dans le commit précédent : timeouts admin/santé 60 s, échéance admin, alternatives
+nuisances, exports `handleAdmin` / `handleSante`.
+
+Cette passe reprend ce qui manquait encore :
+
+| # | De #76 | Statut | Détail |
+|---|---|---|---|
+| 1 | `statusBadge` : valeur inconnue ≠ ✅ | ✅ | La cascade de regex `/ok\|done\|valid/` peignait `invalid` et `not_ok` en vert. Mapping exact `ok` / `warning` / `action_required` ; le reste rend ❓. `action_required` reste 🔴 (aligné QA), pas ❌ de #76 |
+| 2 | Summary LLM visuellement séparé | ✅ | Classe `.action-result-summary` (bloc accent) sur admin et santé. La fixture d'or n'a pas de `summary` : test Playwright avec payload enrichi |
+| 3 | CSS ActionBar / reco / analyse partielle | ✅ | Pills de verdict, bandeau orange incomplet, reco Bifrost en bloc distinct, `.action-bar-btn` |
+| 4 | `nationality_unknown` | ✅ | Rendu dès qu'il arrive dans `items[]` (enveloppe du contrat). `travelers[]` seul reste refusé |
+| 5 | Santé : `verdict none` → panneau vide | ❌ volontaire | La review de #74 a tranché : pays détecté → « Aucune recommandation santé » ; pays vide → « Destination non identifiée ». Un panneau vide était vacuous |
+| 6 | Voyageur sans item → « Aucune formalité requise » | ❌ volontaire | Zéro item = pas de règle connue, pas un feu vert. Conservé de la passe 3 |
+
+`sw.js` : `CACHE_NAME` passé à `tripkit-127` ; `version.json` cache `170`. Soft reste 2.31.25.
+
+Ne **pas** porter : gzip nginx / drop wllama / magic link (déjà sur `main` via #75), `CACHE_NAME` 121,
+`construction-checks.test.cjs` calé sur `travelers[]`.

@@ -1748,10 +1748,22 @@ a:visited { color: var(--accent); }
 }
 .construction-action-bar h3 { margin: 0 0 10px; font-size: 1em; }
 .action-bar-buttons { display: flex; flex-wrap: wrap; gap: 8px; }
+.action-bar-btn { flex: 1 1 auto; min-width: 84px; }
 #action-bar-results { margin-top: 10px; font-size: .85em; }
-.action-results-header { font-weight: 700; margin-bottom: 6px; }
+#action-bar-results:not(:empty) { margin-top: 14px; }
+.action-results-header {
+  font-weight: 700; font-size: .95em; margin-bottom: 10px;
+  padding-bottom: 6px; border-bottom: 1px solid rgba(255,255,255,.1);
+}
 .action-result-ok { color: var(--green); }
 .action-result-loading { color: var(--muted); }
+/* Prose LLM : bloc distinct des lignes déterministes qui suivent (lot #76). */
+.action-result-summary {
+  font-size: .87em; line-height: 1.5; margin-bottom: 12px;
+  padding: 10px 12px; border-radius: 8px;
+  background: rgba(255,255,255,.05); border-left: 3px solid var(--accent);
+  white-space: pre-line;
+}
 .unrecognized-payload { font-weight: 600; }
 
 .qa-item { padding: 6px 8px; border-radius: 8px; background: rgba(255,255,255,.05); margin-bottom: 4px; }
@@ -1782,19 +1794,30 @@ a:visited { color: var(--accent); }
 .admin-unknown, .health-unknown { color: var(--orange); }
 .admin-limitation { color: var(--muted); font-size: .86em; margin-top: 8px; line-height: 1.35; }
 
-.nuisance-verdict { font-weight: 700; margin-bottom: 6px; }
-.nuisance-verdict.verdict-bad { color: var(--red); }
-.nuisance-verdict.verdict-moderate { color: var(--orange); }
-.nuisance-verdict.verdict-unknown { color: var(--muted); }
-.nuisance-verdict.verdict-ok { color: var(--green); }
-.nuisance-incomplete { color: var(--orange); margin-bottom: 8px; }
+.nuisance-verdict {
+  font-weight: 700; font-size: .78em; padding: 2px 8px; border-radius: 6px;
+  display: inline-block; margin-bottom: 6px;
+}
+.nuisance-verdict.verdict-bad { background: rgba(239,83,80,.22); color: #ef9a9a; }
+.nuisance-verdict.verdict-moderate { background: rgba(255,171,64,.2); color: #ffcc80; }
+.nuisance-verdict.verdict-unknown { background: rgba(255,255,255,.1); color: var(--muted); }
+.nuisance-verdict.verdict-ok { background: rgba(76,175,80,.22); color: #a5d6a7; }
+.nuisance-incomplete, .nuisance-partial-warning {
+  font-size: .85em; padding: 8px 12px; margin-bottom: 10px; border-radius: 8px;
+  background: rgba(255,171,64,.14); border-left: 3px solid #ffab40; color: #ffcc80;
+}
 .nuisance-location { margin-bottom: 10px; }
 .nuisance-loc-name { font-weight: 600; margin-bottom: 4px; }
-.nuisance-cat { padding: 3px 0 3px 8px; }
+.nuisance-cat { padding: 5px 0 5px 10px; margin-left: 6px; border-left: 2px solid rgba(255,255,255,.1); }
 .nuisance-cat-unavailable { color: var(--muted); }
 .nuisance-level, .nuisance-count, .nuisance-distance { color: var(--muted); }
-.nuisance-detail, .nuisance-recommendation, .nuisance-alts { color: var(--muted); font-size: .92em; }
-.nuisance-cat-unknown { color: var(--muted); }
+.nuisance-detail, .nuisance-alts { color: var(--muted); font-size: .92em; }
+.nuisance-recommendation, .nuisance-reco {
+  font-size: .85em; line-height: 1.5; margin-top: 8px;
+  padding: 8px 12px; border-radius: 8px;
+  background: rgba(255,255,255,.05); border-left: 3px solid var(--accent);
+}
+.nuisance-cat-unknown { color: var(--muted); border-left-color: rgba(255,171,64,.5); }
 .admin-deadline, .admin-url { color: var(--muted); font-size: .92em; margin-top: 2px; }
 .nuisance-progress { color: var(--muted); }
 .nuisance-pin-wrap { margin-top: 8px; }

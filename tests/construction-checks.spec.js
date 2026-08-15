@@ -187,6 +187,61 @@ test.describe('Construction ActionBar', () => {
     await expect(page.locator('#action-bar-results')).not.toContainText('Aucune formalité');
   });
 
+  // Lot #76 : échéance + lien officiel + prose LLM dans un bloc distinct.
+  // La fixture d'or n'a ni deadline ni summary (Bifrost optionnel) : on les
+  // ajoute ici sans toucher au fichier d'or.
+  test('Admin : échéance, lien officiel et résumé LLM visuellement séparés', async ({ page }) => {
+    const payload = JSON.parse(ADMIN);
+    payload.summary = 'Alice doit demander un eTA canadien.';
+    payload.items[0].deadline = '72h';
+    await page.route('**/travel-profile', route => route.fulfill(json(PROFILE)));
+    await page.route('**/admin-check', route => route.fulfill(json(JSON.stringify(payload))));
+    await openConstruction(page);
+
+    await page.locator('#action-admin').click();
+    const results = page.locator('#action-bar-results');
+    await expect(results.locator('.admin-deadline')).toContainText('Échéance : 72h');
+    await expect(results.locator('a[href="https://www.canada.ca/eta"]')).toHaveCount(2);
+    await expect(results.locator('.action-result-summary')).toContainText('Alice doit demander un eTA canadien.');
+  });
+
+  // Lot #76 : `/ok|done|valid/` faisait retomber `invalid` sur un tick vert.
+  test("Admin : un statut inconnu n'est jamais un tick vert", async ({ page }) => {
+    const payload = JSON.parse(ADMIN);
+    payload.items[0].status = 'invalid';
+    await page.route('**/travel-profile', route => route.fulfill(json(PROFILE)));
+    await page.route('**/admin-check', route => route.fulfill(json(JSON.stringify(payload))));
+    await openConstruction(page);
+
+    await page.locator('#action-admin').click();
+    const item = page.locator('#action-bar-results .admin-check-item').first();
+    await expect(item).toContainText('❓');
+    await expect(item).not.toContainText('✅');
+  });
+
+  test('Admin : nationality_unknown arrive comme un item, pas via travelers[]', async ({ page }) => {
+    const payload = {
+      verdict: 'warning',
+      countries: ['US'],
+      items: [{
+        type: 'nationality_unknown',
+        label: 'Nationalité non renseignée',
+        status: 'warning',
+        detail: 'Ajoute nationalities au profil.',
+        appliesTo: ['*'],
+      }],
+    };
+    await page.route('**/travel-profile', route => route.fulfill(json(PROFILE)));
+    await page.route('**/admin-check', route => route.fulfill(json(JSON.stringify(payload))));
+    await openConstruction(page);
+
+    await page.locator('#action-admin').click();
+    const results = page.locator('#action-bar-results');
+    await expect(results).toContainText('Nationalité non renseignée');
+    await expect(results).toContainText('Ajoute nationalities');
+    await expect(results.locator('.unrecognized-payload')).toHaveCount(0);
+  });
+
   test('Santé : les items de la fixture Thaïlande sont affichés', async ({ page }) => {
     await page.route('**/health-check', route => route.fulfill(json(HEALTH)));
     await openConstruction(page);
@@ -239,6 +294,21 @@ test.describe('Construction ActionBar', () => {
     await expect(results).toContainText('Montréal Vieux-Port');
     await expect(results.locator('.nuisance-cat-unavailable')).toHaveCount(1);
     await expect(results).not.toContainText('Aucune nuisance');
+  });
+
+  // Lot #76 : la fixture d'or a recommendation vide et alternatives null.
+  test('Nuisances : recommandation Bifrost et alternatives', async ({ page }) => {
+    const payload = JSON.parse(NUISANCE);
+    payload.results[0].recommendation = 'Changer de quartier.';
+    payload.results[0].alternatives = ['Rue calme', 'Airbnb intérieur'];
+    await page.route('**/nuisance-check', route => route.fulfill(json(JSON.stringify(payload))));
+    await openConstruction(page);
+
+    await page.locator('#action-nuisances').click();
+    const results = page.locator('#action-bar-results');
+    await expect(results.locator('.nuisance-reco')).toContainText('Changer de quartier.');
+    await expect(results.locator('.nuisance-alts')).toContainText('Rue calme');
+    await expect(results.locator('.nuisance-alts')).toContainText('Airbnb intérieur');
   });
 
   // Le report d'une fonctionnalité doit se voir AVANT l'action : révéler « Pas

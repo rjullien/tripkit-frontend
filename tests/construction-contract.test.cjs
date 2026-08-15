@@ -51,6 +51,9 @@ global.Store = { getCurrentTripId() { return 'trip-1'; }, getTripData() { return
 
 eval(fs.readFileSync('js/construction-contract.js', 'utf8'));
 eval(fs.readFileSync('js/components/nuisance-stream.js', 'utf8'));
+global.LeoChatStream = { create() { return { mount() {}, unmount() {} }; } };
+global.App = { ensureEdgeBundle() { return Promise.resolve(); } };
+eval(fs.readFileSync('js/components/construction-view.js', 'utf8'));
 
 const FIXTURES = path.join('tests', 'fixtures', 'construction-contract');
 function fixture(name) {
@@ -446,6 +449,19 @@ test('NuisanceStream.filterLocation restreint à un hébergement', () => {
   const none = NuisanceStream.filterLocation(parsed, 'loc-absent');
   assert.strictEqual(none.locations.length, 0);
   assert.strictEqual(none.verdict, '');
+});
+
+// Lot #76 : l'ancienne cascade de regex `/ok|done|valid/` peignait ✅ sur
+// `invalid` (contient "valid") et `not_ok` (contient "ok").
+test('statusBadge : un statut inconnu rend ❓, jamais ✅', () => {
+  assert.strictEqual(ConstructionView.statusBadge('ok'), '✅');
+  assert.strictEqual(ConstructionView.statusBadge('warning'), '⚠️');
+  assert.strictEqual(ConstructionView.statusBadge('action_required'), '🔴');
+  assert.strictEqual(ConstructionView.statusBadge('none'), '');
+  assert.strictEqual(ConstructionView.statusBadge('wat'), '❓');
+  assert.strictEqual(ConstructionView.statusBadge('invalid'), '❓');
+  assert.strictEqual(ConstructionView.statusBadge('not_ok'), '❓');
+  assert.strictEqual(ConstructionView.statusBadge(''), '❓');
 });
 
 console.log(`\n${pass} tests passed${fail ? `, ${fail} failed` : ''}\n`);

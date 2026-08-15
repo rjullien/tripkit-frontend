@@ -114,7 +114,7 @@ var NuisanceStream = (() => {
       const warn = `⚪ Analyse incomplète : certaines données n'ont pas pu être récupérées.${failed}`;
       html += compact
         ? `<div style="color:var(--warn,#e0a800)">${esc(warn)}</div>`
-        : `<div class="nuisance-incomplete">${esc(warn)}</div>`;
+        : `<div class="nuisance-incomplete nuisance-partial-warning">${esc(warn)}</div>`;
     }
 
     parsed.locations.forEach(loc => {
@@ -129,7 +129,7 @@ var NuisanceStream = (() => {
       cats.forEach(cat => { html += categoryHtml(cat, compact); });
 
       if (!compact) {
-        if (loc.recommendation) html += `<div class="nuisance-recommendation">${esc(loc.recommendation)}</div>`;
+        if (loc.recommendation) html += `<div class="nuisance-recommendation nuisance-reco">${esc(loc.recommendation)}</div>`;
         if (Array.isArray(loc.alternatives) && loc.alternatives.length) {
           html += `<div class="nuisance-alts">Alternatives : ${loc.alternatives.map(a => esc(a)).join(', ')}</div>`;
         }
