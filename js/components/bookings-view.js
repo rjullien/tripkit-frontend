@@ -622,6 +622,14 @@ var BookingsView = (() => {
       : containerId;
     if (!container) return;
 
+    // Tout `innerHTML` ci-dessous détache les lignes hôtel : un flux nuisances en
+    // cours écrirait ensuite dans un nœud hors document, et la ligne de progression
+    // visible resterait figée jusqu'à la sortie d'onglet. Ce ré-affichage sur place
+    // arrive sans changer d'onglet (App.refreshFromBackend -> renderCurrentTab, sur
+    // `visibilitychange` et `online` : verrouiller puis déverrouiller un téléphone
+    // pendant une analyse suffit).
+    abortHotelNuisanceStreams();
+
     if (!tripData) {
       container.innerHTML = `<div class="empty-state">
         <div class="empty-emoji">📋</div>

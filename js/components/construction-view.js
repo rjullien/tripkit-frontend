@@ -36,6 +36,13 @@ var ConstructionView = (() => {
   // le backend ne produit pas les items par voyageur, la personne concernée doit
   // le lire dans le panneau, pas seulement dans un doc de suivi.
   const ADMIN_UNION_NOTE = "Liste indicative : la présence d'un item est calculée sur l'ensemble des nationalités du voyage, pas passeport par passeport. Un item peut donc manquer pour l'un si un autre passeport du groupe en dispense.";
+  // `countries` vide, côté admin comme côté santé, veut dire que DetectCountries
+  // n'a reconnu aucun pays dans le seed : le moteur n'a rien analysé du tout.
+  // C'est un cas différent de la destination connue sans rien à signaler, que la
+  // spec (construction/SPEC.md §7.2) autorise à rester silencieuse. Annoncer
+  // « rien pour cette destination » affirmerait une destination que le backend
+  // n'a jamais eue.
+  const UNKNOWN_DESTINATION = "⚠️ Destination non identifiée : aucun pays n'a pu être déduit du voyage, donc aucun contrôle n'a été fait. À compléter dans le seed, puis relancer.";
 
   function esc(s) {
     return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -761,12 +768,19 @@ var ConstructionView = (() => {
     if (parsed.countries.length) {
       html += `<div class="admin-countries">Pays détectés : ${esc(parsed.countries.join(', '))}</div>`;
     }
-    const sentence = verdictSentence(parsed.verdict);
+    // Le verdict ne se rend QUE s'il porte sur des items. `AdminCheck` renvoie
+    // verdict "ok" avec zéro item dès qu'aucun pays n'est détecté, qu'aucune
+    // nationalité n'est connue (le cas ordinaire : `nationalities` est optionnel
+    // dans un seed) ou qu'aucune règle ne matche. « ✅ Rien à faire » y serait
+    // exactement le faux feu vert que l'avertissement juste dessous corrige, et
+    // il s'afficherait au-dessus de lui.
+    const sentence = parsed.items.length ? verdictSentence(parsed.verdict) : '';
     if (sentence) html += `<div class="admin-verdict admin-verdict-${esc(parsed.verdict)}">${sentence}</div>`;
     if (parsed.summary) html += `<div class="admin-summary">${esc(parsed.summary)}</div>`;
 
     if (!parsed.items.length) {
-      html += `<div class="admin-unknown">${ADMIN_UNKNOWN_TRIP}</div></div>`;
+      const empty = parsed.countries.length ? ADMIN_UNKNOWN_TRIP : UNKNOWN_DESTINATION;
+      html += `<div class="admin-unknown">${empty}</div></div>`;
       showResults(html);
       return;
     }
@@ -824,7 +838,18 @@ var ConstructionView = (() => {
       return;
     }
 
-    // Règle de silence de la spec : verdict "none" ou zéro item -> rien d'alarmant.
+    // Deux silences distincts, que le backend renvoie tous les deux avec
+    // verdict "none" et zéro item :
+    //  - pays détecté, aucune recommandation : silence voulu par la spec
+    //    (construction/SPEC.md §7.2, « le check répond rien de particulier et
+    //    n'affiche pas de section ») -> le ✅ vert reste légitime ;
+    //  - `countries` vide, donc aucun pays déduit du voyage : le moteur n'a rien
+    //    analysé. Le rendre en vert annoncerait « rien à faire » pour une
+    //    destination inconnue, exactement le faux feu vert corrigé côté admin.
+    if (!parsed.items.length && !parsed.countries.length) {
+      showResults(`<div class="health-unknown">${UNKNOWN_DESTINATION}</div>`);
+      return;
+    }
     if (!parsed.items.length || String(parsed.verdict).toLowerCase() === 'none') {
       showResults(`<div class="action-result-ok">Aucune recommandation santé pour cette destination</div>`);
       return;

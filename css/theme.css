@@ -1778,8 +1778,10 @@ a:visited { color: var(--accent); }
 .check-badge { margin-right: 4px; }
 .admin-status, .health-status { color: var(--muted); }
 .admin-detail, .admin-cost, .health-detail { color: var(--muted); font-size: .92em; margin-top: 2px; }
-/* Zéro règle connue n'est pas un feu vert : jamais de vert sur ce cas. */
-.admin-unknown { color: var(--orange); }
+/* Zéro règle connue n'est pas un feu vert : jamais de vert sur ce cas.
+   Idem pour une destination que le backend n'a pas identifiée : le silence d'un
+   moteur qui n'a rien eu à analyser se rend en orange, pas en vert. */
+.admin-unknown, .health-unknown { color: var(--orange); }
 .admin-limitation { color: var(--muted); font-size: .86em; margin-top: 8px; line-height: 1.35; }
 
 .nuisance-verdict { font-weight: 700; margin-bottom: 6px; }

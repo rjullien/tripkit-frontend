@@ -189,3 +189,34 @@ inchangés.
 **Vérifications** (locales — rien contre une instance qui tourne, ni Overpass, ni Bifrost) :
 `npm run test:unit` (11 fichiers, 35 assertions de contrat) et `npx playwright test`
 (**134 passés**, contre 130 avant cette passe : +4 tests, aucune régression de compte).
+
+---
+
+## 8. Quatrième passe — review v3 (verdict NEEDS_CHANGES, 6 constats dont 2 bloquants)
+
+La passe précédente avait fermé le faux feu vert **au niveau du voyageur** ; les deux constats
+bloquants de la v3 sont le même défaut **un cran au-dessus**, sur la ligne d'en-tête du panneau et
+sur le panneau santé. C'est la dernière passe de code : la boucle de review a consommé ses trois
+tours, donc chaque correctif est vérifié par test **et** par mutation (retirer le correctif fait
+tomber le test, ce qui est noté ci-dessous cas par cas).
+
+| # | Constat v3 | Statut | Détail |
+|---|---|---|---|
+| 1 (bloquant) | L'en-tête admin restait `✅ Rien à faire` au-dessus de l'avertissement orange | ✅ | `js/components/construction-view.js` : la phrase de verdict n'est plus rendue quand `items` est vide (`parsed.items.length ? verdictSentence(...) : ''`). `worstVerdict([])` vaut `"ok"`, donc `AdminCheck` renvoie **verdict `ok` avec zéro item** dès qu'aucun pays n'est détecté, qu'aucune nationalité n'est connue (le cas ordinaire : `nationalities` est optionnel dans un seed, et absent de `js/seed/test-trip.js`) ou qu'aucune règle ne matche : le panneau affichait « rien à faire » **puis** « ce silence n'est pas un feu vert ». Le test de la passe précédente ne pouvait pas le voir, il servait `verdict:"none"` (vocabulaire *santé*, que le service admin n'émet jamais) : il sert maintenant `{"verdict":"ok","countries":["BR"],"items":[]}` et assert l'absence de la phrase elle-même (`not.toContainText('Rien à faire')`, `.admin-verdict` à 0, aucun `✅`). Mutation vérifiée : remettre `verdictSentence(parsed.verdict)` fait tomber les deux tests admin à zéro item |
+| 2 (bloquant) | Le panneau santé rendait le silence de la spec pour une destination **non identifiée** | ✅ | `HealthCheck` répond `verdict:"none"` dans deux situations opposées. Le silence vert reste pour la première (pays détecté, aucune recommandation : `construction/SPEC.md` §7.2 impose de ne pas afficher de section) ; quand `countries` est **vide**, donc que `DetectCountries` n'a rien reconnu, le panneau rend « ⚠️ Destination non identifiée : aucun pays n'a pu être déduit du voyage, donc aucun contrôle n'a été fait. À compléter dans le seed, puis relancer. » (classe `.health-unknown`, orange). Aucun changement d'enveloppe n'a été nécessaire : `countries` vide est déjà le signal. Le panneau admin utilise le même libellé dans le même cas, au lieu de parler « de cette destination ». Deux tests Playwright, un par branche ; mutation vérifiée sur la branche orange |
+| 4 | Les flux nuisances de Résa survivaient à un ré-affichage **sur place** | ✅ | `BookingsView.render()` appelle désormais `abortHotelNuisanceStreams()` avant de reconstruire le conteneur, ce que son propre commentaire annonçait déjà. `App.refreshFromBackend()` appelle `renderCurrentTab()` **sans changer d'onglet** (kick `visibilitychange` / `online` : verrouiller puis déverrouiller un téléphone pendant l'analyse), donc `hotels-content` était reconstruit sous un flux vivant et la ligne de progression ne se résolvait plus jusqu'à la sortie d'onglet. Nouveau test Playwright : après `App.reloadAllViews()` (= `renderCurrentTab()`), le GET final n'est jamais émis, plus aucune `.nuisance-progress` ne subsiste et le bouton est de nouveau actionnable. Mutation vérifiée : retirer l'appel fait tomber ce test et **pas** celui de la sortie d'onglet |
+
+Constats 3, 5 et 6 (backend : ref du job `fixtures-cross-repo`, classe d'espaces du régex de
+délimiteurs, axe du compromis mots composés) : voir `tripkit-backend/docs/REVIEW-construction-fixes.md`
+§7.
+
+`sw.js` : `CACHE_NAME` passé à `tripkit-123` (contenu de `js/` et `css/` modifié) ;
+`tests/offline-core.spec.js` épingle ce nom. Aucun nouveau module : `ASSETS` et `index.html` sont
+inchangés.
+
+**Vérifications** (locales — rien contre une instance qui tourne, ni Overpass, ni Bifrost) :
+`npm run test:unit` (35 assertions de contrat, inchangé) et `npx playwright test`
+(**137 passés**, contre 134 avant cette passe : +3 tests, aucune régression de compte). Les specs
+météo qui comptent les appels Open-Meteo bouchonnés échouent par intermittence sous charge
+parallèle et passent en isolation — reproduit sur la base **avant** cette passe (`7ad1e0f`, où
+`tests/route-weather-iso.spec.js:19` est tombé), donc préexistant et étranger à ce diff.

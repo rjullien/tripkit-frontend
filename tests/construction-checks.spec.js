@@ -141,9 +141,14 @@ test.describe('Construction ActionBar', () => {
     await expect(results.locator('.admin-limitation')).toContainText("pas passeport par passeport");
   });
 
+  // La charge utile est celle que le service envoie VRAIMENT sur un check vide :
+  // `worstVerdict([])` vaut "ok", donc AdminCheck renvoie verdict "ok" avec zéro
+  // item dès qu'aucun pays n'est détecté, qu'aucune nationalité n'est connue
+  // (`nationalities` est optionnel dans un seed) ou qu'aucune règle ne matche.
+  // « ✅ Rien à faire » se serait affiché AU-DESSUS de l'avertissement orange.
   test("Admin : zéro item pour le voyage se lit « aucune règle connue », pas « rien à faire »", async ({ page }) => {
     await page.route('**/travel-profile', route => route.fulfill(json(PROFILE)));
-    await page.route('**/admin-check', route => route.fulfill(json('{"verdict":"none","countries":["BR"],"items":[]}')));
+    await page.route('**/admin-check', route => route.fulfill(json('{"verdict":"ok","countries":["BR"],"items":[]}')));
     await openConstruction(page);
 
     await page.locator('#action-admin').click();
@@ -151,6 +156,25 @@ test.describe('Construction ActionBar', () => {
     await expect(results.locator('.admin-unknown')).toContainText('Aucune règle connue pour cette destination');
     await expect(results).toContainText("Ce silence n'est pas un feu vert");
     await expect(results).not.toContainText('Aucune formalité administrative requise');
+    // La phrase de verdict elle-même, pas seulement la chaîne qu'elle ne contient pas.
+    await expect(results).not.toContainText('Rien à faire');
+    await expect(results.locator('.admin-verdict')).toHaveCount(0);
+    await expect(results.locator('.action-result-ok')).toHaveCount(0);
+    await expect(results).not.toContainText('✅');
+  });
+
+  // Aucun pays déduit du voyage : le moteur n'a rien analysé. Dire « aucune règle
+  // connue pour cette destination » affirmerait une destination que le backend n'a
+  // jamais eue.
+  test("Admin : sans pays détecté, le panneau dit que la destination n'est pas identifiée", async ({ page }) => {
+    await page.route('**/travel-profile', route => route.fulfill(json(PROFILE)));
+    await page.route('**/admin-check', route => route.fulfill(json('{"verdict":"ok","countries":null,"items":[]}')));
+    await openConstruction(page);
+
+    await page.locator('#action-admin').click();
+    const results = page.locator('#action-bar-results');
+    await expect(results.locator('.admin-unknown')).toContainText('Destination non identifiée');
+    await expect(results).not.toContainText('Rien à faire');
     await expect(results.locator('.action-result-ok')).toHaveCount(0);
   });
 
@@ -176,12 +200,31 @@ test.describe('Construction ActionBar', () => {
     await expect(results).toContainText('Risque de paludisme');
   });
 
-  test('Santé : verdict none = silence, pas d’alarme', async ({ page }) => {
+  // Destination connue et sans recommandation : silence voulu par la spec
+  // (construction/SPEC.md §7.2). Le ✅ vert reste légitime ICI, et seulement ici.
+  test('Santé : verdict none sur un pays détecté = silence, pas d’alarme', async ({ page }) => {
     await page.route('**/health-check', route => route.fulfill(json('{"verdict":"none","countries":["FR"],"items":null}')));
     await openConstruction(page);
 
     await page.locator('#action-sante').click();
     await expect(page.locator('#action-bar-results .action-result-ok')).toContainText('Aucune recommandation santé');
+    await expect(page.locator('#action-bar-results .health-unknown')).toHaveCount(0);
+  });
+
+  // Même verdict "none", situation opposée : `countries` vide veut dire que
+  // DetectCountries n'a rien reconnu, donc qu'aucune recommandation n'a été
+  // cherchée. Le vaccin manquant se lisait comme un feu vert.
+  test("Santé : sans pays détecté, le silence de la spec ne s'applique pas", async ({ page }) => {
+    await page.route('**/health-check', route => route.fulfill(json('{"verdict":"none","countries":[],"items":null}')));
+    await openConstruction(page);
+
+    await page.locator('#action-sante').click();
+    const results = page.locator('#action-bar-results');
+    await expect(results.locator('.health-unknown')).toContainText('Destination non identifiée');
+    await expect(results.locator('.health-unknown')).toContainText('aucun contrôle');
+    await expect(results.locator('.action-result-ok')).toHaveCount(0);
+    await expect(results).not.toContainText('Aucune recommandation santé');
+    await expect(results).not.toContainText('✅');
   });
 
   test('Nuisances : une analyse incomplète ne s’affiche jamais en vert', async ({ page }) => {
