@@ -21,6 +21,7 @@ tripkit-frontend (this repo)    tripkit-backend (Go API)     tripkit-seeds (priv
 ├── js/day-helpers.js           ├── internal/handlers/       ├── ...
 ├── js/day-resolver.js          ├── internal/middleware/     └── ...
 ├── css/                        └── internal/models/
+├── bundles.json (boot bundles)
 ├── seed-import.cjs
 └── DATA-MODEL.md (spec)
 ```
@@ -104,12 +105,46 @@ Users only see trips assigned to their groups. Admin users bypass ACL.
 
 ## Development
 
+### Build step
+
+The app stays a no-framework, no-transpiler PWA, but the boot scripts are concatenated
+into three bundles so the shell costs 5 requests instead of 34:
+
 ```bash
-# Run tests
+npm run build   # node scripts/build-bundles.mjs → js/dist/bundle-*.js
+```
+
+- `bundles.json` is the source of truth: output name → ordered list of sources.
+  The order is the old `<script>` order, so it matters.
+- `js/dist/` is generated and **gitignored** — never edit it, re-run `npm run build`.
+- `index.html` loads `config.js`, `bundle-core` and `bundle-components` with `defer`;
+  `bundle-edge` (local AI + chat streams) is injected on demand from the Plus tab.
+- The Docker image builds the bundles itself in a `node:22-alpine` stage, so
+  `docker build` needs no prior `npm run build`.
+- Zero npm dependency: the build script only uses Node's standard library.
+
+```bash
+# Run tests (npm test builds first, then runs Playwright)
+npm test
+
+# Playwright alone: its webServer command runs the build before serving
 npx playwright test
+
+# Node unit tests (the CI superset, 11 files)
+for f in tests/*.test.cjs; do node "$f"; done
 
 # Seed integrity check
 npx playwright test tests/seed-integrity.spec.js
+```
+
+### Measuring the boot path
+
+`scripts/measure-boot.mjs` lists every boot asset of a running instance with its
+transferred (gzip) and uncompressed size, and exits non-zero if one is not 200 —
+handy as a smoke test after `docker build`:
+
+```bash
+node scripts/measure-boot.mjs http://localhost:8099
 ```
 
 ## Release
