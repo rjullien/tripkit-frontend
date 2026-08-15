@@ -1,7 +1,8 @@
 'use strict';
 /**
  * Polarsteps generate holds the /api/ proxy with no bytes until Bifrost
- * answers. nginx default proxy_read_timeout is 60s → HTML 502 in Safari.
+ * answers. nginx default proxy_read_timeout is 60s → HTML 502 on the
+ * ClusterIP / same-origin hop (public /api is Traefik → backend).
  */
 const fs = require('fs');
 const path = require('path');
