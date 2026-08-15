@@ -103,6 +103,63 @@ test.describe('Construction Tab', () => {
     expect(phase).toBe(5);
   });
 
+  test('checkbox ON keeps the Plus toggle visible so OFF is possible', async ({ page }) => {
+    await page.route('**/publish/sources', (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify([{
+          sourceId: 'jullien', repo: 'rjullien/tripkit-seeds', ref: 'main', enabled: true,
+          family: 'jullien', tripId: 'quebec-2026', seedPath: 'quebec-2026.js',
+          title: 'Québec 2026', operation: 'update', inProd: true,
+        }]),
+      }),
+    );
+    await page.locator('.bottom-nav button[data-tab="plus"]').click();
+    const wrap = page.locator('#construction-mode-toggle-wrap');
+    const checkbox = page.locator('#construction-toggle');
+    await expect(wrap).toBeVisible({ timeout: 8000 });
+
+    await checkbox.check();
+    await expect(page.locator(NAV_BTN)).toBeVisible();
+    await expect(wrap).toBeVisible();
+    await expect(checkbox).toBeChecked();
+
+    await checkbox.uncheck();
+    await expect(page.locator(NAV_BTN)).toBeHidden();
+    await expect(wrap).toBeVisible();
+    await expect(checkbox).not.toBeChecked();
+  });
+
+  test('toggle stays visible when mode is already ON even without sources', async ({ page }) => {
+    await page.route('**/publish/sources', (route) =>
+      route.fulfill({ status: 500, contentType: 'application/json', body: '{}' }),
+    );
+    await page.evaluate(() => {
+      Store.set('tk-construction-mode', true);
+    });
+    await page.locator('.bottom-nav button[data-tab="plus"]').click();
+    await expect(page.locator('#construction-mode-toggle-wrap')).toBeVisible();
+    await expect(page.locator('#construction-toggle')).toBeChecked();
+
+    await page.locator('#construction-toggle').uncheck();
+    await expect(page.locator(NAV_BTN)).toBeHidden();
+    await expect(page.locator('#construction-toggle')).not.toBeChecked();
+  });
+
+  test('Quitter le mode on the Construction tab turns the toggle OFF', async ({ page }) => {
+    await page.evaluate(() => {
+      Store.set('tk-construction-mode', true);
+      App.paintConstructionNav();
+    });
+    await page.locator(NAV_BTN).click();
+    await expect(page.locator('#construction-quit-mode')).toBeVisible();
+    await page.locator('#construction-quit-mode').click();
+    await expect(page.locator(NAV_BTN)).toBeHidden();
+    const on = await page.evaluate(() => !!Store.get('tk-construction-mode'));
+    expect(on).toBe(false);
+  });
+
   test('Leo mode follows construction phase', async ({ page }) => {
     const modes = await page.evaluate(() => ({
       p0: ConstructionView.leoModeForPhase(0),

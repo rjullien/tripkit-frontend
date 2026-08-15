@@ -795,7 +795,7 @@ var App = (() => {
           🛠️ Mode dev (pas de cache images)
         </label>
       </div>
-      <div id="construction-mode-toggle-wrap" style="display:none;align-items:center;gap:10px;margin-top:8px;padding:10px 12px;background:var(--card);border-radius:var(--radius)">
+      <div id="construction-mode-toggle-wrap" style="display:${constructionToggleVisible() ? 'flex' : 'none'};align-items:center;gap:10px;margin-top:8px;padding:10px 12px;background:var(--card);border-radius:var(--radius)">
         <label style="display:flex;align-items:center;gap:8px;cursor:pointer;flex:1;color:var(--text);font-size:.85em">
           <input type="checkbox" id="construction-toggle" ${Store.get('tk-construction-mode') ? 'checked' : ''} onchange="App.toggleConstructionMode(this.checked)" style="width:18px;height:18px">
           🏗️ Mode construction
@@ -822,11 +822,8 @@ var App = (() => {
       tripsReady.then(() => PublishPanel.loadSources()).then(() => {
         PublishPanel.renderSection(publishEl);
         PublishPanel.resumeIfNeeded();
-        const cWrap = document.getElementById('construction-mode-toggle-wrap');
-        if (cWrap && PublishPanel.sources && PublishPanel.sources().length > 0) {
-          cWrap.style.display = 'flex';
-        }
-      });
+        paintConstructionToggle();
+      }).catch(() => paintConstructionToggle());
     }
 
     const polarstepsEl = document.getElementById('plus-polarsteps-panel');
@@ -1304,6 +1301,23 @@ var App = (() => {
     btn.style.display = enabled ? '' : 'none';
   }
 
+  // Visible while Construction is ON (so OFF is always possible) or once
+  // publish sources have loaded (authors only). Checking ON used to rebuild
+  // Plus with display:none and hide the control before sources came back.
+  function constructionToggleVisible() {
+    if (Store.get('tk-construction-mode')) return true;
+    return !!(typeof PublishPanel !== 'undefined' && PublishPanel.sources && PublishPanel.sources().length);
+  }
+
+  function paintConstructionToggle() {
+    const wrap = document.getElementById('construction-mode-toggle-wrap');
+    const checkbox = document.getElementById('construction-toggle');
+    if (!wrap) return;
+    const on = !!Store.get('tk-construction-mode');
+    wrap.style.display = constructionToggleVisible() ? 'flex' : 'none';
+    if (checkbox) checkbox.checked = on;
+  }
+
   /**
    * Toggle Plus = préférence utilisateur (inchangé). Les *données* Construction
    * (phase, lastQA) viennent du voyage chargé : seed + GET /construction.
@@ -1327,6 +1341,7 @@ var App = (() => {
   function toggleConstructionMode(checked) {
     Store.set('tk-construction-mode', !!checked);
     paintConstructionNav();
+    paintConstructionToggle();
     if (checked) {
       showToast('🏗️ Mode construction activé');
     } else {
@@ -1336,7 +1351,9 @@ var App = (() => {
         return;
       }
     }
-    renderCurrentTab();
+    // Stay on Plus: the checkbox already flipped. Rebuilding the tab hid it
+    // until loadSources finished (or forever if sources were empty/failed).
+    if (currentTab === 'construction') renderCurrentTab();
   }
 
   return {
@@ -1352,6 +1369,7 @@ var App = (() => {
     installPWA,
     toggleNoCache,
     paintConstructionNav,
+    paintConstructionToggle,
     toggleConstructionMode,
     syncConstructionData,
     ensureEdgeBundle,

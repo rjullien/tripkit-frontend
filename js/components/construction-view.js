@@ -1027,7 +1027,10 @@ var ConstructionView = (() => {
 
     // Build layout: PhaseBar, TravelerContextBox, GuidedForm, Leo chat, ActionBar
     container.innerHTML = `
-      <div class="page-header"><h1>🏗️ Mode Construction</h1></div>
+      <div class="page-header">
+        <h1>🏗️ Mode Construction</h1>
+        <button type="button" class="btn btn-sm" id="construction-quit-mode">Quitter le mode</button>
+      </div>
       ${renderPhaseBarLoading()}
       ${renderContextLoading()}
       ${renderGuidedForm()}
@@ -1040,6 +1043,15 @@ var ConstructionView = (() => {
 
     // Bind ActionBar check buttons
     bindActionBar(tripId);
+
+    const quit = document.getElementById('construction-quit-mode');
+    if (quit) {
+      quit.addEventListener('click', () => {
+        if (typeof App !== 'undefined' && App.toggleConstructionMode) {
+          App.toggleConstructionMode(false);
+        }
+      });
+    }
 
     // Load async data
     loadPhaseBar(tripId);
