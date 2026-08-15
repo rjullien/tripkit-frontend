@@ -102,13 +102,44 @@ test('neither call site re-inlines its own trip meta field list', () => {
   });
 });
 
-test('index.html loads seed-merge.js before its consumers', () => {
-  const html = fs.readFileSync('index.html', 'utf8');
-  const iMerge = html.indexOf('js/seed-merge.js');
-  const iSelector = html.indexOf('js/components/trip-selector.js');
-  const iApp = html.indexOf('js/app.js');
-  assert.ok(iMerge > -1, 'seed-merge.js is not in index.html');
+// index.html no longer lists the sources: it loads the bundles generated from
+// bundles.json, which is now where the load order lives.
+test('bundles.json loads seed-merge.js before its consumers', () => {
+  const manifest = JSON.parse(fs.readFileSync('bundles.json', 'utf8'));
+  const order = Object.keys(manifest)
+    .filter(k => !k.startsWith('_'))
+    .flatMap(k => manifest[k]);
+  const iMerge = order.indexOf('js/seed-merge.js');
+  const iSelector = order.indexOf('js/components/trip-selector.js');
+  const iApp = order.indexOf('js/app.js');
+  assert.ok(iMerge > -1, 'seed-merge.js is in no bundle');
+  assert.ok(iSelector > -1, 'trip-selector.js is in no bundle');
+  assert.ok(iApp > -1, 'app.js is in no bundle');
   assert.ok(iMerge < iSelector && iMerge < iApp, 'seed-merge.js must load before trip-selector.js and app.js');
+
+  // Comments are stripped first: index.html *mentions* bundle-edge.js in a
+  // comment explaining that it is injected on demand, so a plain substring
+  // match would pass even if the tag/loader wiring were broken.
+  const html = fs.readFileSync('index.html', 'utf8');
+  const scriptTags = html.replace(/<!--[\s\S]*?-->/g, '').match(/<script\b[^>]*>/gi) || [];
+  const tagFor = b => scriptTags.find(t => new RegExp(`src\\s*=\\s*"js/dist/${b}\\.js(\\?[^"]*)?"`).test(t));
+
+  ['bundle-core', 'bundle-components'].forEach(b => {
+    const tag = tagFor(b);
+    assert.ok(tag, `${b}.js is not loaded by a <script src> tag in index.html`);
+    assert.ok(/\sdefer(\s|>|=)/.test(tag), `${b}.js must be loaded with defer — got ${tag}`);
+  });
+
+  // bundle-edge is lazy: no tag in index.html, injected by App.ensureEdgeBundle
+  // on the first Plus render, and still precached by the service worker.
+  assert.ok(!tagFor('bundle-edge'), 'bundle-edge.js must NOT be in a <script> tag in index.html — it is loaded on demand');
+  const app = fs.readFileSync('js/app.js', 'utf8');
+  const fnStart = app.indexOf('function ensureEdgeBundle');
+  assert.ok(fnStart > -1, 'js/app.js no longer defines ensureEdgeBundle — bundle-edge would never load');
+  const fnSrc = app.slice(fnStart, app.indexOf('\n  }', fnStart));
+  assert.ok(fnSrc.includes('js/dist/bundle-edge.js'), 'ensureEdgeBundle no longer injects js/dist/bundle-edge.js');
+  assert.ok((app.match(/ensureEdgeBundle\(/g) || []).length >= 2, 'ensureEdgeBundle is defined but never called');
+  assert.ok(fs.readFileSync('sw.js', 'utf8').includes("'/js/dist/bundle-edge.js'"), 'bundle-edge.js is no longer precached by sw.js');
 });
 
 test('days are sorted, _deleted days filtered, hotels merged by day_num', () => {

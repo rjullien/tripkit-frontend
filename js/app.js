@@ -18,6 +18,8 @@ var App = (() => {
   let _backendVersion = null; // from GET /health — survives Plus tab re-renders
   let _backendVersionFetch = null; // in-flight promise (dedupe)
   let _deferredInstallPrompt = null; // Android/Chrome install prompt
+  let _edgeBundlePromise = null; // in-flight injection of js/dist/bundle-edge.js
+  let _experimentalOpen = false; // « Expérimental » : état replié/déplié, survit aux re-render
 
   // ── PWA Install prompt capture (Android/Chrome) ─────────────────────────────
   window.addEventListener('beforeinstallprompt', (e) => {
@@ -107,6 +109,10 @@ var App = (() => {
   // ── Init ──────────────────────────────────────────────────────────────────
   async function init() {
     window.addEventListener('hashchange', handleHash);
+    // NOTE (FEAT-004) : personne ne dispatche « tripkit-sync-done » dans le repo
+    // aujourd'hui (aucun dispatchEvent/CustomEvent dans js/). Le listener est
+    // gardé comme point d'extension, mais il ne participe PAS aux refresh
+    // parasites de l'onglet Plus : ceux-ci viennent de setupConnectivityResume().
     window.addEventListener('tripkit-sync-done', () => {
       // Don't auto-re-render while user is on the list (causes tap misses).
       // Only re-render if on the Plus tab but NOT viewing a specific list.
@@ -211,7 +217,13 @@ var App = (() => {
   }
 
   /**
-   * Fetch seed for tripId; returns true if local trip data is usable afterwards.
+   * Fetch seed for tripId.
+   * @returns {Promise<'updated'|'unchanged'|false>} 'updated' when a new seed was
+   *   merged and stored, 'unchanged' when the backend version matched (or the
+   *   version check failed) but local data stays usable, false when there is
+   *   nothing usable at all. Both strings are truthy, so the historical
+   *   `if (!ok)` / `if (ok || …)` call sites keep their control flow — but only
+   *   'updated' may trigger a re-render (cf. refreshFromBackend).
    * Network failure never invalidates a good local cache.
    */
   async function loadTripSeed(tripId) {
@@ -220,7 +232,7 @@ var App = (() => {
     if (!verRes.ok || !verRes.data) {
       console.debug('[App] Version check failed for', tripId, verRes.status || verRes.error);
       // Keep current trip usable offline / when backend is flaky
-      return hasLocal;
+      return hasLocal ? 'unchanged' : false;
     }
     const ver = verRes.data;
 
@@ -229,12 +241,12 @@ var App = (() => {
     // A leftover *-data-version without tk-trip-* must NOT skip (boot would stall).
     if (hasLocal && cachedVersion && String(cachedVersion) === String(ver.version)) {
       console.debug('[App] Data up to date (v' + ver.version + ') — skip refresh');
-      return true;
+      return 'unchanged';
     }
 
     console.log('[App] Fetching seed:', tripId, 'version', cachedVersion, '→', ver.version);
     const seed = await API.fetchSeed(tripId);
-    if (!seed) return hasLocal;
+    if (!seed) return hasLocal ? 'unchanged' : false;
 
     const tripData = SeedMerge.merge(seed, Store.getTripData(tripId) || {});
     Store.registerTrip(tripId);
@@ -244,7 +256,7 @@ var App = (() => {
     Store.set(tripId + '-data-version', ver.version);
     console.log('[App] Backend data refreshed:', tripId, tripData.days?.length, 'days, version:', ver.version);
     if (typeof API.warmTripAssets === 'function') API.warmTripAssets(tripId, tripData);
-    return true;
+    return 'updated';
   }
 
   /**
@@ -273,21 +285,30 @@ var App = (() => {
     }
   }
 
-  async function refreshFromBackend() {
+  /**
+   * @param {{probed?: boolean}} [opts] probed: le caller vient de sonder /health
+   *   avec succès (kick()), inutile de le refaire — cela économise une requête
+   *   /health par retour dans l'app.
+   */
+  async function refreshFromBackend(opts) {
+    if (!navigator.onLine) return;
     // Prefer a real probe when the device claims to be online
-    if (navigator.onLine && typeof API !== 'undefined' && API.probe) {
+    if (!(opts && opts.probed) && typeof API !== 'undefined' && API.probe) {
       const up = await API.probe();
       if (!up) {
         // Stay on cache — do not rediscover / wipe
         if (typeof API.flushOutbox === 'function') API.flushOutbox();
         return;
       }
-    } else if (!navigator.onLine) {
-      return;
     }
 
     // Drop deleted / ACL-lost trips from local registry (BE success only).
-    await reconcileTripRegistry();
+    // L'empreinte avant/après capture aussi bien un retrait qu'un ajout : le
+    // résultat de reconcileTripsFromServer ne liste que les retraits.
+    const tripsBefore = (Store.getAllTripIds() || []).join('|');
+    const registry = await reconcileTripRegistry();
+    const registryChanged = !!registry &&
+      (Store.getAllTripIds() || []).join('|') !== tripsBefore;
 
     let tripId = await resolveTripId();
     if (!tripId) return;
@@ -315,7 +336,18 @@ var App = (() => {
         }
       }
 
-      if (ok || Store.getTripData(tripId)) renderCurrentTab();
+      // Re-render ONLY when the seed really changed, or when this refresh is what
+      // brought the first usable data (cold boot / rediscovered trip).
+      // Repainting on an unchanged version was the « refresh parasite » of the
+      // Plus tab: every app switch / screen unlock rebuilt #plus-content, which
+      // restarted PublishPanel.loadSources(), LeoChatStream.loadStatus(),
+      // PlusChatStream.loadStatus() and lost the scroll position.
+      // …ou quand le registre des voyages a bougé côté backend (voyage ajouté ou
+      // retiré) : la version du seed courant n'en dit rien, et sans ce cas le
+      // sélecteur de voyages de l'onglet Plus resterait périmé jusqu'à ce que
+      // l'utilisateur quitte l'onglet et y revienne.
+      const firstPaint = !hasLocal && !!Store.getTripData(tripId);
+      if (ok === 'updated' || firstPaint || registryChanged) renderCurrentTab();
     } catch (e) {
       console.debug('[App] Backend refresh failed (using cached):', e.message);
     }
@@ -328,17 +360,39 @@ var App = (() => {
     }
   }
 
+  // Deux garde-fous cumulés contre les reprises en rafale (l'utilisateur qui
+  // bascule entre applis fait pleuvoir les visibilitychange) :
+  //  1. un debounce de 400 ms qui fusionne les événements rapprochés ;
+  //  2. un intervalle minimum entre deux reprises déclenchées par la visibilité.
+  // L'événement « online » reste immédiat (hors intervalle minimum) : retrouver
+  // le réseau doit resynchroniser tout de suite.
+  const RESUME_MIN_INTERVAL_MS = 10000;
+
   /** Resume when network is really back (probe), not merely navigator.onLine. */
   function setupConnectivityResume() {
     let _resumeTimer = null;
-    const kick = () => {
+    let _lastResumeAt = 0;
+    const kick = (force) => {
+      const since = _lastResumeAt ? Date.now() - _lastResumeAt : Infinity;
+      if (!force && since < RESUME_MIN_INTERVAL_MS) {
+        // L'intervalle minimum DIFFÈRE la reprise, il ne l'annule pas : un vrai
+        // retour dans l'app 9 s après le précédent (souvent sur un autre réseau)
+        // doit finir par resynchroniser. Un seul report est armé à la fois.
+        clearTimeout(_resumeTimer);
+        _resumeTimer = setTimeout(() => kick(true), RESUME_MIN_INTERVAL_MS - since);
+        // L'indicateur de connectivité, lui, ne coûte rien : il est repeint tout
+        // de suite pour ne pas rester périmé pendant la fenêtre.
+        paintConnectivity();
+        return;
+      }
       clearTimeout(_resumeTimer);
       _resumeTimer = setTimeout(async () => {
         if (typeof API === 'undefined') return;
+        _lastResumeAt = Date.now();
         const up = await API.probe();
         paintConnectivity();
         if (!up) return;
-        await refreshFromBackend();
+        await refreshFromBackend({ probed: true });
         if (typeof PublishPanel !== 'undefined' && PublishPanel.resumeIfNeeded) {
           PublishPanel.resumeIfNeeded();
         }
@@ -356,9 +410,9 @@ var App = (() => {
         }
       }, 400);
     };
-    window.addEventListener('online', kick);
+    window.addEventListener('online', () => kick(true));
     document.addEventListener('visibilitychange', () => {
-      if (document.visibilityState === 'visible') kick();
+      if (document.visibilityState === 'visible') kick(false);
     });
     if (typeof API.onReachabilityChange === 'function') {
       API.onReachabilityChange(() => paintConnectivity());
@@ -562,14 +616,16 @@ var App = (() => {
     html += `<div id="plus-publish-panel"></div>`;
     html += `<div id="plus-polarsteps-panel"></div>`;
     html += `<div id="plus-leo-chat-stream"></div>`;
+    // Replié par défaut au premier rendu ; un re-render légitime (changement de
+    // voyage, nouvelles données) restitue l'état choisi par l'utilisateur.
     html += `<div class="section-wrap plus-docs-wrap plus-experimental-wrap" id="plus-experimental-wrap"
       style="margin-top:16px;border:none;background:transparent">
-      <div class="section-head collapsed plus-docs-head" id="plus-experimental-head" role="button" tabindex="0"
-        aria-expanded="false" aria-controls="plus-experimental-body">
+      <div class="section-head${_experimentalOpen ? '' : ' collapsed'} plus-docs-head" id="plus-experimental-head" role="button" tabindex="0"
+        aria-expanded="${_experimentalOpen ? 'true' : 'false'}" aria-controls="plus-experimental-body">
         <span class="s-title">🧪 Expérimental</span>
         <span class="s-chevron">▼</span>
       </div>
-      <div class="section-body hidden plus-docs-body" id="plus-experimental-body">
+      <div class="section-body${_experimentalOpen ? '' : ' hidden'} plus-docs-body" id="plus-experimental-body">
         <div id="plus-chat-stream"></div>
         <div id="plus-edge-chat-stream"></div>
       </div>
@@ -694,6 +750,100 @@ var App = (() => {
     }
 
     // Order: Polarsteps → Léo → Bifrost → Local (edge)
+    // Those three sections live in bundle-edge, which is kept off the boot path:
+    // render straight away when it is already there, otherwise fetch it first.
+    if (edgeBundleLoaded()) renderEdgeSections();
+    else ensureEdgeBundle().then(ok => { if (ok) renderEdgeSections(); else renderEdgeFallback(); });
+
+    // If /health hasn't resolved yet (or failed earlier), retry now that the
+    // Plus DOM exists — paintBackendVersion will fill #tripkit-backend-info.
+    if (!_backendVersion) fetchBackendVersion();
+    paintConnectivity();
+    if (typeof API !== 'undefined' && API.probe) API.probe().then(() => paintConnectivity());
+  }
+
+  // ── bundle-edge : chargement à la demande ─────────────────────────────────
+  // Léo / Bifrost / Local (appareil) et le moteur d'IA locale ne servent qu'à
+  // l'onglet Plus : bundle-edge n'est donc pas dans index.html, il est injecté
+  // ici au premier besoin. Le service worker le précache quand même, pour que le
+  // shell reste complet hors ligne une fois mis en cache.
+  function edgeBundleLoaded() {
+    return typeof EdgeChatStream !== 'undefined';
+  }
+
+  // Plafond d'attente quand une action utilisateur dépend de bundle-edge
+  // (« Effacer données » : purge OPFS). `onerror` couvre l'échec net, pas la
+  // connexion qui pend.
+  const EDGE_BUNDLE_TIMEOUT_MS = 5000;
+
+  // Resolves true when the bundle is available, false when its load failed.
+  // Never rejects and never throws: sans bundle-edge, le reste de l'onglet Plus
+  // doit continuer à fonctionner. Un échec remet la promesse à null pour qu'un
+  // rendu ultérieur puisse réessayer.
+  function ensureEdgeBundle() {
+    if (edgeBundleLoaded()) return Promise.resolve(true);
+    if (_edgeBundlePromise) return _edgeBundlePromise;
+    _edgeBundlePromise = new Promise(resolve => {
+      const s = document.createElement('script');
+      // Same cache-busting semantics as the tags rewritten by the Dockerfile:
+      // version.json is served no-store, so ?v=<cache> follows each release.
+      const cache = _cachedVersion && _cachedVersion.cache;
+      s.src = 'js/dist/bundle-edge.js' + (cache ? '?v=' + cache : '');
+      s.async = false; // keep classic-script execution order deterministic
+      s.onload = () => resolve(true);
+      s.onerror = () => {
+        _edgeBundlePromise = null; // allow a retry on the next Plus render
+        resolve(false);
+      };
+      document.head.appendChild(s);
+    });
+    return _edgeBundlePromise;
+  }
+
+  // Échec de chargement : les trois <div> resteraient vides, ce qui se lit comme
+  // un onglet cassé plutôt que dégradé. On affiche donc un état explicite avec un
+  // bouton « Réessayer » — indispensable depuis que la reprise d'app ne repeint
+  // plus l'onglet Plus : sans lui, il faudrait ressortir de l'onglet pour retenter.
+  function renderEdgeFallback() {
+    const leoEl = document.getElementById('plus-leo-chat-stream');
+    const target = leoEl || document.getElementById('plus-chat-stream');
+    if (!target) return;
+    const others = ['plus-chat-stream', 'plus-edge-chat-stream']
+      .map(id => document.getElementById(id))
+      .filter(el => el && el !== target);
+    others.forEach(el => { el.innerHTML = ''; });
+
+    target.innerHTML = `<div class="card" style="padding:14px" id="plus-edge-fallback">
+      <div style="font-size:.9em;color:var(--orange);font-weight:600;margin-bottom:6px">⚠️ Assistants indisponibles</div>
+      <p style="font-size:.82em;color:var(--muted);margin:0 0 10px;line-height:1.5">
+        Léo, Bifrost et l'IA locale n'ont pas pu être chargés (réseau ou cache incomplet).
+        Le reste de l'onglet fonctionne normalement.
+      </p>
+      <button type="button" class="btn" id="plus-edge-retry"
+        style="background:var(--sec);color:#000;font-weight:600">🔄 Réessayer</button>
+    </div>`;
+
+    const btn = document.getElementById('plus-edge-retry');
+    if (btn) btn.onclick = () => {
+      btn.disabled = true;
+      btn.textContent = '⏳ Chargement…';
+      retryEdgeBundle();
+    };
+  }
+
+  // Rejoue l'injection après un échec : ensureEdgeBundle a déjà remis sa promesse
+  // à null, il suffit donc de la rappeler.
+  function retryEdgeBundle() {
+    return ensureEdgeBundle().then(ok => {
+      if (ok) renderEdgeSections();
+      else renderEdgeFallback();
+      return ok;
+    });
+  }
+
+  // Idempotent: the Plus tab re-renders often, so the elements are re-queried
+  // every time and each global keeps its typeof guard.
+  function renderEdgeSections() {
     const leoStreamEl = document.getElementById('plus-leo-chat-stream');
     if (leoStreamEl && typeof LeoChatStream !== 'undefined') {
       LeoChatStream.loadStatus().then(() => LeoChatStream.renderSection(leoStreamEl));
@@ -708,12 +858,6 @@ var App = (() => {
     if (edgeChatEl && typeof EdgeChatStream !== 'undefined') {
       EdgeChatStream.renderSection(edgeChatEl);
     }
-
-    // If /health hasn't resolved yet (or failed earlier), retry now that the
-    // Plus DOM exists — paintBackendVersion will fill #tripkit-backend-info.
-    if (!_backendVersion) fetchBackendVersion();
-    paintConnectivity();
-    if (typeof API !== 'undefined' && API.probe) API.probe().then(() => paintConnectivity());
   }
 
   function bindExperimentalCollapse(root) {
@@ -725,6 +869,7 @@ var App = (() => {
       const open = body.classList.toggle('hidden') === false;
       head.classList.toggle('collapsed', !open);
       head.setAttribute('aria-expanded', open ? 'true' : 'false');
+      _experimentalOpen = open; // survit au prochain rendu de l'onglet Plus
     };
     head.addEventListener('click', toggle);
     head.addEventListener('keydown', (e) => {
@@ -838,11 +983,22 @@ var App = (() => {
       caches.keys().then(keys => Promise.all(keys.map(k => caches.delete(k)))).then(() => location.reload(true));
     };
     // Edge GGUF lives in OPFS — must purge explicitly (clearCache does NOT).
-    if (typeof EdgeEngine !== 'undefined' && EdgeEngine.purge) {
-      Promise.resolve(EdgeEngine.purge()).catch(() => {}).then(afterPurge);
-    } else {
-      afterPurge();
-    }
+    // The model can survive in OPFS from an earlier session, so bundle-edge is
+    // loaded on demand here rather than skipping the purge when it is absent.
+    // Le chargement est borné : sur une connexion qui pend, `onerror` ne part
+    // jamais et l'effacement resterait bloqué sans rien afficher. Au-delà du
+    // délai on purge quand même le reste (le GGUF sera repurgé au prochain essai).
+    const bundleOrTimeout = Promise.race([
+      ensureEdgeBundle(),
+      new Promise(resolve => setTimeout(() => resolve(false), EDGE_BUNDLE_TIMEOUT_MS)),
+    ]);
+    bundleOrTimeout.then(() => {
+      if (typeof EdgeEngine !== 'undefined' && EdgeEngine.purge) {
+        Promise.resolve(EdgeEngine.purge()).catch(() => {}).then(afterPurge);
+      } else {
+        afterPurge();
+      }
+    });
   }
 
   // ── Swipe navigation (programme tab) ──────────────────────────────────────

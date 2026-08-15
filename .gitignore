@@ -2,6 +2,9 @@ node_modules/
 playwright-report/
 test-results/
 
+# Bundles JS générés par scripts/build-bundles.mjs (npm run build) — jamais commités
+js/dist/
+
 # Trip-specific route map screenshots — never commit to the open-source FE.
 # Serve via backend: PUT/GET /api/trips/:id/assets/day-XX-route.jpg
 # Source/backup: private seeds or local route-screenshots/<trip>/

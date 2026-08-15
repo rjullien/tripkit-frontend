@@ -5,7 +5,7 @@
  * Bump CACHE_NAME when deploying new shell versions.
  */
 
-const CACHE_NAME = 'tripkit-120';
+const CACHE_NAME = 'tripkit-123';
 
 
 const ASSETS = [
@@ -19,37 +19,18 @@ const ASSETS = [
   '/icons/icon-192-v3.png',
   '/icons/icon-512-v3.png',
   '/css/theme.css',
-  '/js/store.js',
-  '/js/api.js',
-  '/js/seed-merge.js',
-  '/js/day-helpers.js',
-  '/js/tz-helpers.js',
-  '/js/people-helpers.js',
-  '/js/day-resolver.js',
-  '/js/trip-groups.js',
-  '/js/app.js',
-  '/js/components/list.js',
-  '/js/components/daily-view.js',
-  '/js/components/discovery-panel.js',
-  '/js/components/hotel-card.js',
-  '/js/components/bookings-view.js',
-  '/js/components/day-cards.js',
-  '/js/components/conference.js',
-  '/js/components/timeline.js',
-  '/js/components/weather.js',
-  '/js/components/trip-selector.js',
-  '/js/components/publish-panel.js',
-  '/js/components/polarsteps-panel.js',
-  '/js/components/leo-chat-stream.js',
-  '/js/components/plus-chat-stream.js',
-  '/js/components/edge-chat-stream.js',
-  '/js/edge-model/config.js',
-  '/js/edge-model/intent.js',
-  '/js/edge-model/prompt-builder.js',
-  '/js/edge-model/engine.js',
-  '/js/components/route-view.js',
-  '/js/components/culture-view.js',
-  '/js/lib/qrcode-svg.min.js',
+  // The shell's JS is now 3 generated bundles instead of 31 individual files:
+  // scripts/build-bundles.mjs concatenates the sources listed in bundles.json.
+  // bundle-edge is NOT in index.html anymore: App injects it on demand on the
+  // first Plus render (ensureEdgeBundle in js/app.js). It stays precached here so
+  // the Léo / Bifrost / local-AI panels survive offline even for a user who never
+  // opened the Plus tab while online. Careful: what the page requests is
+  // `bundle-edge.js?v=<cache>` (cache-buster), while this list precaches the bare
+  // path — the offline lookups below therefore retry with `ignoreSearch`, without
+  // which the precached entry would never be hit and those panels would be lost.
+  '/js/dist/bundle-core.js',
+  '/js/dist/bundle-components.js',
+  '/js/dist/bundle-edge.js',
   // NOT precached: /js/lib/wllama/index.min.js (~300 Ko). No <script> tag loads
   // it — edge-model/engine.js does `import()` it, but only when the user opts in
   // to the local AI. networkFirstShell caches it at that moment, so the feature
@@ -87,6 +68,23 @@ self.addEventListener('activate', event => {
   self.clients.claim();
 });
 
+/**
+ * Cache lookup for a shell asset: exact URL first, then the same path with the
+ * query string ignored. The shell is served with a `?v=<cache>` buster injected
+ * by the Dockerfile (and by App.ensureEdgeBundle for bundle-edge), while ASSETS
+ * precaches bare paths: without the second attempt, a precached-but-never-fetched
+ * asset (typically /js/dist/bundle-edge.js) is a miss offline.
+ * API responses never reach this helper (they return early in the fetch handler),
+ * and trip assets keep an exact-match cacheFirst so the dev « no cache images »
+ * buster still bypasses the cache.
+ */
+function matchShell(request) {
+  return caches.match(request).then(cached => {
+    if (cached) return cached;
+    return caches.match(request, { ignoreSearch: true });
+  });
+}
+
 function cacheFirst(request) {
   return caches.open(CACHE_NAME).then(cache =>
     cache.match(request).then(cached => {
@@ -115,7 +113,7 @@ function networkFirstShell(request) {
       return response;
     })
     .catch(() =>
-      caches.match(request).then(cached => {
+      matchShell(request).then(cached => {
         if (cached) return cached;
         if (request.mode === 'navigate') {
           return caches.match('/index.html');
@@ -152,7 +150,7 @@ self.addEventListener('fetch', event => {
   // Offline: never wait on a hung network for the app shell
   if (!self.navigator.onLine) {
     event.respondWith(
-      caches.match(event.request).then(cached => {
+      matchShell(event.request).then(cached => {
         if (cached) return cached;
         if (event.request.mode === 'navigate') {
           return caches.match('/index.html');
