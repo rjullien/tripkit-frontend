@@ -682,6 +682,26 @@ var API = (() => {
     });
   }
 
+  // ── Construction ─────────────────────────────────────────────────────────
+
+  async function getTravelProfile(tripId) {
+    return requestJSON(`/trips/${encodeURIComponent(tripId)}/travel-profile`);
+  }
+
+  async function getConstruction(tripId) {
+    return requestJSON(`/trips/${encodeURIComponent(tripId)}/construction`);
+  }
+
+  async function transitionPhase(tripId, phase, force) {
+    const qs = force ? '?force=1' : '';
+    return requestJSON(`/trips/${encodeURIComponent(tripId)}/construction/phase${qs}`, {
+      method: 'PUT',
+      body: JSON.stringify({ phase }),
+    });
+  }
+
+  // ── Discovery ─────────────────────────────────────────────────────────────
+
   async function getDiscoveryThemes(tripId) {
     return requestJSON(`/trips/${encodeURIComponent(tripId)}/discovery/themes`);
   }
@@ -765,6 +785,7 @@ var API = (() => {
     getPlusChatStatus, plusChatStream,
     getPolarstepsStatus, getPolarstepsCaption, postPolarstepsCaption,
     getDiscoveryThemes, getDiscoveryResults, postDiscoverySearch,
+    getTravelProfile, getConstruction, transitionPhase,
     assetUrl, getBaseUrl, warmTripAssets,
     probe, isReachable, getReachability, onReachabilityChange,
   };
