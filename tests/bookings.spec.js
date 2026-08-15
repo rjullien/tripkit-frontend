@@ -19,9 +19,9 @@ test.describe('Résa tab', () => {
   test('shows flights, car, ferry, events and hotels', async ({ page }) => {
     const content = page.locator('#hotels-content');
     await expect(content).toContainText('Réservations');
-    await expect(content).toContainText('Vols');
+    await expect(content).toContainText('Transport principal');
     await expect(content).toContainText('TESTPNR');
-    await expect(content).toContainText('Location voiture');
+    await expect(content).toContainText('Location de voiture');
     await expect(content).toContainText('RENT123');
     await expect(content).toContainText('Traversier');
     await expect(content).toContainText('FERRY1');

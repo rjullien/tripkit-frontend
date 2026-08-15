@@ -37,7 +37,7 @@ test.describe('Offline core tabs', () => {
     await page.waitForTimeout(400);
     const resa = page.locator('#hotels-content');
     await expect(resa).toContainText('Réservations');
-    await expect(resa).toContainText('Vols');
+    await expect(resa).toContainText('Transport principal');
     await expect(resa).toContainText('TESTPNR');
   });
 });

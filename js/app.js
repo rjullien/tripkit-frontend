@@ -18,6 +18,7 @@ var App = (() => {
   let _backendVersion = null; // from GET /health — survives Plus tab re-renders
   let _backendVersionFetch = null; // in-flight promise (dedupe)
   let _deferredInstallPrompt = null; // Android/Chrome install prompt
+  let _nuisanceAbort = null; // AbortController for active nuisance SSE subscription
 
   // ── PWA Install prompt capture (Android/Chrome) ─────────────────────────────
   window.addEventListener('beforeinstallprompt', (e) => {
@@ -774,9 +775,12 @@ var App = (() => {
   }
 
   async function subscribePlusNuisanceJob(jobId, tripId) {
+    if (_nuisanceAbort) _nuisanceAbort.abort();
+    const ac = new AbortController();
+    _nuisanceAbort = ac;
     const resultEl = document.getElementById('plus-nuisance-result');
     try {
-      for await (const frame of API.leoJobStream(jobId, 0)) {
+      for await (const frame of API.leoJobStream(jobId, 0, { signal: ac.signal })) {
         if (frame.event === 'done') {
           const final = await API.getNuisanceCheck(tripId);
           if (final.ok) {
@@ -799,6 +803,7 @@ var App = (() => {
         }
       }
     } catch (e) {
+      if (ac.signal.aborted) return; // intentional abort on re-render
       if (resultEl) resultEl.innerHTML = `<div class="construction-error" style="font-size:.82em">Connexion perdue</div>`;
     }
   }
