@@ -1739,3 +1739,97 @@ a:visited { color: var(--accent); }
 
 .construction-loading { color: var(--muted); font-size: .85em; text-align: center; padding: 8px 0; }
 .construction-error { color: #ef5350; font-size: .85em; margin-top: 6px; }
+
+
+/* ── Construction: ActionBar and check results (SPEC §7 admin/santé, §8 nuisances) ── */
+.construction-action-bar {
+  margin: 0 12px 16px; padding: 14px 16px;
+  background: rgba(22,33,62,.6); border-radius: var(--radius);
+}
+.construction-action-bar h3 { margin: 0 0 12px; font-size: 1em; }
+.action-bar-buttons { display: flex; flex-wrap: wrap; gap: 8px; }
+.action-bar-btn { flex: 1 1 auto; min-width: 84px; }
+#action-bar-results:not(:empty) { margin-top: 14px; }
+
+.action-results-header {
+  font-weight: 700; font-size: .95em; margin-bottom: 10px;
+  padding-bottom: 6px; border-bottom: 1px solid rgba(255,255,255,.1);
+}
+.action-result-ok { color: #a5d6a7; font-size: .88em; padding: 8px 0; }
+.action-result-loading { color: var(--muted); font-size: .85em; padding: 8px 0; }
+/* LLM-rendered prose. Distinct from the deterministic rows above it so the
+   reader can tell what was computed from what was written. */
+.action-result-summary {
+  font-size: .87em; line-height: 1.5; margin-bottom: 12px;
+  padding: 10px 12px; border-radius: 8px;
+  background: rgba(255,255,255,.05); border-left: 3px solid var(--accent);
+  white-space: pre-line;
+}
+
+/* Admin-check — one block per traveler */
+.admin-countries, .admin-traveler-nats {
+  font-size: .8em; font-weight: 400; color: var(--muted);
+}
+.admin-traveler { margin-bottom: 12px; }
+.admin-traveler:last-of-type { margin-bottom: 0; }
+.admin-traveler-name { font-weight: 600; font-size: .9em; margin-bottom: 6px; }
+.admin-check-item {
+  font-size: .85em; padding: 6px 0 6px 10px; margin-left: 6px;
+  border-left: 2px solid rgba(255,255,255,.1);
+}
+.admin-check-item.admin-none { color: var(--muted); font-style: italic; }
+.admin-badge { margin-right: 4px; }
+.admin-label { font-weight: 500; }
+.admin-country { font-size: .85em; color: var(--muted); }
+.admin-detail, .admin-deadline { font-size: .92em; color: var(--muted); margin-top: 2px; }
+.admin-url { margin-top: 2px; font-size: .92em; }
+
+/* Health-check — nothing renders at all when the verdict is "none" (§7.2) */
+.health-item { font-size: .85em; padding: 6px 0; }
+.health-badge { margin-right: 4px; }
+.health-title { font-weight: 500; }
+.health-country { font-size: .85em; color: var(--muted); }
+.health-detail { font-size: .92em; color: var(--muted); margin-top: 2px; }
+
+/* Nuisance-check */
+.nuisance-partial-warning {
+  font-size: .85em; padding: 8px 12px; margin-bottom: 10px; border-radius: 8px;
+  background: rgba(255,171,64,.14); border-left: 3px solid #ffab40; color: #ffcc80;
+}
+.nuisance-location { margin-bottom: 14px; }
+.nuisance-location:last-of-type { margin-bottom: 0; }
+.nuisance-loc-name { font-weight: 600; font-size: .9em; margin-bottom: 6px; }
+.nuisance-verdict { font-size: .78em; font-weight: 600; padding: 2px 8px; border-radius: 6px; }
+.verdict-bad { background: rgba(239,83,80,.22); color: #ef9a9a; }
+.verdict-moderate { background: rgba(255,171,64,.2); color: #ffcc80; }
+.verdict-ok { background: rgba(76,175,80,.22); color: #a5d6a7; }
+.verdict-unknown { background: rgba(255,255,255,.1); color: var(--muted); }
+.nuisance-partial { font-size: .8em; color: #ffcc80; margin-bottom: 4px; }
+.nuisance-cat {
+  font-size: .85em; padding: 5px 0 5px 10px; margin-left: 6px;
+  border-left: 2px solid rgba(255,255,255,.1);
+}
+.nuisance-cat-unknown { border-left-color: rgba(255,171,64,.5); }
+.nuisance-emoji { margin-right: 4px; }
+.nuisance-cat-name { font-weight: 500; }
+.nuisance-level { font-size: .85em; color: var(--muted); }
+.nuisance-detail { font-size: .92em; color: var(--muted); margin-top: 2px; }
+.nuisance-reco {
+  font-size: .85em; line-height: 1.5; margin-top: 8px;
+  padding: 8px 12px; border-radius: 8px;
+  background: rgba(255,255,255,.05); border-left: 3px solid var(--accent);
+}
+.nuisance-alts { font-size: .82em; color: var(--muted); margin-top: 4px; }
+.nuisance-pin-wrap { margin-top: 12px; }
+
+/* QA rows reuse the same rhythm as the admin rows */
+.qa-item {
+  font-size: .85em; padding: 6px 0 6px 10px; margin-left: 6px;
+  border-left: 2px solid rgba(255,255,255,.1);
+}
+.qa-item.qa-red { border-left-color: #ef5350; }
+.qa-item.qa-yellow { border-left-color: #ffab40; }
+.qa-badge { margin-right: 4px; }
+.qa-code { font-family: monospace; font-size: .9em; color: var(--muted); }
+.qa-day { font-size: .85em; color: var(--muted); }
+.qa-msg { margin-top: 2px; }

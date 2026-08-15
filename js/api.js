@@ -717,11 +717,13 @@ var API = (() => {
     });
   }
 
+  // 60s: these two now include a Bifrost call to word the result (SPEC §7),
+  // and the backend Bifrost client itself allows up to 60s.
   async function runAdminCheck(tripId) {
     return requestJSON(`/trips/${encodeURIComponent(tripId)}/admin-check`, {
       method: 'POST',
       body: '{}',
-      timeoutMs: 30000,
+      timeoutMs: 60000,
     });
   }
 
@@ -729,7 +731,7 @@ var API = (() => {
     return requestJSON(`/trips/${encodeURIComponent(tripId)}/health-check`, {
       method: 'POST',
       body: '{}',
-      timeoutMs: 30000,
+      timeoutMs: 60000,
     });
   }
 

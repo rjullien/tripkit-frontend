@@ -514,41 +514,56 @@ var ConstructionView = (() => {
       return;
     }
 
-    const locations = Array.isArray(data) ? data : (data.locations || data.results || []);
-    const verdict = data.verdict || '';
+    const locations = Array.isArray(data) ? data : (data.results || data.locations || []);
 
-    let html = '<div class="action-results-nuisance">';
-    if (verdict) {
-      const vcls = /bad|high|severe/i.test(verdict) ? 'verdict-bad'
-        : /ok|low|good/i.test(verdict) ? 'verdict-ok' : 'verdict-moderate';
-      html += `<div class="nuisance-verdict ${vcls}">${esc(verdict)}</div>`;
-    }
-
-    if (!locations.length && !verdict) {
-      showResults(`<div class="action-result-ok">Aucune nuisance detectee</div>`);
+    if (!locations.length) {
+      showResults(`<div class="action-result-ok">Aucun lieu analyse</div>`);
       return;
     }
 
+    let html = '<div class="action-results-nuisance">';
+
+    // Any location whose analysis is incomplete is called out up front: a
+    // partial check must not read as a clean one.
+    const partialCount = locations.filter(l => l.partial || l.verdict === 'INDETERMINE').length;
+    if (partialCount) {
+      html += `<div class="nuisance-partial-warning">⚠️ Analyse incomplete sur ${partialCount} lieu${partialCount > 1 ? 'x' : ''} : au moins une categorie n'a pas pu etre evaluee.</div>`;
+    }
+
     locations.forEach(loc => {
-      const name = loc.name || loc.locationId || loc.location || '';
+      const name = loc.locationName || loc.name || loc.locationId || '';
+      const verdict = loc.verdict || '';
       html += `<div class="nuisance-location">`;
-      html += `<div class="nuisance-loc-name">${esc(name)}</div>`;
+      html += `<div class="nuisance-loc-name">`;
+      html += `${verdictEmoji(verdict, loc.verdictEmoji)} ${esc(name)}`;
+      if (verdict) html += ` <span class="nuisance-verdict ${verdictClass(verdict)}">${esc(verdict)}</span>`;
+      html += `</div>`;
+
+      if (loc.partial) {
+        html += `<div class="nuisance-partial">Verification partielle</div>`;
+      }
 
       const categories = loc.categories || loc.nuisances || [];
       if (Array.isArray(categories)) {
         categories.forEach(cat => {
           const emoji = cat.emoji || categoryEmoji(cat.category || cat.name || '');
           const level = cat.level || cat.severity || '';
-          const distance = cat.distance || '';
           const detail = cat.detail || cat.description || '';
-          html += `<div class="nuisance-cat">`;
+          html += `<div class="nuisance-cat${level === 'INDETERMINE' ? ' nuisance-cat-unknown' : ''}">`;
           html += `<span class="nuisance-emoji">${emoji}</span>`;
           html += `<span class="nuisance-cat-name">${esc(cat.category || cat.name || '')}</span>`;
           if (level) html += ` <span class="nuisance-level">${esc(level)}</span>`;
-          if (distance) html += ` <span class="nuisance-distance">${esc(distance)}</span>`;
           if (detail) html += `<div class="nuisance-detail">${esc(detail)}</div>`;
           html += `</div>`;
         });
+      }
+
+      // Bifrost synthesis (SPEC §8: one grouped call, rendered per location).
+      if (loc.recommendation) {
+        html += `<div class="nuisance-reco">${esc(loc.recommendation)}</div>`;
+      }
+      if (Array.isArray(loc.alternatives) && loc.alternatives.length) {
+        html += `<div class="nuisance-alts">Alternatives : ${loc.alternatives.map(a => esc(a)).join(', ')}</div>`;
       }
       html += `</div>`;
     });
@@ -602,6 +617,27 @@ var ConstructionView = (() => {
     btn.disabled = true;
   }
 
+  // Backend verdict vocabulary: ELEVE / MODERE / FAIBLE / INDETERMINE.
+  // INDETERMINE must never render as green.
+  function verdictEmoji(verdict, fallback) {
+    switch (String(verdict || '').toUpperCase()) {
+      case 'ELEVE': return '🔴';
+      case 'MODERE': return '🟡';
+      case 'FAIBLE': return '🟢';
+      case 'INDETERMINE': return '❓';
+      default: return fallback || '❓';
+    }
+  }
+
+  function verdictClass(verdict) {
+    switch (String(verdict || '').toUpperCase()) {
+      case 'ELEVE': return 'verdict-bad';
+      case 'MODERE': return 'verdict-moderate';
+      case 'FAIBLE': return 'verdict-ok';
+      default: return 'verdict-unknown';
+    }
+  }
+
   function categoryEmoji(cat) {
     const c = String(cat).toLowerCase();
     if (/bruit|noise/i.test(c)) return '🔊';
@@ -625,41 +661,80 @@ var ConstructionView = (() => {
       return;
     }
 
-    const data = res.data;
-    const travelers = Array.isArray(data) ? data : (data && Array.isArray(data.travelers) ? data.travelers : (data && data.results ? data.results : []));
+    const data = res.data || {};
+    const travelers = Array.isArray(data) ? data : (Array.isArray(data.travelers) ? data.travelers : []);
+    const countries = Array.isArray(data.countries) ? data.countries : [];
 
+    // No traveler checklist at all means no country was detected on the trip.
     if (!travelers.length) {
-      showResults(`<div class="action-result-ok">Aucune verification admin requise</div>`);
+      const flat = Array.isArray(data.items) ? data.items : [];
+      if (!flat.length) {
+        showResults(`<div class="action-result-ok">Aucune formalite detectee${countries.length ? ' (' + esc(countries.join(', ')) + ')' : ''}</div>`);
+        return;
+      }
+      showResults(`<div class="action-results-admin">${renderAdminItems(flat)}</div>`);
       return;
     }
 
     let html = '<div class="action-results-admin">';
-    html += `<div class="action-results-header">Admin : ${travelers.length} voyageur${travelers.length > 1 ? 's' : ''}</div>`;
+    html += `<div class="action-results-header">`;
+    html += `${statusBadge(data.verdict)} Admin : ${travelers.length} voyageur${travelers.length > 1 ? 's' : ''}`;
+    if (countries.length) html += ` <span class="admin-countries">${esc(countries.join(', '))}</span>`;
+    html += `</div>`;
+
+    if (data.summary) {
+      html += `<div class="action-result-summary">${esc(data.summary)}</div>`;
+    }
+
     travelers.forEach(traveler => {
-      const name = traveler.name || traveler.traveler || '';
+      const name = traveler.name || traveler.traveler || traveler.id || '';
+      const nats = Array.isArray(traveler.nationalities) ? traveler.nationalities : [];
+      const checks = traveler.items || traveler.checks || [];
+
       html += `<div class="admin-traveler">`;
-      html += `<div class="admin-traveler-name">${esc(name)}</div>`;
-      const checks = traveler.checks || traveler.items || traveler.countries || [];
-      if (Array.isArray(checks)) {
-        checks.forEach(chk => {
-          const status = chk.status || chk.state || '';
-          const badge = /ok|done|valid/i.test(status) ? '✅'
-            : /warning|attention/i.test(status) ? '⚠️'
-            : /action|needed|missing/i.test(status) ? '🔴' : '❓';
-          const label = chk.label || chk.country || chk.document || chk.name || '';
-          const detail = chk.detail || chk.note || '';
-          html += `<div class="admin-check-item">`;
-          html += `<span class="admin-badge">${badge}</span>`;
-          html += `<span class="admin-label">${esc(label)}</span>`;
-          if (status) html += ` <span class="admin-status">${esc(status)}</span>`;
-          if (detail) html += `<div class="admin-detail">${esc(detail)}</div>`;
-          html += `</div>`;
-        });
+      html += `<div class="admin-traveler-name">`;
+      html += `${statusBadge(traveler.verdict)} ${esc(name)}`;
+      if (nats.length) html += ` <span class="admin-traveler-nats">${esc(nats.join('+'))}</span>`;
+      html += `</div>`;
+      if (!checks.length) {
+        html += `<div class="admin-check-item admin-none">Aucune formalite requise.</div>`;
+      } else {
+        html += renderAdminItems(checks);
       }
       html += `</div>`;
     });
     html += '</div>';
     showResults(html);
+  }
+
+  // Maps the backend status vocabulary ("ok" / "warning" / "action_required")
+  // to a badge. Unknown values render as ❓ rather than silently as ✅.
+  function statusBadge(status) {
+    switch (String(status || '').toLowerCase()) {
+      case 'ok': return '✅';
+      case 'warning': return '⚠️';
+      case 'action_required': return '❌';
+      case 'none': return '';
+      default: return '❓';
+    }
+  }
+
+  function renderAdminItems(items) {
+    let html = '';
+    items.forEach(chk => {
+      const status = chk.status || '';
+      const label = chk.label || chk.country || chk.document || chk.name || '';
+      const detail = chk.detail || chk.note || '';
+      html += `<div class="admin-check-item">`;
+      html += `<span class="admin-badge">${statusBadge(status)}</span>`;
+      html += `<span class="admin-label">${esc(label)}</span>`;
+      if (chk.country) html += ` <span class="admin-country">${esc(chk.country)}</span>`;
+      if (detail) html += `<div class="admin-detail">${esc(detail)}</div>`;
+      if (chk.deadline) html += `<div class="admin-deadline">Echeance : ${esc(chk.deadline)}</div>`;
+      if (chk.url) html += `<div class="admin-url"><a href="${esc(chk.url)}" target="_blank" rel="noopener noreferrer">Site officiel</a></div>`;
+      html += `</div>`;
+    });
+    return html;
   }
 
   // ── Health check ──
@@ -674,28 +749,40 @@ var ConstructionView = (() => {
       return;
     }
 
-    const data = res.data;
-    const recommendations = Array.isArray(data) ? data
-      : (data && Array.isArray(data.recommendations) ? data.recommendations
-        : (data && Array.isArray(data.results) ? data.results : []));
+    const data = res.data || {};
 
-    if (!recommendations.length) {
-      showResults(`<div class="action-result-ok">Aucun conseil necessaire</div>`);
+    // SPEC §7.2 — règle de silence : sur une destination qui ne demande rien
+    // (USA, Canada, Europe de l'Ouest, Japon...), le check ne doit afficher
+    // AUCUNE section. Un conseil santé qui parle pour ne rien dire finit ignoré,
+    // y compris quand il compte.
+    if (data.verdict === 'none') {
+      showResults('');
+      return;
+    }
+
+    const items = Array.isArray(data) ? data
+      : (Array.isArray(data.items) ? data.items
+        : (Array.isArray(data.recommendations) ? data.recommendations : []));
+
+    if (!items.length) {
+      showResults('');
       return;
     }
 
     let html = '<div class="action-results-health">';
-    html += `<div class="action-results-header">Sante : ${recommendations.length} conseil${recommendations.length > 1 ? 's' : ''}</div>`;
-    recommendations.forEach(rec => {
-      const title = rec.title || rec.name || rec.country || '';
+    html += `<div class="action-results-header">${statusBadge(data.verdict)} Sante : ${items.length} point${items.length > 1 ? 's' : ''}</div>`;
+
+    if (data.summary) {
+      html += `<div class="action-result-summary">${esc(data.summary)}</div>`;
+    }
+
+    items.forEach(rec => {
+      const title = rec.label || rec.title || rec.name || rec.country || '';
       const detail = rec.detail || rec.description || rec.recommendation || '';
-      const severity = rec.severity || rec.level || '';
-      const badge = /obligatoire|required|high/i.test(severity) ? '🔴'
-        : /recommand|suggested|medium/i.test(severity) ? '🟡' : '💚';
       html += `<div class="health-item">`;
-      html += `<span class="health-badge">${badge}</span>`;
+      html += `<span class="health-badge">${statusBadge(rec.status)}</span>`;
       html += `<span class="health-title">${esc(title)}</span>`;
-      if (severity) html += ` <span class="health-severity">${esc(severity)}</span>`;
+      if (rec.country) html += ` <span class="health-country">${esc(rec.country)}</span>`;
       if (detail) html += `<div class="health-detail">${esc(detail)}</div>`;
       html += `</div>`;
     });
@@ -830,5 +917,15 @@ var ConstructionView = (() => {
     }
   }
 
-  return { render, handleNuisances };
+  return {
+    render,
+    // Check runners are exported so they can be triggered from outside the tab
+    // (Résa hotel card, Plus) and unit-tested without a browser.
+    handleNuisances,
+    handleAdmin,
+    handleSante,
+    renderNuisanceResults,
+    statusBadge,
+    verdictEmoji,
+  };
 })();
