@@ -200,7 +200,8 @@ test.describe('Construction ActionBar', () => {
 
     await page.locator('#action-admin').click();
     const results = page.locator('#action-bar-results');
-    await expect(results.locator('.admin-deadline')).toContainText('Échéance : 72h');
+    await expect(results.locator('.admin-deadline')).toHaveCount(2);
+    await expect(results).toContainText('Échéance : 72h');
     await expect(results.locator('a[href="https://www.canada.ca/eta"]')).toHaveCount(2);
     await expect(results.locator('.action-result-summary')).toContainText('Alice doit demander un eTA canadien.');
   });
