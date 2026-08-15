@@ -167,6 +167,83 @@ test.describe('Onglet Plus — refresh au retour dans l\'app', () => {
     await expect(page.locator('#plus-experimental-body')).toBeVisible();
   });
 
+  test('reprise différée : une bascule dans la fenêtre de 10 s n\'est pas perdue', async ({ page }) => {
+    // L'intervalle minimum ne doit pas JETER la reprise : un vrai retour dans
+    // l'app 9 s après le précédent (souvent sur un autre réseau) doit finir par
+    // resynchroniser. Le test attend donc réellement la fin de la fenêtre.
+    test.setTimeout(60_000);
+
+    const probes = [];
+    page.on('request', req => {
+      if (req.serviceWorker()) return;
+      const url = req.url();
+      if (url.includes('/health') && !url.includes('/api/')) probes.push(url);
+    });
+
+    await page.goto('/');
+    await page.waitForSelector('.bottom-nav', { timeout: 8000 });
+    await openPlusAndStamp(page);
+    await page.waitForTimeout(600);
+    probes.length = 0;
+
+    await resumeByVisibility(page);
+    await page.waitForTimeout(900);
+    expect(probes).toHaveLength(1);
+
+    await resumeByVisibility(page); // ignorée sur le moment (< 10 s)…
+    await page.waitForTimeout(900);
+    expect(probes).toHaveLength(1);
+
+    // …mais rejouée à la fin de la fenêtre : sinon cette reprise était perdue.
+    await page.waitForTimeout(11_000);
+    expect(probes.length, 'la reprise différée n\'a jamais eu lieu').toBe(2);
+
+    // Et toujours aucun repaint parasite (la version n'a pas changé).
+    await expect(page.locator(MARKER)).toHaveCount(1);
+  });
+
+  test('boot à chaud (cache présent, version inchangée) : un seul rendu de l\'onglet Plus', async ({ page }) => {
+    // Tous les autres tests démarrent avec un localStorage vide, donc le seul cas
+    // exercé était le boot à froid, où le repaint est légitime (firstPaint).
+    await page.goto('/');
+    await page.waitForSelector('.bottom-nav', { timeout: 8000 });
+    await page.waitForFunction(
+      () => !!(window.Store && Store.getCurrentTripId() && Store.getTripData(Store.getCurrentTripId())),
+      null, { timeout: 8000 }
+    );
+
+    // Compte les reconstructions complètes de #plus-content (innerHTML = …).
+    await page.addInitScript(() => {
+      window.__plusRebuilds = 0;
+      document.addEventListener('DOMContentLoaded', () => {
+        const el = document.getElementById('plus-content');
+        if (!el) return;
+        new MutationObserver(muts => {
+          // Une affectation innerHTML = 1 enregistrement sur #plus-content ;
+          // les sous-panneaux, eux, peignent dans leurs propres <div> enfants.
+          muts.forEach(m => { if (m.target === el) window.__plusRebuilds++; });
+        }).observe(el, { childList: true });
+      });
+    });
+
+    // Rechargement AVEC l'onglet Plus comme onglet courant : c'est ce qui rend le
+    // refresh de boot observable sur #plus-content (sans hash, il repeindrait
+    // « programme » et le cas passerait inaperçu).
+    await page.evaluate(() => { window.location.hash = 'plus'; });
+    await page.reload();
+    await page.waitForSelector('#plus-experimental-head', { timeout: 8000 });
+    await expect(page.locator('#plus-leo-chat-stream')).toContainText('Léo');
+    await page.evaluate(() => {
+      document.querySelector('#plus-content .page-header').setAttribute('data-refresh-marker', '1');
+    });
+    await page.waitForTimeout(1500); // probe + /version + repaint éventuel
+
+    await expect(page.locator(MARKER)).toHaveCount(1);
+    const rebuilds = await page.evaluate(() => window.__plusRebuilds);
+    expect(rebuilds, 'l\'onglet Plus a été reconstruit plus d\'une fois sur un boot à chaud').toBe(1);
+    await expect(page.locator('#plus-leo-chat-stream')).toContainText('Léo');
+  });
+
   test('boot à froid (localStorage vide) : le voyage s\'affiche toujours', async ({ page }) => {
     await page.goto('/');
     await page.waitForSelector('.bottom-nav', { timeout: 8000 });

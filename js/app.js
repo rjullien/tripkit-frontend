@@ -303,7 +303,12 @@ var App = (() => {
     }
 
     // Drop deleted / ACL-lost trips from local registry (BE success only).
-    await reconcileTripRegistry();
+    // L'empreinte avant/après capture aussi bien un retrait qu'un ajout : le
+    // résultat de reconcileTripsFromServer ne liste que les retraits.
+    const tripsBefore = (Store.getAllTripIds() || []).join('|');
+    const registry = await reconcileTripRegistry();
+    const registryChanged = !!registry &&
+      (Store.getAllTripIds() || []).join('|') !== tripsBefore;
 
     let tripId = await resolveTripId();
     if (!tripId) return;
@@ -337,8 +342,12 @@ var App = (() => {
       // Plus tab: every app switch / screen unlock rebuilt #plus-content, which
       // restarted PublishPanel.loadSources(), LeoChatStream.loadStatus(),
       // PlusChatStream.loadStatus() and lost the scroll position.
+      // …ou quand le registre des voyages a bougé côté backend (voyage ajouté ou
+      // retiré) : la version du seed courant n'en dit rien, et sans ce cas le
+      // sélecteur de voyages de l'onglet Plus resterait périmé jusqu'à ce que
+      // l'utilisateur quitte l'onglet et y revienne.
       const firstPaint = !hasLocal && !!Store.getTripData(tripId);
-      if (ok === 'updated' || firstPaint) renderCurrentTab();
+      if (ok === 'updated' || firstPaint || registryChanged) renderCurrentTab();
     } catch (e) {
       console.debug('[App] Backend refresh failed (using cached):', e.message);
     }
@@ -364,7 +373,16 @@ var App = (() => {
     let _resumeTimer = null;
     let _lastResumeAt = 0;
     const kick = (force) => {
-      if (!force && _lastResumeAt && Date.now() - _lastResumeAt < RESUME_MIN_INTERVAL_MS) {
+      const since = _lastResumeAt ? Date.now() - _lastResumeAt : Infinity;
+      if (!force && since < RESUME_MIN_INTERVAL_MS) {
+        // L'intervalle minimum DIFFÈRE la reprise, il ne l'annule pas : un vrai
+        // retour dans l'app 9 s après le précédent (souvent sur un autre réseau)
+        // doit finir par resynchroniser. Un seul report est armé à la fois.
+        clearTimeout(_resumeTimer);
+        _resumeTimer = setTimeout(() => kick(true), RESUME_MIN_INTERVAL_MS - since);
+        // L'indicateur de connectivité, lui, ne coûte rien : il est repeint tout
+        // de suite pour ne pas rester périmé pendant la fenêtre.
+        paintConnectivity();
         return;
       }
       clearTimeout(_resumeTimer);
@@ -735,7 +753,7 @@ var App = (() => {
     // Those three sections live in bundle-edge, which is kept off the boot path:
     // render straight away when it is already there, otherwise fetch it first.
     if (edgeBundleLoaded()) renderEdgeSections();
-    else ensureEdgeBundle().then(ok => { if (ok) renderEdgeSections(); });
+    else ensureEdgeBundle().then(ok => { if (ok) renderEdgeSections(); else renderEdgeFallback(); });
 
     // If /health hasn't resolved yet (or failed earlier), retry now that the
     // Plus DOM exists — paintBackendVersion will fill #tripkit-backend-info.
@@ -752,6 +770,11 @@ var App = (() => {
   function edgeBundleLoaded() {
     return typeof EdgeChatStream !== 'undefined';
   }
+
+  // Plafond d'attente quand une action utilisateur dépend de bundle-edge
+  // (« Effacer données » : purge OPFS). `onerror` couvre l'échec net, pas la
+  // connexion qui pend.
+  const EDGE_BUNDLE_TIMEOUT_MS = 5000;
 
   // Resolves true when the bundle is available, false when its load failed.
   // Never rejects and never throws: sans bundle-edge, le reste de l'onglet Plus
@@ -775,6 +798,47 @@ var App = (() => {
       document.head.appendChild(s);
     });
     return _edgeBundlePromise;
+  }
+
+  // Échec de chargement : les trois <div> resteraient vides, ce qui se lit comme
+  // un onglet cassé plutôt que dégradé. On affiche donc un état explicite avec un
+  // bouton « Réessayer » — indispensable depuis que la reprise d'app ne repeint
+  // plus l'onglet Plus : sans lui, il faudrait ressortir de l'onglet pour retenter.
+  function renderEdgeFallback() {
+    const leoEl = document.getElementById('plus-leo-chat-stream');
+    const target = leoEl || document.getElementById('plus-chat-stream');
+    if (!target) return;
+    const others = ['plus-chat-stream', 'plus-edge-chat-stream']
+      .map(id => document.getElementById(id))
+      .filter(el => el && el !== target);
+    others.forEach(el => { el.innerHTML = ''; });
+
+    target.innerHTML = `<div class="card" style="padding:14px" id="plus-edge-fallback">
+      <div style="font-size:.9em;color:var(--orange);font-weight:600;margin-bottom:6px">⚠️ Assistants indisponibles</div>
+      <p style="font-size:.82em;color:var(--muted);margin:0 0 10px;line-height:1.5">
+        Léo, Bifrost et l'IA locale n'ont pas pu être chargés (réseau ou cache incomplet).
+        Le reste de l'onglet fonctionne normalement.
+      </p>
+      <button type="button" class="btn" id="plus-edge-retry"
+        style="background:var(--sec);color:#000;font-weight:600">🔄 Réessayer</button>
+    </div>`;
+
+    const btn = document.getElementById('plus-edge-retry');
+    if (btn) btn.onclick = () => {
+      btn.disabled = true;
+      btn.textContent = '⏳ Chargement…';
+      retryEdgeBundle();
+    };
+  }
+
+  // Rejoue l'injection après un échec : ensureEdgeBundle a déjà remis sa promesse
+  // à null, il suffit donc de la rappeler.
+  function retryEdgeBundle() {
+    return ensureEdgeBundle().then(ok => {
+      if (ok) renderEdgeSections();
+      else renderEdgeFallback();
+      return ok;
+    });
   }
 
   // Idempotent: the Plus tab re-renders often, so the elements are re-queried
@@ -921,7 +985,14 @@ var App = (() => {
     // Edge GGUF lives in OPFS — must purge explicitly (clearCache does NOT).
     // The model can survive in OPFS from an earlier session, so bundle-edge is
     // loaded on demand here rather than skipping the purge when it is absent.
-    ensureEdgeBundle().then(() => {
+    // Le chargement est borné : sur une connexion qui pend, `onerror` ne part
+    // jamais et l'effacement resterait bloqué sans rien afficher. Au-delà du
+    // délai on purge quand même le reste (le GGUF sera repurgé au prochain essai).
+    const bundleOrTimeout = Promise.race([
+      ensureEdgeBundle(),
+      new Promise(resolve => setTimeout(() => resolve(false), EDGE_BUNDLE_TIMEOUT_MS)),
+    ]);
+    bundleOrTimeout.then(() => {
       if (typeof EdgeEngine !== 'undefined' && EdgeEngine.purge) {
         Promise.resolve(EdgeEngine.purge()).catch(() => {}).then(afterPurge);
       } else {
