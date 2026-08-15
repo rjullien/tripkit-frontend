@@ -96,7 +96,7 @@ var DiscoveryPanel = (() => {
   function paintThemes(el, themes) {
     el.innerHTML = themes.map((t) => {
       return `<label class="discovery-chip">
-        <input type="checkbox" value="${esc(t.id)}" checked>
+        <input type="checkbox" value="${esc(t.id)}"${t.engine === 'editorial' ? '' : ' checked'}>
         <span>${esc(t.emoji || '')} ${esc(t.label || t.id)}</span>
       </label>`;
     }).join('');

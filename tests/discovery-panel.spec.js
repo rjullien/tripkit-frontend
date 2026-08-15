@@ -89,7 +89,9 @@ test.describe('Discovery panel', () => {
     const festivals = page.locator('#discovery-themes label', { hasText: 'Festivals' });
     await expect(festivals).not.toHaveClass(/is-soon/);
     await expect(festivals.locator('input')).toBeEnabled();
-    await expect(festivals.locator('input')).toBeChecked();
+    await expect(festivals.locator('input')).not.toBeChecked();
+    await expect(page.locator('#discovery-themes input[value="outlets"]')).toBeChecked();
+    await expect(page.locator('#discovery-themes input[value="rando"]')).toBeChecked();
 
     await page.locator('#discovery-search').click();
     await expect(page.locator('#discovery-results')).toContainText('Village de marques');
@@ -166,6 +168,7 @@ test.describe('Discovery panel', () => {
     await page.locator('#discovery-toggle').click();
     await page.locator('#discovery-themes input[value="outlets"]').uncheck();
     await page.locator('#discovery-themes input[value="rando"]').uncheck();
+    await page.locator('#discovery-themes input[value="festivals"]').check();
     await page.locator('#discovery-search').click();
     const results = page.locator('#discovery-results');
     await expect(results).toContainText('Festifoule');
