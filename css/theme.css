@@ -1739,3 +1739,61 @@ a:visited { color: var(--accent); }
 
 .construction-loading { color: var(--muted); font-size: .85em; text-align: center; padding: 8px 0; }
 .construction-error { color: #ef5350; font-size: .85em; margin-top: 6px; }
+
+/* ── Construction: ActionBar results (QA / admin / santé / nuisances) ── */
+.construction-action-bar {
+  margin: 0 12px 16px; padding: 14px 16px;
+  background: rgba(22,33,62,.6); border-radius: var(--radius);
+}
+.construction-action-bar h3 { margin: 0 0 10px; font-size: 1em; }
+.action-bar-buttons { display: flex; flex-wrap: wrap; gap: 8px; }
+#action-bar-results { margin-top: 10px; font-size: .85em; }
+.action-results-header { font-weight: 700; margin-bottom: 6px; }
+.action-result-ok { color: var(--green); }
+.action-result-loading { color: var(--muted); }
+.unrecognized-payload { font-weight: 600; }
+
+.qa-item { padding: 6px 8px; border-radius: 8px; background: rgba(255,255,255,.05); margin-bottom: 4px; }
+.qa-item.qa-red { border-left: 3px solid var(--red); }
+.qa-item.qa-yellow { border-left: 3px solid var(--orange); }
+.qa-item.qa-info { border-left: 3px solid var(--accent); }
+.qa-code { font-family: ui-monospace, monospace; font-size: .9em; color: var(--muted); }
+.qa-day { color: var(--muted); }
+.qa-msg { margin-top: 2px; }
+.qa-detail { color: var(--muted); font-size: .92em; }
+
+.phase-transition-error { margin-top: 8px; }
+.phase-blocked-title { font-weight: 700; margin-bottom: 4px; }
+
+.admin-countries, .health-countries { color: var(--muted); margin-bottom: 6px; }
+.admin-verdict { font-weight: 600; margin-bottom: 6px; }
+.admin-summary, .health-summary { color: var(--muted); margin-bottom: 8px; }
+.admin-traveler { margin-bottom: 10px; }
+.admin-traveler-name { font-weight: 600; margin-bottom: 4px; }
+.admin-nats { color: var(--muted); font-weight: 400; }
+.admin-check-item, .health-item {
+  padding: 6px 8px; border-radius: 8px; background: rgba(255,255,255,.05); margin-bottom: 4px;
+}
+.admin-country, .health-country { color: var(--muted); font-family: ui-monospace, monospace; }
+.check-badge { margin-right: 4px; }
+.admin-status, .health-status { color: var(--muted); }
+.admin-detail, .admin-cost, .health-detail { color: var(--muted); font-size: .92em; margin-top: 2px; }
+.admin-none { color: var(--green); }
+
+.nuisance-verdict { font-weight: 700; margin-bottom: 6px; }
+.nuisance-verdict.verdict-bad { color: var(--red); }
+.nuisance-verdict.verdict-moderate { color: var(--orange); }
+.nuisance-verdict.verdict-unknown { color: var(--muted); }
+.nuisance-verdict.verdict-ok { color: var(--green); }
+.nuisance-incomplete { color: var(--orange); margin-bottom: 8px; }
+.nuisance-location { margin-bottom: 10px; }
+.nuisance-loc-name { font-weight: 600; margin-bottom: 4px; }
+.nuisance-cat { padding: 3px 0 3px 8px; }
+.nuisance-cat-unavailable { color: var(--muted); }
+.nuisance-level, .nuisance-count, .nuisance-distance { color: var(--muted); }
+.nuisance-detail, .nuisance-recommendation { color: var(--muted); font-size: .92em; }
+.nuisance-progress { color: var(--muted); }
+.nuisance-pin-wrap { margin-top: 8px; }
+.hotel-nuisance-result:not(:empty) { margin-top: 6px; }
+.discovery-retain-btn.unavailable, .nuisance-pin-btn.unavailable { opacity: .6; }
+.profile-edit-status.unavailable { color: var(--orange); }

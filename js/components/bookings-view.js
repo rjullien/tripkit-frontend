@@ -662,78 +662,23 @@ var BookingsView = (() => {
           return;
         }
 
-        const data = res.data;
+        // Un AbortController par hôtel : un second clic coupe le flux précédent
+        // de CE bouton sans toucher aux autres lignes.
+        if (btn._nuisanceAbort) btn._nuisanceAbort.abort();
+        const ac = new AbortController();
+        btn._nuisanceAbort = ac;
 
-        // If job-based, subscribe
-        if (data && data.jobId) {
-          if (resultEl) resultEl.innerHTML = `<div style="font-size:.82em;margin-top:6px;color:var(--muted)">Analyse en cours...</div>`;
-          subscribeHotelNuisanceJob(data.jobId, tripId, locId, resultEl);
-          return;
-        }
-
-        renderHotelNuisanceResult(data, resultEl);
+        // Flux et rendu partagés (js/components/nuisance-stream.js) : une seule
+        // implémentation pour Résa, le panneau Plus et l'onglet Construction.
+        await NuisanceStream.start(resultEl, {
+          tripId,
+          data: res.data,
+          signal: ac.signal,
+          compact: true,
+          locationId: locId,
+        });
       });
     });
-  }
-
-  async function subscribeHotelNuisanceJob(jobId, tripId, locId, resultEl) {
-    try {
-      for await (const frame of API.leoJobStream(jobId, 0)) {
-        if (frame.event === 'done') {
-          const final = await API.getNuisanceCheck(tripId);
-          if (final.ok) {
-            renderHotelNuisanceResult(final.data, resultEl, locId);
-          } else if (resultEl) {
-            resultEl.innerHTML = `<div style="font-size:.82em;margin-top:6px;color:var(--green)">Analyse terminee</div>`;
-          }
-          return;
-        }
-        if (frame.event === 'error') {
-          if (resultEl) resultEl.innerHTML = `<div class="construction-error" style="font-size:.82em;margin-top:6px">${esc((frame.data && frame.data.error) || 'Erreur')}</div>`;
-          return;
-        }
-        if ((frame.event === 'delta' || frame.event === 'progress') && resultEl) {
-          const text = (frame.data && (frame.data.text || frame.data.message)) || '';
-          if (text) resultEl.innerHTML = `<div style="font-size:.82em;margin-top:6px;color:var(--muted)">${esc(text)}</div>`;
-        }
-      }
-    } catch (e) {
-      if (resultEl) resultEl.innerHTML = `<div class="construction-error" style="font-size:.82em;margin-top:6px">Connexion perdue</div>`;
-    }
-  }
-
-  function renderHotelNuisanceResult(data, resultEl, filterLocId) {
-    if (!resultEl) return;
-    if (!data) {
-      resultEl.innerHTML = `<div style="font-size:.82em;margin-top:6px;color:var(--green)">Aucune nuisance</div>`;
-      return;
-    }
-
-    let locations = Array.isArray(data) ? data : (data.locations || data.results || []);
-    if (filterLocId) {
-      locations = locations.filter(l => (l.locationId || l.location || '') === filterLocId || (l.name || '') === filterLocId);
-    }
-
-    if (!locations.length) {
-      const verdict = data.verdict || '';
-      resultEl.innerHTML = `<div style="font-size:.82em;margin-top:6px;color:var(--green)">${verdict ? esc(verdict) : 'Aucune nuisance detectee'}</div>`;
-      return;
-    }
-
-    let html = '<div style="font-size:.82em;margin-top:6px">';
-    locations.forEach(loc => {
-      const cats = loc.categories || loc.nuisances || [];
-      if (Array.isArray(cats)) {
-        cats.forEach(cat => {
-          const emoji = cat.emoji || '⚠️';
-          const name = cat.category || cat.name || '';
-          const level = cat.level || cat.severity || '';
-          html += `<div style="margin:2px 0">${emoji} ${esc(name)}${level ? ' — ' + esc(level) : ''}</div>`;
-        });
-      }
-    });
-    html += '</div>';
-    resultEl.innerHTML = html;
   }
 
   return {

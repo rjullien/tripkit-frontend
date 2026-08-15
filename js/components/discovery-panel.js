@@ -235,7 +235,7 @@ var DiscoveryPanel = (() => {
     if (!tripId) return;
 
     btn.disabled = true;
-    btn.textContent = 'Envoi a Leo...';
+    btn.textContent = 'Envoi à Léo...';
 
     const res = await API.retainDiscoveryItem(tripId, {
       id: item.id || '',
@@ -248,30 +248,54 @@ var DiscoveryPanel = (() => {
       source: item.source || '',
     });
 
-    if (!res || !res.ok || !res.data || !res.data.jobId) {
-      btn.textContent = 'Erreur';
-      btn.className = 'btn btn-sm discovery-retain-btn error';
-      setTimeout(() => { btn.textContent = 'Retenir'; btn.disabled = false; btn.className = 'btn btn-sm discovery-retain-btn'; }, 2500);
+    // L'endpoint renvoie 501 not_implemented : rien n'est écrit dans le seed,
+    // donc pas de « Retenu ✓ » (revue findings 5 et 6).
+    if (res && (res.status === 501 || (res.data && res.data.error === 'not_implemented'))) {
+      btn.textContent = 'Pas encore disponible';
+      btn.className = 'btn btn-sm discovery-retain-btn unavailable';
+      btn.title = (res.data && typeof res.data.detail === 'string' && res.data.detail)
+        || "Léo n'écrit pas encore dans le seed.";
+      btn.disabled = true;
       return;
     }
 
-    // Track job via SSE
+    if (!res || !res.ok || !res.data || !res.data.jobId) {
+      retainFailed(btn, 'Erreur');
+      return;
+    }
+
+    // Track job via SSE. Un flux coupé est un échec, pas un succès (finding 7).
+    let done = false;
     try {
       for await (const ev of API.leoJobStream(res.data.jobId, 0)) {
-        if (ev.event === 'done') break;
+        if (ev.event === 'done') { done = true; break; }
         if (ev.event === 'error') {
-          btn.textContent = 'Erreur';
-          btn.className = 'btn btn-sm discovery-retain-btn error';
-          setTimeout(() => { btn.textContent = 'Retenir'; btn.disabled = false; btn.className = 'btn btn-sm discovery-retain-btn'; }, 2500);
+          retainFailed(btn, 'Erreur');
           return;
         }
       }
     } catch (_) {
-      // ignore SSE failures
+      retainFailed(btn, 'Connexion perdue');
+      return;
+    }
+
+    if (!done) {
+      retainFailed(btn, 'Erreur');
+      return;
     }
 
     btn.textContent = 'Retenu ✓';
     btn.className = 'btn btn-sm discovery-retain-btn done';
+  }
+
+  function retainFailed(btn, msg) {
+    btn.textContent = msg;
+    btn.className = 'btn btn-sm discovery-retain-btn error';
+    setTimeout(() => {
+      btn.textContent = 'Retenir';
+      btn.disabled = false;
+      btn.className = 'btn btn-sm discovery-retain-btn';
+    }, 2500);
   }
 
   function getTripIdForDiscovery() {

@@ -561,7 +561,7 @@ var App = (() => {
         <div id="plus-edge-chat-stream"></div>
         <div style="margin-top:12px;padding:12px;background:var(--card);border-radius:var(--radius)">
           <button class="btn btn-sm" id="plus-nuisance-all" style="width:100%;background:var(--accent);color:#000;font-weight:600">
-            ⚠️ Analyse nuisances (tous les hotels)
+            ⚠️ Analyse nuisances (tous les hôtels)
           </button>
           <div id="plus-nuisance-result" style="margin-top:8px"></div>
         </div>
@@ -755,93 +755,27 @@ var App = (() => {
       const res = await API.runNuisanceCheck(tripId, null);
 
       btn.disabled = false;
-      btn.textContent = '⚠️ Analyse nuisances (tous les hotels)';
+      btn.textContent = '⚠️ Analyse nuisances (tous les hôtels)';
 
       if (!res.ok) {
         if (resultEl) resultEl.innerHTML = `<div class="construction-error" style="font-size:.82em">${esc(res.error || 'Erreur')}</div>`;
         return;
       }
 
-      const data = res.data;
+      // Chaque panneau garde son propre AbortController : on coupe le flux
+      // précédent avant d'en ouvrir un nouveau.
+      if (_nuisanceAbort) _nuisanceAbort.abort();
+      const ac = new AbortController();
+      _nuisanceAbort = ac;
 
-      if (data && data.jobId) {
-        if (resultEl) resultEl.innerHTML = `<div style="font-size:.82em;color:var(--muted)" id="plus-nuisance-progress">Analyse en cours...</div>`;
-        subscribePlusNuisanceJob(data.jobId, tripId);
-        return;
-      }
-
-      renderPlusNuisanceResult(data);
+      // Flux et rendu partagés avec l'onglet Construction (js/components/nuisance-stream.js).
+      await NuisanceStream.start(resultEl, {
+        tripId,
+        data: res.data,
+        signal: ac.signal,
+        compact: true,
+      });
     });
-  }
-
-  async function subscribePlusNuisanceJob(jobId, tripId) {
-    if (_nuisanceAbort) _nuisanceAbort.abort();
-    const ac = new AbortController();
-    _nuisanceAbort = ac;
-    const resultEl = document.getElementById('plus-nuisance-result');
-    try {
-      for await (const frame of API.leoJobStream(jobId, 0, { signal: ac.signal })) {
-        if (frame.event === 'done') {
-          const final = await API.getNuisanceCheck(tripId);
-          if (final.ok) {
-            renderPlusNuisanceResult(final.data);
-          } else if (resultEl) {
-            resultEl.innerHTML = `<div style="font-size:.82em;color:var(--green)">Analyse terminee</div>`;
-          }
-          return;
-        }
-        if (frame.event === 'error') {
-          if (resultEl) resultEl.innerHTML = `<div class="construction-error" style="font-size:.82em">${esc((frame.data && frame.data.error) || 'Erreur')}</div>`;
-          return;
-        }
-        if ((frame.event === 'delta' || frame.event === 'progress') && resultEl) {
-          const text = (frame.data && (frame.data.text || frame.data.message)) || '';
-          if (text) {
-            const progressEl = document.getElementById('plus-nuisance-progress') || resultEl;
-            progressEl.textContent = text;
-          }
-        }
-      }
-    } catch (e) {
-      if (ac.signal.aborted) return; // intentional abort on re-render
-      if (resultEl) resultEl.innerHTML = `<div class="construction-error" style="font-size:.82em">Connexion perdue</div>`;
-    }
-  }
-
-  function renderPlusNuisanceResult(data) {
-    const resultEl = document.getElementById('plus-nuisance-result');
-    if (!resultEl) return;
-    if (!data) {
-      resultEl.innerHTML = `<div style="font-size:.82em;color:var(--green)">Aucune nuisance detectee</div>`;
-      return;
-    }
-
-    const locations = Array.isArray(data) ? data : (data.locations || data.results || []);
-    const verdict = data.verdict || '';
-
-    let html = '<div style="font-size:.82em">';
-    if (verdict) {
-      html += `<div style="font-weight:600;margin-bottom:4px">${esc(verdict)}</div>`;
-    }
-    if (!locations.length && !verdict) {
-      resultEl.innerHTML = `<div style="font-size:.82em;color:var(--green)">Aucune nuisance detectee</div>`;
-      return;
-    }
-    locations.forEach(loc => {
-      const name = loc.name || loc.locationId || loc.location || '';
-      html += `<div style="margin-top:6px;font-weight:600">${esc(name)}</div>`;
-      const cats = loc.categories || loc.nuisances || [];
-      if (Array.isArray(cats)) {
-        cats.forEach(cat => {
-          const emoji = cat.emoji || '⚠️';
-          const catName = cat.category || cat.name || '';
-          const level = cat.level || cat.severity || '';
-          html += `<div style="margin:2px 0 2px 8px">${emoji} ${esc(catName)}${level ? ' — ' + esc(level) : ''}</div>`;
-        });
-      }
-    });
-    html += '</div>';
-    resultEl.innerHTML = html;
   }
 
   function formatBackendVersion(v) {

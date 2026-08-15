@@ -177,4 +177,79 @@ test.describe('Discovery panel', () => {
     await expect(results).toContainText('Lien');
     await expect(results).not.toContainText('0 km');
   });
+
+  test('« Retenir » sur un endpoint 501 dit « pas encore disponible », jamais « Retenu »', async ({ page }) => {
+    await page.route(`**/api/trips/${TRIP_ID}/seed`, (route) => {
+      const seed = JSON.parse(JSON.stringify(SEED));
+      seed.trip.startDate = '2026-08-10';
+      seed.trip.endDate = '2026-08-20';
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          trip: {
+            id: TRIP_ID,
+            name: seed.trip.name,
+            emoji: seed.trip.emoji,
+            start_date: seed.trip.startDate,
+            end_date: seed.trip.endDate,
+            data: {
+              travelers: seed.trip.travelers,
+              locations: seed.locations,
+              hotels: seed.hotels,
+              homeTz: 'Europe/Paris',
+            },
+          },
+          days: seed.days.map((d) => ({ day_num: d.day, data: d })),
+          hotels: [],
+          lists: [],
+        }),
+      });
+    });
+    await page.route(`**/api/trips/${TRIP_ID}/discovery/themes`, (route) =>
+      route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(THEMES) }),
+    );
+    await page.route(`**/api/trips/${TRIP_ID}/discovery/results**`, (route) =>
+      route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ items: [] }) }),
+    );
+    await page.route(`**/api/trips/${TRIP_ID}/discovery/search`, (route) =>
+      route.fulfill({ status: 202, contentType: 'application/json', body: JSON.stringify({ jobId: 'job-retain-1' }) }),
+    );
+    await page.route('**/api/leo/jobs/job-retain-1/stream**', (route) => {
+      const item = { id: 'osm:9', name: 'Village de marques', distKm: 1.2, url: 'https://maps.google.com' };
+      const body = [
+        'event: theme',
+        `data: ${JSON.stringify({ text: 'Outlets', tool: { themeId: 'outlets', label: 'Outlets', count: 1, items: [item] } })}`,
+        '',
+        'event: result',
+        `data: ${JSON.stringify({ reply: JSON.stringify({ items: [item] }) })}`,
+        '',
+        'event: done',
+        'data: {}',
+        '',
+      ].join('\n');
+      return route.fulfill({ status: 200, contentType: 'text/event-stream', body });
+    });
+    // Léo n'écrit pas encore dans le seed : le backend répond 501.
+    await page.route(`**/api/trips/${TRIP_ID}/discovery/retain`, (route) =>
+      route.fulfill({
+        status: 501,
+        contentType: 'application/json',
+        body: JSON.stringify({ error: 'not_implemented', detail: "L'écriture dans le seed n'est pas encore branchée." }),
+      }),
+    );
+
+    await page.goto('/');
+    await page.waitForSelector('#programme-content .day-nav', { timeout: 8000 });
+    await page.locator('#discovery-toggle').click();
+    await page.locator('#discovery-search').click();
+    await expect(page.locator('#discovery-results')).toContainText('Village de marques');
+
+    const retain = page.locator('.discovery-retain-btn').first();
+    await retain.click();
+    await expect(retain).toHaveText('Pas encore disponible');
+    await expect(retain).toBeDisabled();
+    await expect(retain).toHaveAttribute('title', /pas encore branchée/);
+    await expect(page.locator('#discovery-results')).not.toContainText('Retenu');
+  });
 });
