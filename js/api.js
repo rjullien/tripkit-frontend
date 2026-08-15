@@ -700,6 +700,13 @@ var API = (() => {
     });
   }
 
+  async function createProfileRequest(tripId, target, text) {
+    return requestJSON(`/trips/${encodeURIComponent(tripId)}/travel-profile/request`, {
+      method: 'POST',
+      body: JSON.stringify({ target, text }),
+    });
+  }
+
   // ── Discovery ─────────────────────────────────────────────────────────────
 
   async function getDiscoveryThemes(tripId) {
@@ -785,7 +792,7 @@ var API = (() => {
     getPlusChatStatus, plusChatStream,
     getPolarstepsStatus, getPolarstepsCaption, postPolarstepsCaption,
     getDiscoveryThemes, getDiscoveryResults, postDiscoverySearch,
-    getTravelProfile, getConstruction, transitionPhase,
+    getTravelProfile, getConstruction, transitionPhase, createProfileRequest,
     assetUrl, getBaseUrl, warmTripAssets,
     probe, isReachable, getReachability, onReachabilityChange,
   };

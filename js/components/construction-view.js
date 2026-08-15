@@ -210,9 +210,153 @@ var ConstructionView = (() => {
     const btn = document.getElementById('construction-ctx-edit');
     if (!btn) return;
     btn.addEventListener('click', () => {
-      // Placeholder - will be wired in FEAT-014
-      console.debug('[Construction] Edit context - not yet implemented');
+      showProfileEditForm();
     });
+  }
+
+  // ── Profile Edit Form ─────────────────────────────────────────────────────
+
+  function showProfileEditForm() {
+    const box = document.getElementById('construction-context-box');
+    if (!box) return;
+
+    // Prevent duplicate forms
+    if (document.getElementById('profile-edit-form')) return;
+
+    const formHtml = `<div class="profile-edit-overlay" id="profile-edit-overlay">
+      <form id="profile-edit-form" class="profile-edit-form">
+        <h4>Modifier le profil voyageur</h4>
+        <div class="guided-field">
+          <label for="profile-edit-target">Section a modifier</label>
+          <select id="profile-edit-target" name="target" required>
+            <option value="">-- Choisir --</option>
+            <option value="travelStyle">Style de voyage</option>
+            <option value="budgetRules">Budget</option>
+            <option value="interests">Centres d'interet</option>
+            <option value="mealPattern">Repas</option>
+            <option value="lessons">Lecons apprises</option>
+          </select>
+        </div>
+        <div class="guided-field">
+          <label for="profile-edit-text">Description de la modification</label>
+          <textarea id="profile-edit-text" name="text" rows="3"
+            placeholder="Ex: Nous preferons un rythme lent avec des pauses frequentes..." required></textarea>
+        </div>
+        <div class="profile-edit-actions">
+          <button type="submit" class="btn btn-primary" id="profile-edit-submit">Envoyer a Leo</button>
+          <button type="button" class="btn btn-sm" id="profile-edit-cancel">Annuler</button>
+        </div>
+        <div id="profile-edit-status" class="profile-edit-status"></div>
+      </form>
+    </div>`;
+
+    box.insertAdjacentHTML('beforeend', formHtml);
+
+    document.getElementById('profile-edit-cancel').addEventListener('click', () => {
+      const overlay = document.getElementById('profile-edit-overlay');
+      if (overlay) overlay.remove();
+    });
+
+    document.getElementById('profile-edit-form').addEventListener('submit', (e) => {
+      e.preventDefault();
+      handleProfileEditSubmit();
+    });
+  }
+
+  async function handleProfileEditSubmit() {
+    const targetEl = document.getElementById('profile-edit-target');
+    const textEl = document.getElementById('profile-edit-text');
+    const submitBtn = document.getElementById('profile-edit-submit');
+    const statusEl = document.getElementById('profile-edit-status');
+
+    const target = targetEl ? targetEl.value : '';
+    const text = textEl ? textEl.value.trim() : '';
+
+    if (!target || !text) return;
+
+    const tripId = (typeof Store !== 'undefined' && Store.getCurrentTripId)
+      ? Store.getCurrentTripId()
+      : null;
+    if (!tripId) return;
+
+    // Show loading state
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'En cours...';
+    statusEl.textContent = 'Envoi de la demande...';
+    statusEl.className = 'profile-edit-status loading';
+
+    const res = await API.createProfileRequest(tripId, target, text);
+    if (!res.ok) {
+      statusEl.textContent = res.error || 'Erreur lors de la demande';
+      statusEl.className = 'profile-edit-status error';
+      submitBtn.disabled = false;
+      submitBtn.textContent = 'Envoyer a Leo';
+      return;
+    }
+
+    const jobId = res.data && res.data.jobId;
+    if (!jobId) {
+      statusEl.textContent = 'Reponse inattendue du serveur';
+      statusEl.className = 'profile-edit-status error';
+      submitBtn.disabled = false;
+      submitBtn.textContent = 'Envoyer a Leo';
+      return;
+    }
+
+    statusEl.textContent = 'Leo travaille sur la modification...';
+    statusEl.className = 'profile-edit-status loading';
+
+    // Subscribe to job stream
+    subscribeProfileJob(jobId, tripId);
+  }
+
+  async function subscribeProfileJob(jobId, tripId) {
+    const statusEl = document.getElementById('profile-edit-status');
+
+    try {
+      for await (const frame of API.leoJobStream(jobId, 0)) {
+        if (frame.event === 'done') {
+          if (statusEl) {
+            statusEl.textContent = 'Modification effectuee !';
+            statusEl.className = 'profile-edit-status success';
+          }
+          // Refresh the TravelerContextBox
+          setTimeout(() => {
+            const overlay = document.getElementById('profile-edit-overlay');
+            if (overlay) overlay.remove();
+            loadTravelerContext(tripId);
+          }, 1200);
+          return;
+        }
+        if (frame.event === 'error') {
+          const errMsg = (frame.data && frame.data.error) || 'Erreur Leo';
+          if (statusEl) {
+            statusEl.textContent = errMsg;
+            statusEl.className = 'profile-edit-status error';
+          }
+          const submitBtn = document.getElementById('profile-edit-submit');
+          if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.textContent = 'Reessayer';
+          }
+          return;
+        }
+        // delta events - show progress
+        if (frame.event === 'delta' && frame.data && frame.data.text && statusEl) {
+          statusEl.textContent = 'Leo : ' + frame.data.text.slice(0, 80);
+        }
+      }
+    } catch (e) {
+      if (statusEl) {
+        statusEl.textContent = 'Connexion perdue. Reessaie.';
+        statusEl.className = 'profile-edit-status error';
+      }
+      const submitBtn = document.getElementById('profile-edit-submit');
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Reessayer';
+      }
+    }
   }
 
   // ── GuidedForm ──────────────────────────────────────────────────────────────
