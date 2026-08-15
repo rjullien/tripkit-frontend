@@ -48,6 +48,84 @@ var ConstructionView = (() => {
     return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   }
 
+  function tripOf(tripData) {
+    return (tripData && tripData.trip) || {};
+  }
+
+  function localTripData(tripId) {
+    if (typeof Store === 'undefined' || !Store.getTripData) return null;
+    return Store.getTripData(tripId || _currentTripId) || null;
+  }
+
+  // Construction methodology phases (SPEC §5). Distinct from trip.phases,
+  // which are the geographic loop (Québec & Charlevoix, Gaspésie, …).
+  const CONSTRUCTION_PHASES = [
+    { n: 1, short: 'Ph1', name: 'Idéation' },
+    { n: 2, short: 'Ph2', name: 'Tracé' },
+    { n: 3, short: 'Ph3', name: 'Hôtels' },
+    { n: 4, short: 'Ph4', name: 'Activités' },
+    { n: 5, short: 'Live', name: 'Live' },
+  ];
+
+  function formatTripDates(start, end, days) {
+    const parts = [];
+    if (start) parts.push(start);
+    if (end && end !== start) parts.push(end);
+    const range = parts.join(' → ');
+    if (days) return range ? `${range} · ${days} j` : `${days} j`;
+    return range;
+  }
+
+  // Seed loop already on the device (Route tab). Construction used to ignore
+  // it and only show an empty GuidedForm + generic Ph1–Ph4 pills.
+  function renderTripLoop(tripData) {
+    const trip = tripOf(tripData);
+    const name = trip.name || '';
+    const c = trip.construction || {};
+    const dates = c.dates || {};
+    const start = dates.startDate || trip.startDate || '';
+    const end = trip.endDate || '';
+    const days = Number(dates.days) || (tripData && tripData.days && tripData.days.length) || 0;
+    const phases = Array.isArray(trip.phases) ? trip.phases : [];
+    if (!name && !phases.length && !start && !days) return '';
+
+    let phasesHtml = '';
+    if (phases.length) {
+      phasesHtml = '<ol class="construction-loop-phases">';
+      phases.forEach((p) => {
+        const r = (p && (p.range || p.days)) || [];
+        const span = (Array.isArray(r) && r.length === 2) ? `J${r[0]}–J${r[1]}` : '';
+        const label = (p && (p.name || p.label)) || '';
+        if (!label) return;
+        phasesHtml += `<li><span class="loop-phase-name">${esc(label)}</span>`;
+        if (span) phasesHtml += ` <span class="loop-phase-range">${esc(span)}</span>`;
+        phasesHtml += '</li>';
+      });
+      phasesHtml += '</ol>';
+    }
+
+    const dateLine = formatTripDates(start, end, days);
+    return `<div class="construction-trip-box" id="construction-trip-box">
+      <h3>${esc(trip.emoji || '🗺️')} ${esc(name || 'Voyage')}</h3>
+      ${dateLine ? `<p class="construction-trip-dates">${esc(dateLine)}</p>` : ''}
+      ${phasesHtml}
+    </div>`;
+  }
+
+  function prefillGuidedForm(tripData) {
+    const trip = tripOf(tripData);
+    const dates = (trip.construction && trip.construction.dates) || {};
+    const start = dates.startDate || trip.startDate || '';
+    const days = dates.days || (tripData && tripData.days && tripData.days.length) || '';
+    const dest = (trip.destination && (trip.destination.name || trip.destination)) || trip.name || '';
+    const startEl = document.getElementById('guided-start-date');
+    const daysEl = document.getElementById('guided-nb-days');
+    const destEl = document.getElementById('guided-destination');
+    if (startEl && start) startEl.value = start;
+    if (daysEl && days) daysEl.value = days;
+    if (destEl && dest) destEl.value = dest;
+  }
+
   function abortNuisanceStream() {
     if (_nuisanceAbort) {
       _nuisanceAbort.abort();
@@ -132,16 +210,22 @@ var ConstructionView = (() => {
     return String(b == null ? '' : b);
   }
 
+  function constructionPhaseLabel(phase) {
+    if (phase <= 0) return 'Construction pas encore démarrée';
+    const meta = CONSTRUCTION_PHASES.find(p => p.n === phase);
+    if (phase === 5) return 'Phase 5 — Live';
+    return meta ? `Phase ${phase} — ${meta.name}` : `Phase ${phase}`;
+  }
+
   function renderPhaseBarContent(data) {
     const phase = currentPhaseOf(data);
-    const phases = [1, 2, 3, 4];
     const lastQA = data && data.lastQA;
     const blockers = (lastQA && Array.isArray(lastQA.blockers)) ? lastQA.blockers : [];
 
     let dotsHtml = '<div class="phase-dots">';
-    phases.forEach(p => {
-      const cls = p < phase ? 'phase-dot done' : (p === phase ? 'phase-dot active' : 'phase-dot');
-      dotsHtml += `<span class="${cls}">Ph${p}</span>`;
+    CONSTRUCTION_PHASES.forEach(p => {
+      const cls = p.n < phase ? 'phase-dot done' : (p.n === phase ? 'phase-dot active' : 'phase-dot');
+      dotsHtml += `<span class="${cls}">${esc(p.short)}</span>`;
     });
     dotsHtml += '</div>';
 
@@ -152,16 +236,14 @@ var ConstructionView = (() => {
       blockersHtml += '</ul></div>';
     }
 
-    const label = phase <= 0 ? 'Construction pas encore démarrée' : `Phase ${phase}`;
-
     return `<div class="construction-phase-bar" id="construction-phase-bar" data-phase="${phase}">
       <div class="phase-header">
-        <span class="phase-label">${esc(label)}</span>
+        <span class="phase-label">${esc(constructionPhaseLabel(phase))}</span>
         ${dotsHtml}
       </div>
       ${blockersHtml}
       <button class="btn btn-primary phase-next-btn" id="construction-phase-next"
-        ${phase >= 4 ? 'disabled' : ''}>Phase suivante</button>
+        ${phase >= 5 ? 'disabled' : ''}>Phase suivante</button>
     </div>`;
   }
 
@@ -171,17 +253,31 @@ var ConstructionView = (() => {
     </div>`;
   }
 
+  function localConstructionState(tripId) {
+    const td = localTripData(tripId);
+    const c = td && td.trip && td.trip.construction;
+    return c && typeof c === 'object' ? c : null;
+  }
+
   async function loadPhaseBar(tripId) {
     const el = document.getElementById('construction-phase-bar');
     if (!el) return;
+    const local = localConstructionState(tripId);
     const res = await API.getConstruction(tripId);
     if (!res.ok) {
+      if (local) {
+        el.outerHTML = renderPhaseBarContent(local);
+        bindPhaseNext(tripId, local);
+        mountConstructionLeo(leoModeForPhase(currentPhaseOf(local)));
+        return;
+      }
       el.outerHTML = renderPhaseBarError(res.status === 404 ? 'Construction non initialisée' : 'Erreur chargement phase');
       return;
     }
-    el.outerHTML = renderPhaseBarContent(res.data);
-    bindPhaseNext(tripId, res.data);
-    mountConstructionLeo(leoModeForPhase(currentPhaseOf(res.data)));
+    const data = Object.assign({}, local || {}, res.data || {});
+    el.outerHTML = renderPhaseBarContent(data);
+    bindPhaseNext(tripId, data);
+    mountConstructionLeo(leoModeForPhase(currentPhaseOf(data)));
   }
 
   function bindPhaseNext(tripId, data) {
@@ -267,19 +363,32 @@ var ConstructionView = (() => {
     Object.values(people).forEach(p => {
       if (p.age && p.age < 18) {
         children.push(p);
-      } else {
+      } else if (p) {
         adults++;
       }
     });
-    const groupLine = `${adults} adulte${adults > 1 ? 's' : ''}${children.length ? `, ${children.length} enfant${children.length > 1 ? 's' : ''}` : ''}`;
+    let groupLine = adults || children.length
+      ? `${adults} adulte${adults > 1 ? 's' : ''}${children.length ? `, ${children.length} enfant${children.length > 1 ? 's' : ''}` : ''}`
+      : '';
+    if (!groupLine) {
+      const travelers = tripOf(localTripData()).travelers;
+      if (Array.isArray(travelers) && travelers.length) {
+        groupLine = `${travelers.length} voyageur${travelers.length > 1 ? 's' : ''}`;
+      }
+    }
     const childAges = children.length
       ? ` (${children.map(c => c.age ? c.age + ' ans' : '').filter(Boolean).join(', ')})`
       : '';
 
-    // Travel style
-    const pace = profile.pace || ctx.pace || '';
-    const maxDriving = profile.maxDrivingPerDay || ctx.maxDrivingPerDay || '';
-    const budget = profile.budgetRange || ctx.budgetRange || '';
+    // travel-profile.js (famille Jullien) stores style under travelStyle /
+    // budgetRules. Older fixtures still put pace at the root.
+    const style = profile.travelStyle || {};
+    const pace = style.pace || profile.pace || ctx.pace || '';
+    const maxDriving = style.maxDrivingPerDay || profile.maxDrivingPerDay || ctx.maxDrivingPerDay || '';
+    const budgetRules = profile.budgetRules || {};
+    const acc = budgetRules.accommodation || {};
+    const budget = profile.budgetRange || ctx.budgetRange
+      || (acc.maxPerNight ? `hébergement ≤ ${acc.maxPerNight} ${acc.currency || '€'}/nuit` : '');
 
     // Interests
     const interests = profile.interests || ctx.interests || {};
@@ -340,11 +449,34 @@ var ConstructionView = (() => {
     </div>`;
   }
 
+  function localProfileFallback(tripId) {
+    const td = localTripData(tripId);
+    if (!td) return null;
+    const profile = td.travelProfile || (td.trip && td.trip.travelProfile) || null;
+    const people = td.people || null;
+    if (!profile && !people) return null;
+    return { people: people || {}, travelProfile: profile || {}, sources: ['seed'] };
+  }
+
+  function hasProfileContent(data) {
+    if (!data) return false;
+    if (data.people && Object.keys(data.people).length) return true;
+    if (data.travelProfile && Object.keys(data.travelProfile).length) return true;
+    if (data.travelersContext && Object.keys(data.travelersContext).length) return true;
+    return false;
+  }
+
   async function loadTravelerContext(tripId) {
     const el = document.getElementById('construction-context-box');
     if (!el) return;
+    const local = localProfileFallback(tripId);
     const res = await API.getTravelProfile(tripId);
     if (!res.ok) {
+      if (local && hasProfileContent(local)) {
+        el.outerHTML = renderContextContent(local);
+        bindContextEdit();
+        return;
+      }
       if (res.status === 404) {
         el.outerHTML = renderContextNotConfigured();
       } else {
@@ -353,7 +485,19 @@ var ConstructionView = (() => {
       bindContextEdit();
       return;
     }
-    el.outerHTML = renderContextContent(res.data);
+    const data = Object.assign({}, local || {}, res.data || {});
+    if (local && local.travelProfile && !hasProfileContent({ travelProfile: data.travelProfile })) {
+      data.travelProfile = local.travelProfile;
+    }
+    if (local && local.people && !hasProfileContent({ people: data.people })) {
+      data.people = local.people;
+    }
+    if (!hasProfileContent(data)) {
+      el.outerHTML = renderContextNotConfigured();
+      bindContextEdit();
+      return;
+    }
+    el.outerHTML = renderContextContent(data);
     bindContextEdit();
   }
 
@@ -1025,12 +1169,13 @@ var ConstructionView = (() => {
       return;
     }
 
-    // Build layout: PhaseBar, TravelerContextBox, GuidedForm, Leo chat, ActionBar
+    // Build layout: trip loop (seed), PhaseBar, TravelerContextBox, GuidedForm, Leo, ActionBar
     container.innerHTML = `
       <div class="page-header">
         <h1>🏗️ Mode Construction</h1>
         <button type="button" class="btn btn-sm" id="construction-quit-mode">Quitter le mode</button>
       </div>
+      ${renderTripLoop(tripData)}
       ${renderPhaseBarLoading()}
       ${renderContextLoading()}
       ${renderGuidedForm()}
@@ -1040,6 +1185,7 @@ var ConstructionView = (() => {
 
     // Bind guided form submit
     bindGuidedForm();
+    prefillGuidedForm(tripData);
 
     // Bind ActionBar check buttons
     bindActionBar(tripId);

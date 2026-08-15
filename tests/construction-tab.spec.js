@@ -160,6 +160,35 @@ test.describe('Construction Tab', () => {
     expect(on).toBe(false);
   });
 
+  test('Construction shows the trip loop from the seed', async ({ page }) => {
+    await page.evaluate(() => {
+      Store.set('tk-construction-mode', true);
+      App.paintConstructionNav();
+    });
+    await page.locator(NAV_BTN).click();
+    const box = page.locator('#construction-trip-box');
+    await expect(box).toBeVisible();
+    await expect(box).toContainText('Test Trip 2026');
+    await expect(box).toContainText('City');
+    await expect(box).toContainText('Nature');
+    await expect(page.locator('#guided-destination')).toHaveValue('Test Trip 2026');
+    await expect(page.locator('#guided-start-date')).toHaveValue('2026-06-15');
+  });
+
+  test('phase pills stay inside the construction card', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.evaluate(() => {
+      Store.set('tk-construction-mode', true);
+      App.paintConstructionNav();
+    });
+    await page.locator(NAV_BTN).click();
+    const bar = page.locator('#construction-phase-bar');
+    await expect(bar).toBeVisible();
+    await expect(bar.locator('.phase-dot')).toHaveCount(5);
+    const overflow = await bar.evaluate((el) => el.scrollWidth > el.clientWidth + 1);
+    expect(overflow).toBe(false);
+  });
+
   test('Leo mode follows construction phase', async ({ page }) => {
     const modes = await page.evaluate(() => ({
       p0: ConstructionView.leoModeForPhase(0),
