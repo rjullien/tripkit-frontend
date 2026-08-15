@@ -406,6 +406,23 @@ test.describe('Construction ActionBar', () => {
 });
 
 test.describe('Construction profil voyageur', () => {
+  test('travel-profile.js : rythme lu sous travelStyle', async ({ page }) => {
+    await page.route('**/travel-profile', route => route.fulfill(json(JSON.stringify({
+      people: { rene: { id: 'rene', name: 'René' } },
+      travelProfile: {
+        travelStyle: { pace: 'modéré', maxDrivingPerDay: '4h' },
+        budgetRules: { accommodation: { maxPerNight: 200, currency: 'EUR' } },
+        interests: { rene: { likes: ['parcs nationaux'], dislikes: [] } },
+      },
+    }))));
+    await openConstruction(page);
+    const box = page.locator('#construction-context-box');
+    await expect(box).toContainText('Rythme');
+    await expect(box).toContainText('modéré');
+    await expect(box).toContainText('4h');
+    await expect(box).toContainText('parcs nationaux');
+  });
+
   test('demande de modification : un 501 ne peint aucun succès', async ({ page }) => {
     await page.route('**/travel-profile', route => route.fulfill(json(PROFILE)));
     await page.route('**/travel-profile/request', route => route.fulfill(json(
