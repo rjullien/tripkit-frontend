@@ -17,6 +17,7 @@
     "js/people-helpers.js",
     "js/day-resolver.js",
     "js/trip-groups.js",
+    "js/construction-contract.js",
     "js/app.js"
   ],
   "bundle-components": [
@@ -29,6 +30,8 @@
     "js/components/conference.js",
     "js/components/daily-view.js",
     "js/components/discovery-panel.js",
+    "js/components/nuisance-stream.js",
+    "js/components/construction-view.js",
     "js/components/list.js",
     "js/components/route-view.js",
     "js/components/culture-view.js",

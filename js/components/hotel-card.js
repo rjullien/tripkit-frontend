@@ -11,6 +11,34 @@
 var HotelCard = (() => {
 
   /**
+   * Render a booking status badge.
+   * @param {string} status — 'candidate', 'to_book', 'booked'
+   * @returns {string} HTML badge or empty string
+   */
+  function renderStatusBadge(status) {
+    if (!status) return '';
+    let cls = 'badge-muted';
+    let label = '';
+    switch (status) {
+      case 'candidate':
+        cls = 'badge-muted';
+        label = 'Candidat';
+        break;
+      case 'to_book':
+        cls = 'badge-orange';
+        label = 'À réserver';
+        break;
+      case 'booked':
+        cls = 'badge-green';
+        label = 'Réservé';
+        break;
+      default:
+        return '';
+    }
+    return `<div class="booking-tags" style="margin:4px 0 6px"><span class="badge ${cls}">${label}</span></div>`;
+  }
+
+  /**
    * Render a hotel card.
    * @param {Object} hotelData — { name, addr, booking, ref, checkin, wifi, ... }
    * @returns {string} HTML string
@@ -23,7 +51,7 @@ var HotelCard = (() => {
       name, note, addr, address, city, booking, ref, phone,
       checkin, checkout, extras, amenities = [],
       links = [], price, rooms, host, notes, access, wifi,
-      cancellation, confirmationNumber,
+      cancellation, confirmationNumber, bookingStatus, bookingRef, bookingUrl,
     } = hotelData;
 
     const actualAddr = addr || address;
@@ -31,8 +59,16 @@ var HotelCard = (() => {
       ? `https://www.google.com/maps/search/${encodeURIComponent(actualAddr)}`
       : null;
 
+    const effectiveStatus = bookingStatus || (bookingRef ? 'booked' : '');
+
     let html = `<div class="hotel-card">`;
     html += `<div class="hotel-name">\ud83c\udfe8 ${esc(name)}</div>`;
+
+    if (effectiveStatus) {
+      const statusBadge = renderStatusBadge(effectiveStatus);
+      if (statusBadge) html += statusBadge;
+    }
+
     html += `<div class="hotel-meta">`;
 
     if (city && !actualAddr) html += `<div>\ud83d\udccd ${esc(city)}</div>`;
@@ -52,6 +88,10 @@ var HotelCard = (() => {
       if (booking && refVal) html += ` \u00b7 `;
       if (refVal) html += `R\u00e9f: <strong>${esc(refVal)}</strong>`;
       html += `</div>`;
+    }
+
+    if (bookingUrl) {
+      html += `<div><a href="${escAttr(bookingUrl)}" target="_blank" class="hotel-link-btn" style="display:inline-flex;align-items:center;gap:4px;margin-top:4px">\ud83d\udd17 Voir la r\u00e9servation</a></div>`;
     }
 
     if (checkin || checkout) {
@@ -276,5 +316,5 @@ var HotelCard = (() => {
     return String(s || '').replace(/"/g,'&quot;');
   }
 
-  return { render, fromDay, wifiConnect };
+  return { render, fromDay, wifiConnect, renderStatusBadge };
 })();

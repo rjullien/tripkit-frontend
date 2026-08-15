@@ -39,6 +39,7 @@ var SeedMerge = (() => {
   const TRIP_DATA_COLLECTIONS = [
     'restaurants', 'culture', 'locations', 'hotels',
     'flights', 'carRental', 'ferry', 'ferries', 'events',
+    'activities',
     'people', // person fiches (from people.js) for travelers on this trip
   ];
 

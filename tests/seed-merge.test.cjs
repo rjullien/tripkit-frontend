@@ -162,7 +162,7 @@ test('trip.data collections land at the top level', () => {
 });
 
 test('TRIP_DATA_COLLECTIONS lists every booking collection BookingsView needs', () => {
-  ['flights', 'carRental', 'ferry', 'ferries', 'events', 'hotels', 'people'].forEach(f => {
+  ['flights', 'carRental', 'ferry', 'ferries', 'events', 'hotels', 'people', 'activities'].forEach(f => {
     assert.ok(SeedMerge.TRIP_DATA_COLLECTIONS.includes(f), `${f} missing from TRIP_DATA_COLLECTIONS`);
   });
   assert.strictEqual(SeedMerge.merge(quebecSeed(), {}).people.alice.name, 'Alice', 'people dropped');
