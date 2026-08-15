@@ -186,10 +186,10 @@ var DiscoveryPanel = (() => {
     const items = (res && res.items) || [];
     wrap._items = items;
     if (!items.length) {
-      wrap.innerHTML = `<p class="discovery-empty">Rien trouvé autour pour ces thèmes.</p>`;
+      wrap.innerHTML = `<p class="discovery-empty">Rien trouve autour pour ces themes.</p>`;
       return;
     }
-    wrap.innerHTML = items.map((it) => {
+    wrap.innerHTML = items.map((it, idx) => {
       const editorial = it.source === 'editorial';
       const km = (!editorial && typeof it.distKm === 'number' && it.distKm > 0)
         ? `${String(it.distKm).replace('.', ',')} km` : '';
@@ -200,12 +200,76 @@ var DiscoveryPanel = (() => {
         : '';
       const meta = [when, km, link].filter(Boolean).join(' · ');
       const note = it.note ? `<div class="discovery-item-note">${esc(it.note)}</div>` : '';
+      const retainBtn = `<button type="button" class="btn btn-sm discovery-retain-btn" data-idx="${idx}">Retenir</button>`;
       return `<div class="discovery-item">
-        <div class="discovery-item-name">${esc(it.name || '')}</div>
+        <div class="discovery-item-row">
+          <div class="discovery-item-name">${esc(it.name || '')}</div>
+          ${retainBtn}
+        </div>
         ${meta ? `<div class="discovery-item-meta">${meta}</div>` : ''}
         ${note}
       </div>`;
     }).join('');
+
+    // Bind retain buttons
+    wrap.querySelectorAll('.discovery-retain-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const idx = parseInt(btn.getAttribute('data-idx'), 10);
+        const item = wrap._items[idx];
+        if (item) handleRetain(btn, item);
+      });
+    });
+  }
+
+  async function handleRetain(btn, item) {
+    const tripId = getTripIdForDiscovery();
+    if (!tripId) return;
+
+    btn.disabled = true;
+    btn.textContent = 'Envoi a Leo...';
+
+    const res = await API.retainDiscoveryItem(tripId, {
+      id: item.id || '',
+      name: item.name || '',
+      themeId: item.themeId || '',
+      lat: item.lat || 0,
+      lon: item.lon || 0,
+      distKm: item.distKm || 0,
+      url: item.url || '',
+      source: item.source || '',
+    });
+
+    if (!res || !res.ok || !res.data || !res.data.jobId) {
+      btn.textContent = 'Erreur';
+      btn.className = 'btn btn-sm discovery-retain-btn error';
+      setTimeout(() => { btn.textContent = 'Retenir'; btn.disabled = false; btn.className = 'btn btn-sm discovery-retain-btn'; }, 2500);
+      return;
+    }
+
+    // Track job via SSE
+    try {
+      for await (const ev of API.leoJobStream(res.data.jobId, 0)) {
+        if (ev.event === 'done') break;
+        if (ev.event === 'error') {
+          btn.textContent = 'Erreur';
+          btn.className = 'btn btn-sm discovery-retain-btn error';
+          setTimeout(() => { btn.textContent = 'Retenir'; btn.disabled = false; btn.className = 'btn btn-sm discovery-retain-btn'; }, 2500);
+          return;
+        }
+      }
+    } catch (_) {
+      // ignore SSE failures
+    }
+
+    btn.textContent = 'Retenu ✓';
+    btn.className = 'btn btn-sm discovery-retain-btn done';
+  }
+
+  function getTripIdForDiscovery() {
+    if (typeof Store !== 'undefined' && Store.getCurrentTripId) {
+      return Store.getCurrentTripId();
+    }
+    return null;
   }
 
   return { render };

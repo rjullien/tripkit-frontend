@@ -552,8 +552,54 @@ var ConstructionView = (() => {
       }
       html += `</div>`;
     });
+
+    // "Epingler dans le seed" button
+    html += `<div class="nuisance-pin-wrap"><button type="button" class="btn btn-accent nuisance-pin-btn" id="nuisance-pin-btn">Epingler dans le seed</button></div>`;
     html += '</div>';
     showResults(html);
+
+    // Bind pin button
+    const pinBtn = document.getElementById('nuisance-pin-btn');
+    if (pinBtn) {
+      pinBtn.addEventListener('click', () => handlePinNuisance(pinBtn));
+    }
+  }
+
+  async function handlePinNuisance(btn) {
+    const tripId = (typeof Store !== 'undefined' && Store.getCurrentTripId)
+      ? Store.getCurrentTripId()
+      : null;
+    if (!tripId) return;
+
+    btn.disabled = true;
+    btn.textContent = 'Envoi a Leo...';
+
+    const res = await API.pinNuisanceToSeed(tripId);
+    if (!res || !res.ok || !res.data || !res.data.jobId) {
+      btn.textContent = 'Erreur';
+      setTimeout(() => { btn.textContent = 'Epingler dans le seed'; btn.disabled = false; }, 2500);
+      return;
+    }
+
+    // Track job via SSE
+    try {
+      for await (const ev of API.leoJobStream(res.data.jobId, 0)) {
+        if (ev.event === 'done') break;
+        if (ev.event === 'error') {
+          btn.textContent = 'Erreur';
+          setTimeout(() => { btn.textContent = 'Epingler dans le seed'; btn.disabled = false; }, 2500);
+          return;
+        }
+        if (ev.event === 'delta' && ev.data && ev.data.text) {
+          btn.textContent = 'Leo : ' + ev.data.text.slice(0, 30);
+        }
+      }
+    } catch (_) {
+      // ignore SSE failures
+    }
+
+    btn.textContent = 'Epingle ✓';
+    btn.disabled = true;
   }
 
   function categoryEmoji(cat) {

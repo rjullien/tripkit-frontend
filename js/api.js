@@ -769,6 +769,22 @@ var API = (() => {
     });
   }
 
+  async function retainDiscoveryItem(tripId, item) {
+    return requestJSON(`/trips/${encodeURIComponent(tripId)}/discovery/retain`, {
+      method: 'POST',
+      body: JSON.stringify({ item }),
+      timeoutMs: 15000,
+    });
+  }
+
+  async function pinNuisanceToSeed(tripId) {
+    return requestJSON(`/trips/${encodeURIComponent(tripId)}/nuisance-check/pin`, {
+      method: 'POST',
+      body: '{}',
+      timeoutMs: 15000,
+    });
+  }
+
   /**
    * Stream Plus Assistant (Bifrost direct). Events: delta | done | error
    * @param {{ tripId?: string, messages: Array<{role:string,content:string}>, signal?: AbortSignal }} body
@@ -831,6 +847,7 @@ var API = (() => {
     getPlusChatStatus, plusChatStream,
     getPolarstepsStatus, getPolarstepsCaption, postPolarstepsCaption,
     getDiscoveryThemes, getDiscoveryResults, postDiscoverySearch,
+    retainDiscoveryItem, pinNuisanceToSeed,
     getTravelProfile, getConstruction, transitionPhase, createProfileRequest,
     runQA, runAdminCheck, runHealthCheck, runNuisanceCheck, getNuisanceCheck,
     assetUrl, getBaseUrl, warmTripAssets,
