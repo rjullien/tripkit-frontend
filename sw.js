@@ -5,7 +5,7 @@
  * Bump CACHE_NAME when deploying new shell versions.
  */
 
-const CACHE_NAME = 'tripkit-119';
+const CACHE_NAME = 'tripkit-120';
 
 
 const ASSETS = [
@@ -50,8 +50,10 @@ const ASSETS = [
   '/js/components/route-view.js',
   '/js/components/culture-view.js',
   '/js/lib/qrcode-svg.min.js',
-  // Wllama JS only in precache — wasm (~7MB) loads on demand when user opts in.
-  '/js/lib/wllama/index.min.js',
+  // NOT precached: /js/lib/wllama/index.min.js (~300 Ko). No <script> tag loads
+  // it — edge-model/engine.js does `import()` it, but only when the user opts in
+  // to the local AI. networkFirstShell caches it at that moment, so the feature
+  // still works offline afterwards; paying 300 Ko on every first load did not.
 ];
 
 // ── Install: precache all assets ──────────────────────────────────────────────
