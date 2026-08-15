@@ -173,6 +173,33 @@ test.describe('Plus Polarsteps', () => {
     await expect(page.locator('#polarsteps-result-wrap')).toBeHidden();
   });
 
+  test('legacy POST 200 with text still paints (mixed rollout)', async ({ page }) => {
+    await page.unroute('**/api/trips/*/polarsteps/caption');
+    await page.unroute('**/api/leo/jobs/job-ps-1/stream**');
+    await page.route('**/api/trips/*/polarsteps/caption', async (route) => {
+      if (route.request().method() === 'GET') {
+        return route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ text: '', day: 1, kind: 'opening' }),
+        });
+      }
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          text: GOLDEN,
+          day: 1,
+          kind: 'opening',
+          qa: { verdict: 'PASSED' },
+        }),
+      });
+    });
+    await page.locator('#polarsteps-generate').click();
+    await expect(page.locator('#polarsteps-result')).toBeVisible();
+    await expect(page.locator('#polarsteps-result')).toHaveValue(/Décollage depuis Nice/);
+  });
+
   test('recovers caption from GET store if SSE drops', async ({ page }) => {
     let saved = false;
     await page.unroute('**/api/trips/*/polarsteps/caption');

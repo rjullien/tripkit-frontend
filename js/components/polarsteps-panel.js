@@ -174,6 +174,12 @@ var PolarstepsPanel = (() => {
         clientNowISO: new Date().toISOString(),
       });
       const jobId = posted && posted.data && posted.data.jobId;
+      // Mixed rollout: old BE still answers 200 {text,qa} on the POST.
+      if (posted && posted.ok && !jobId && posted.data && posted.data.text) {
+        paintResult(posted.data.text, posted.data.qa, true);
+        setBusy(false);
+        return;
+      }
       if (!posted || !posted.ok || !jobId) {
         const msg = (posted && (posted.data && posted.data.error || posted.error))
           || 'Génération impossible';
