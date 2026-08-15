@@ -27,22 +27,47 @@ var App = (() => {
   });
 
   // ── Magic Link Auth ────────────────────────────────────────────────────────
-  async function handleMagicLink() {
+  // POST /auth/login is a full round-trip: awaiting it before the first paint
+  // left the screen blank for the whole exchange. Boot now starts it and paints,
+  // then awaits it right before touching the backend (the JWT it stores is what
+  // authorises /api/trips…, and a first-ever visit has no local cache to show).
+  const MAGIC_LINK_TIMEOUT_MS = 8000;
+
+  /**
+   * Starts the ?token= → JWT exchange without blocking the caller.
+   * @returns {Promise<boolean>|null} null when the URL carries no magic token
+   *   (the common case), else a promise resolving true when authenticated /
+   *   false when the link was refused (error already displayed).
+   */
+  function startMagicLink() {
     const params = new URLSearchParams(window.location.search);
     const token = params.get('token');
-    if (!token) return;
+    if (!token) return null;
+    return handleMagicLink(token);
+  }
 
+  async function handleMagicLink(token) {
     // Exchange magic token for JWT via backend
     try {
       const baseUrl = (typeof TRIPKIT_CONFIG !== 'undefined' && TRIPKIT_CONFIG.apiUrl &&
                        TRIPKIT_CONFIG.apiUrl !== '${API_URL}')
         ? TRIPKIT_CONFIG.apiUrl.replace(/\/$/, '') : window.location.origin;
 
-      const res = await fetch(`${baseUrl}/auth/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token }),
-      });
+      // Timeout: boot waits on this promise before fetching data, so a hung
+      // /auth/login must not stall « Chargement… » forever.
+      const ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+      const timer = ctrl ? setTimeout(() => ctrl.abort(), MAGIC_LINK_TIMEOUT_MS) : null;
+      let res;
+      try {
+        res = await fetch(`${baseUrl}/auth/login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token }),
+          signal: ctrl ? ctrl.signal : undefined,
+        });
+      } finally {
+        if (timer) clearTimeout(timer);
+      }
 
       if (res.ok) {
         const data = await res.json();
@@ -55,16 +80,18 @@ var App = (() => {
           }
           // Clean URL (remove ?token=xxx)
           window.history.replaceState({}, '', window.location.pathname + window.location.hash);
-          return;
+          return true;
         }
       }
 
       // Token invalid/expired — show error
       const err = await res.json().catch(() => ({ error: 'Unknown error' }));
       showAuthError(err.error || 'Lien invalide ou expir\u00e9');
+      return false;
     } catch (e) {
       console.error('[Auth] Magic link error:', e);
       showAuthError('Erreur de connexion au serveur');
+      return false;
     }
   }
 
@@ -89,8 +116,9 @@ var App = (() => {
       }
     });
 
-    // Magic link: intercept ?token=xxx in URL → exchange for JWT
-    await handleMagicLink();
+    // Magic link: intercept ?token=xxx in URL → exchange for JWT.
+    // Started here, not awaited: the UI below paints during the exchange.
+    const magicLink = startMagicLink();
 
     // Paint construction nav visibility on boot
     paintConstructionNav();
@@ -111,20 +139,26 @@ var App = (() => {
     // /health response lands before #tripkit-backend-info exists (race).
     fetchBackendVersion();
 
+    // Paint first, hit the backend after. When the URL carried a magic token the
+    // /api calls must wait for its JWT — that is the only thing they wait for.
     const tripId = Store.getCurrentTripId();
     if (tripId && Store.getTripData(tripId)) {
       // Has cached data → render instantly, refresh in background
       handleHash();
-      refreshFromBackend();
+      if (magicLink) magicLink.then(() => refreshFromBackend());
+      else refreshFromBackend();
     } else {
-      // First visit — show loading, fetch from backend, then render
+      // First visit — show loading, fetch from backend, then render.
+      // No cache to fall back on: the seed fetch genuinely needs the JWT.
       showLoading();
+      const authed = magicLink ? await magicLink : null;
       await refreshFromBackend();
 
       // Check if we got data — if not, show offline message
       const newTripId = Store.getCurrentTripId();
       if (!newTripId || !Store.getTripData(newTripId)) {
-        showOffline();
+        // A refused magic link already rendered its own error — don't clobber it
+        if (authed !== false) showOffline();
       } else {
         handleHash();
       }

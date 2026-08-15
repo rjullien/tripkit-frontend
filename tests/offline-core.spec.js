@@ -53,10 +53,12 @@ test.describe('SW precache list', () => {
     expect(text).toContain('discovery-panel.js');
     expect(text).toContain('edge-chat-stream.js');
     expect(text).toContain('edge-model/engine.js');
-    expect(text).toContain('tripkit-119');
+    expect(text).toContain('tripkit-120');
     expect(text).toContain('trip-groups.js');
     expect(text).toContain("url.origin !== self.location.origin");
     expect(text).not.toContain('/js/components/leo-chat.js');
+    // Wllama runtime (~300 Ko) is opt-in: it must NOT be in the install precache.
+    expect(text).not.toContain("'/js/lib/wllama/index.min.js'");
   });
 
   // A stray `*/` inside the header comment once ended it early and turned the
