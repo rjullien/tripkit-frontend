@@ -56,6 +56,10 @@ test.describe('Weather error messages', () => {
     let meteoHitsAfter = 0;
     await page.goto('/');
     await page.waitForSelector('.bottom-nav', { timeout: 8000 });
+    // Boot renders the current day with the seed (near-term) dates and fetches
+    // its forecast. Let that request go out before we start counting, otherwise
+    // any millisecond of extra boot latency is counted against the assertion.
+    await page.waitForTimeout(500);
 
     await page.route('**/api.open-meteo.com/**', async (route) => {
       meteoHitsAfter++;
