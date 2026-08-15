@@ -15,6 +15,13 @@ tests
 docs
 js/seed
 seed-import.cjs
+# Même outillage de seed que seed-import.cjs, et jamais appelé au runtime.
+seed-import.js
+# release.sh tourne depuis le checkout git (release.sh lit js/seed/*.js et
+# seed-import.cjs, tous deux hors image), jamais depuis le conteneur. Servi, il
+# exposait le chemin du repo infra, le fichier source ArgoCD, le passage
+# public/privé du repo et l'URL interne du backend.
+release.sh
 playwright.config.js
 playwright-e2e-prod.config.js
 # Notes de conception (docs/, DATA-MODEL.md, LIST-SYNC-SPEC.md…) : le Dockerfile
