@@ -53,7 +53,10 @@ test.describe('SW precache list', () => {
     expect(text).toContain('discovery-panel.js');
     expect(text).toContain('edge-chat-stream.js');
     expect(text).toContain('edge-model/engine.js');
-    expect(text).toContain('tripkit-120');
+    expect(text).toContain('construction-view.js');
+    // Pinned on purpose: the shell CSS and JS changed, so the cache must be
+    // bumped in the same commit or returning users keep the old shell.
+    expect(text).toContain('tripkit-121');
     expect(text).toContain('trip-groups.js');
     expect(text).toContain("url.origin !== self.location.origin");
     expect(text).not.toContain('/js/components/leo-chat.js');
