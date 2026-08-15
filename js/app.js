@@ -413,6 +413,9 @@ var App = (() => {
         if (typeof PublishPanel !== 'undefined' && PublishPanel.resumeIfNeeded) {
           PublishPanel.resumeIfNeeded();
         }
+        if (typeof PolarstepsPanel !== 'undefined' && PolarstepsPanel.resumeIfNeeded) {
+          PolarstepsPanel.resumeIfNeeded();
+        }
         if (typeof LeoChatStream !== 'undefined' && LeoChatStream.resumeIfNeeded) {
           LeoChatStream.resumeIfNeeded();
         }

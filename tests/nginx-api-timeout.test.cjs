@@ -1,8 +1,8 @@
 'use strict';
 /**
- * Polarsteps generate holds the /api/ proxy with no bytes until Bifrost
- * answers. nginx default proxy_read_timeout is 60s → HTML 502 on the
- * ClusterIP / same-origin hop (public /api is Traefik → backend).
+ * Polarsteps generate is a leo.Hub job: POST returns 202 immediately, the UI
+ * subscribes to GET /leo/jobs/{id}/stream. nginx /api/ must still wait on
+ * that SSE (progress ticks every 10s; worst case a quiet hop).
  */
 const fs = require('fs');
 const path = require('path');
@@ -16,6 +16,10 @@ assert.ok(/proxy_read_timeout\s+270s/.test(untilNext), 'location /api/ must set 
 assert.ok(/proxy_send_timeout\s+270s/.test(untilNext), 'location /api/ must set proxy_send_timeout 270s');
 
 const apiJs = fs.readFileSync(path.join(__dirname, '..', 'js', 'api.js'), 'utf8');
-assert.ok(/timeoutMs:\s*240000/.test(apiJs), 'postPolarstepsCaption must wait 240s');
+const start = apiJs.indexOf('async function postPolarstepsCaption');
+assert.ok(start >= 0, 'postPolarstepsCaption missing');
+const chunk = apiJs.slice(start, start + 350);
+assert.ok(/timeoutMs:\s*15000/.test(chunk), 'POST is 202 {jobId} — 15s is enough');
+assert.ok(!/timeoutMs:\s*24\d{4}/.test(chunk), 'POST must not wait on Bifrost');
 
 console.log('nginx-api-timeout.test.cjs: ok');

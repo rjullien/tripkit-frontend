@@ -3,10 +3,16 @@
  * Visible only when GET /trips/:id/polarsteps/status says enabled.
  */
 var PolarstepsPanel = (() => {
+  const JOB_KEY = 'tk-polarsteps-job';
+  const SEQ_KEY = 'tk-polarsteps-seq';
+
   let _status = null;
   let _busy = false;
   let _edited = false;
   let _baseline = '';
+  let _jobId = null;
+  let _lastSeq = 0;
+  let _abort = null;
 
   function escapeHtml(s) {
     return String(s ?? '').replace(/[&<>"']/g, c => ({
@@ -86,6 +92,7 @@ var PolarstepsPanel = (() => {
     }
 
     loadLast();
+    resumeIfNeeded();
   }
 
   async function loadLast() {
@@ -132,6 +139,24 @@ var PolarstepsPanel = (() => {
     if (fromGenerate) showError('');
   }
 
+  function persistJob() {
+    try {
+      if (!_jobId) {
+        sessionStorage.removeItem(JOB_KEY);
+        sessionStorage.removeItem(SEQ_KEY);
+        return;
+      }
+      sessionStorage.setItem(JOB_KEY, _jobId);
+      sessionStorage.setItem(SEQ_KEY, String(_lastSeq || 0));
+    } catch (_) {}
+  }
+
+  function clearJob() {
+    _jobId = null;
+    _lastSeq = 0;
+    persistJob();
+  }
+
   async function generate() {
     const tripId = currentTripId();
     if (!tripId || _busy) return;
@@ -144,28 +169,112 @@ var PolarstepsPanel = (() => {
     setBusy(true);
     showError('');
     try {
-      const res = await API.postPolarstepsCaption(tripId, {
+      const posted = await API.postPolarstepsCaption(tripId, {
         userNote,
         clientNowISO: new Date().toISOString(),
       });
-      if (!res.ok) {
-        const msg = (res.data && (res.data.error || (res.data.qa && res.data.qa.summary)))
-          || res.error
+      const jobId = posted && posted.data && posted.data.jobId;
+      // Mixed rollout: old BE still answers 200 {text,qa} on the POST.
+      if (posted && posted.ok && !jobId && posted.data && posted.data.text) {
+        paintResult(posted.data.text, posted.data.qa, true);
+        setBusy(false);
+        return;
+      }
+      if (!posted || !posted.ok || !jobId) {
+        const msg = (posted && (posted.data && posted.data.error || posted.error))
           || 'Génération impossible';
         paintResult('', null, true);
         showError(msg);
+        setBusy(false);
         return;
       }
-      const data = res.data || {};
-      if (!data.text) {
-        paintResult('', data.qa, true);
-        showError((data.qa && data.qa.summary) || 'QA FAILED');
-        return;
-      }
-      paintResult(data.text, data.qa, true);
-    } finally {
+      _jobId = jobId;
+      _lastSeq = 0;
+      persistJob();
+      await followJob(jobId, 0);
+    } catch (e) {
+      showError((e && e.message) || 'Génération impossible');
       setBusy(false);
     }
+  }
+
+  async function followJob(jobId, after) {
+    if (!jobId || typeof API === 'undefined' || !API.leoJobStream) {
+      setBusy(false);
+      return;
+    }
+    if (_abort) {
+      try { _abort.abort(); } catch (_) {}
+    }
+    const ac = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+    _abort = ac;
+    setBusy(true);
+    try {
+      for await (const ev of API.leoJobStream(jobId, after, { signal: ac ? ac.signal : undefined })) {
+        if (ev && ev.data && typeof ev.data.seq === 'number') {
+          _lastSeq = ev.data.seq;
+          persistJob();
+        }
+        if (ev.event === 'error') {
+          const msg = (ev.data && (ev.data.error || ev.data.detail)) || 'Génération impossible';
+          paintResult('', (ev.data && ev.data.tool && ev.data.tool.qa) || null, true);
+          showError(msg);
+          clearJob();
+          return;
+        }
+        if (ev.event === 'done') {
+          let data = null;
+          if (ev.data && ev.data.reply) {
+            try { data = JSON.parse(ev.data.reply); } catch (_) { data = null; }
+          }
+          if (data && data.text) {
+            paintResult(data.text, data.qa, true);
+          } else if (data && !data.text) {
+            paintResult('', data.qa, true);
+            showError((data.qa && data.qa.summary) || data.error || 'QA FAILED');
+          } else {
+            await loadLast();
+          }
+          clearJob();
+          return;
+        }
+      }
+      await recoverFromStore();
+    } catch (_) {
+      await recoverFromStore();
+    } finally {
+      if (_abort === ac) _abort = null;
+      if (!_jobId) setBusy(false);
+    }
+  }
+
+  async function recoverFromStore() {
+    const before = _baseline;
+    await loadLast();
+    const ta = document.getElementById('polarsteps-result');
+    const now = ta ? ta.value : '';
+    if (now && now !== before) {
+      clearJob();
+      showError('');
+      return;
+    }
+    // Job still running (Safari lock) — keep busy, resume on visibility.
+    if (_jobId) setBusy(true);
+    else setBusy(false);
+  }
+
+  function resumeIfNeeded() {
+    if (_busy && _abort) return;
+    let id = _jobId;
+    let seq = _lastSeq;
+    try {
+      if (!id) id = sessionStorage.getItem(JOB_KEY);
+      if (id && !seq) seq = Number(sessionStorage.getItem(SEQ_KEY) || 0) || 0;
+    } catch (_) {}
+    if (!id) return;
+    _jobId = id;
+    _lastSeq = seq || 0;
+    followJob(id, _lastSeq);
   }
 
   function fallbackCopy(text) {
@@ -203,5 +312,5 @@ var PolarstepsPanel = (() => {
     }
   }
 
-  return { loadStatus, renderSection };
+  return { loadStatus, renderSection, resumeIfNeeded };
 })();
