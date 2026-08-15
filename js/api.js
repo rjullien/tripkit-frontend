@@ -678,7 +678,7 @@ var API = (() => {
     return requestJSON(`/trips/${encodeURIComponent(tripId)}/polarsteps/caption`, {
       method: 'POST',
       body: JSON.stringify(body || {}),
-      timeoutMs: 120000,
+      timeoutMs: 240000,
     });
   }
 
