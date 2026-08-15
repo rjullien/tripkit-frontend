@@ -361,6 +361,9 @@ var App = (() => {
         return;
       }
       _updateTabUI(tab);
+      // Le routeur est l'autre porte de sortie d'un onglet (retour navigateur,
+      // hash saisi à la main) : la coupure des flux doit y passer aussi.
+      if (currentTab && currentTab !== tab) _teardownTab(currentTab);
       currentTab = tab;
 
       if (tab === 'programme' && parts[1] !== undefined) {
@@ -386,8 +389,31 @@ var App = (() => {
     });
   }
 
+  /**
+   * Coupe les flux SSE de l'onglet qu'on quitte.
+   *
+   * Un flux nuisances survit à l'abandon de son panneau : il continue jusqu'au
+   * `done` puis repeint un panneau que l'utilisateur ne regarde plus. Chaque
+   * panneau annule déjà son propre flux avant d'en ouvrir un autre (et
+   * ConstructionView le fait aussi au ré-affichage et au changement de voyage) ;
+   * il manquait la sortie d'onglet.
+   *
+   * Les contrôleurs par hôtel de l'onglet Résa (`btn._nuisanceAbort`) restent
+   * hors de portée d'ici : ils appartiennent à leurs boutons.
+   */
+  function _teardownTab(tab) {
+    if (tab === 'construction' && typeof ConstructionView !== 'undefined' && ConstructionView.abortNuisanceStream) {
+      ConstructionView.abortNuisanceStream();
+    }
+    if (tab === 'plus' && _nuisanceAbort) {
+      _nuisanceAbort.abort();
+      _nuisanceAbort = null;
+    }
+  }
+
   // ── Tab switching ─────────────────────────────────────────────────────────
   function switchTab(tab) {
+    if (currentTab && currentTab !== tab) _teardownTab(currentTab);
     currentTab = tab;
     _updateTabUI(tab);
     if (tab !== 'listes') currentListId = null;

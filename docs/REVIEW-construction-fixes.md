@@ -94,8 +94,9 @@ divergentes livrées avec deux suites vertes. C'est corrigé :
 
 - Les vrais corps 501 / 403 / 409 renvoyés par le backend déployé (ici : fixtures et corps écrits à
   la main).
-- Le cycle de vie SSE contre un vrai endpoint de streaming : annulation au changement d'onglet ou de
-  voyage, deux analyses concurrentes, reprise après coupure.
+- Le cycle de vie SSE contre un vrai endpoint de streaming : deux analyses concurrentes, reprise
+  après coupure. L'annulation à la sortie d'onglet est désormais couverte par un test Playwright
+  contre un flux bouchonné (§6, constat 10), pas contre un vrai serveur SSE.
 - Le rendu admin/santé sur des données de production : un vrai voyage doit porter
   `people[].nationalities`, ce que le seed de démo ne fait pas — sur ce voyage la checklist admin
   affiche donc des paniers par voyageur **plus** un panier « non rattaché ».
@@ -109,9 +110,10 @@ divergentes livrées avec deux suites vertes. C'est corrigé :
   ces trois actions n'écrit quoi que ce soit**.
 - **Loader de config ops** `TRIPKIT_CONSTRUCTION_*` (lot 0.3) : côté frontend rien à faire, mais les
   seuils et phases affichés restent ceux compilés en dur dans le backend.
-- **Précision de `appliesTo`** : le backend attache l'ensemble des nationalités du voyage à chaque
-  item, donc un item peut être attribué à un voyageur qui n'en a pas strictement besoin. Correctif à
-  faire côté backend, pas ici.
+- ~~**Précision de `appliesTo`**~~ : corrigé côté backend dans la deuxième passe (§6) —
+  `appliesTo` ne porte plus que les nationalités qui déclenchent la règle, la fixture
+  `admin-check.json` a été régénérée et le test de contrat épingle désormais qu'un voyageur hors du
+  `appliesTo` ne reçoit pas l'item.
 - **Synthèse Bifrost** : le champ `summary` est rendu **s'il est présent** ; il est absent tant que la
   config Bifrost de construction n'est pas fournie.
 
@@ -131,8 +133,34 @@ d'acceptation) et **`construction/TASKS.md`** :
    `ELEVE`/`MODERE`/`FAIBLE`.
 3. **`appliesTo` porte des nationalités, pas des voyageurs** : la « checklist par voyageur » de
    `construction/SPEC.md` §7 est reconstruite côté client, avec un panier pour les nationalités non
-   rattachées.
+   rattachées. Depuis la deuxième passe, `appliesTo` ne contient que les nationalités **déclenchantes**
+   (et `["*"]` pour une règle universelle), ce qui rend ce regroupement significatif.
 4. **Loader de config ops différé** (lot 0.3) et synthèse construction empruntant la config Bifrost de
    plus-chat.
 5. **`retain` / `pin-nuisance` / `profile-edit` répondent 501** : les critères d'acceptation
    correspondants ne peuvent pas être cochés.
+
+---
+
+## 6. Deuxième passe — review de suivi (verdict APPROVED, 12 constats non bloquants)
+
+La review de l'implémentation ci-dessus a validé le travail et laissé 12 constats non bloquants.
+Côté frontend :
+
+| # | Constat de suivi | Statut | Détail |
+|---|---|---|---|
+| 1 (rendu) | Le regroupement par voyageur était décoratif : `appliesTo` portait toutes les nationalités du voyage | ✅ | Corrigé côté backend ; ici la fixture `admin-check.json` a été resynchronisée (l'eTA canadien passe de `["FR","US"]` à `["FR"]`) et `tests/construction-contract.test.cjs` épingle la sémantique restreinte : un voyageur **US seul** ne reçoit pas l'eTA canadien, aucun `appliesTo` n'est vide, et René (FR) comme Dinah (FR+US) le reçoivent toujours |
+| 2 | La recopie des fixtures n'était contrôlée par rien | ✅ | `tests/fixtures/construction-contract/CHECKSUMS.txt` (manifeste sha256 committé des deux côtés) est vérifié par le test unitaire — hash de chaque fixture **et** égalité des listes de fichiers. Côté backend, `TestContractFixtures_Checksums` et `TestContractFixtures_FrontendCopyInSync` (comparaison octet à octet des deux répertoires quand les dépôts sont côte à côte). Vérifié par mutation : altérer une fixture ici fait tomber 3 assertions, altérer la copie backend fait tomber le test Go |
+| 3 | Le report n'était visible qu'après l'action | ✅ | Les trois commandes concernées l'annoncent maintenant d'entrée, comme le faisait déjà « Épingler » : marqueur ⏳ dans le libellé, `title` explicite (« Pas encore branché : Léo n'écrit pas encore dans le seed, rien ne sera enregistré. »), classe `deferred` (opacité réduite), et pour le formulaire de profil un bandeau `#profile-edit-deferred` en tête. `js/components/discovery-panel.js`, `js/components/construction-view.js`, `css/theme.css`. **Les contrôles restent actionnables** : le corps 501 porte le détail exact du backend, et le traitement après action est inchangé (« Pas encore disponible », contrôle désactivé, aucun succès peint). Tests : `construction-checks.spec.js`, `discovery-panel.spec.js` |
+| 10 | Un flux nuisances survivait à la sortie de l'onglet | ✅ | `js/app.js` : `_teardownTab(onglet quitté)` appelé depuis `switchTab` **et** depuis le routeur `handleHash` (retour navigateur, hash saisi à la main) ; il coupe le flux de `ConstructionView` et celui du panneau Plus. Les abandons par panneau (PR #73) et les contrôleurs par hôtel de Résa (`btn._nuisanceAbort`) sont inchangés : ils appartiennent à leurs boutons et restent hors de portée de `_teardownTab`. Test Playwright : le GET final n'est jamais émis après la sortie d'onglet (vérifié par mutation — retirer les deux appels fait tomber le test) |
+
+Constats 4, 5, 6, 7, 9 (backend), 8 et 11 (acceptés comme documentés) et 12 (dépôt de specs) : voir
+`tripkit-backend/docs/REVIEW-construction-fixes.md` §5.
+
+`sw.js` : `CACHE_NAME` passé à `tripkit-121` (contenu de `js/` et `css/` modifié) ;
+`tests/offline-core.spec.js` épingle ce nom. Aucun nouveau module, donc `ASSETS` et `index.html` sont
+inchangés.
+
+**Vérifications** (locales, comme la première passe — rien contre une instance qui tourne) :
+`npm run test:unit` (11 fichiers, 35 assertions dans `construction-contract.test.cjs`) et
+`npx playwright test` (130 passés, contre 128 avant cette passe : +2 tests).

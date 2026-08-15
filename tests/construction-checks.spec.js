@@ -149,6 +149,52 @@ test.describe('Construction ActionBar', () => {
     await expect(results).not.toContainText('Aucune nuisance');
   });
 
+  // Le report d'une fonctionnalité doit se voir AVANT l'action : révéler « Pas
+  // encore disponible » seulement après le clic est honnête trop tard.
+  test('Épingler : indisponibilité annoncée avant le clic', async ({ page }) => {
+    await page.route('**/nuisance-check', route => route.fulfill(json(NUISANCE)));
+    await openConstruction(page);
+
+    await page.locator('#action-nuisances').click();
+    const pin = page.locator('#nuisance-pin-btn');
+    await expect(pin).toBeVisible();
+    await expect(pin).toHaveAttribute('title', /Pas encore branché/);
+    await expect(pin).toHaveClass(/deferred/);
+    await expect(pin).toContainText('⏳');
+  });
+
+  // Un flux nuisances abandonné continuait jusqu'à sa trame `done` puis allait
+  // chercher le résultat final pour repeindre un panneau que plus personne ne
+  // regarde. Chaque panneau coupait déjà son propre flux ; il manquait la sortie
+  // d'onglet. Preuve : le GET final n'est jamais émis.
+  test("quitter l'onglet coupe le flux nuisances en cours", async ({ page }) => {
+    let finalFetches = 0;
+    await page.route('**/nuisance-check', route => {
+      if (route.request().method() !== 'GET') {
+        return route.fulfill(json('{"jobId":"job-nuis-abort"}', 202));
+      }
+      finalFetches++;
+      return route.fulfill(json(NUISANCE));
+    });
+    // Le `done` n'arrive qu'après un délai : on quitte l'onglet avant.
+    await page.route('**/leo/jobs/job-nuis-abort/stream**', async route => {
+      await new Promise(r => setTimeout(r, 1200));
+      try {
+        await route.fulfill({ status: 200, contentType: 'text/event-stream', body: 'event: done\ndata: {}\n\n' });
+      } catch (_) { /* client parti : c'est exactement l'abandon attendu */ }
+    });
+
+    await openConstruction(page);
+    await page.locator('#action-nuisances').click();
+    await expect(page.locator('#action-bar-results .nuisance-progress')).toBeVisible();
+    expect(finalFetches).toBe(0);
+
+    await page.locator('.bottom-nav button[data-tab="programme"]').click();
+    await page.waitForTimeout(2200);
+
+    expect(finalFetches, 'le flux abandonné ne doit plus aller chercher le résultat final').toBe(0);
+  });
+
   test('Épingler : un 501 dit « pas encore disponible », jamais « Épinglé »', async ({ page }) => {
     await page.route('**/nuisance-check', route => route.fulfill(json(NUISANCE)));
     await page.route('**/nuisance-check/pin', route => route.fulfill(json(
@@ -173,6 +219,11 @@ test.describe('Construction profil voyageur', () => {
     await openConstruction(page);
 
     await page.locator('#construction-ctx-edit').click();
+    // Annoncé d'entrée : on ne laisse pas l'utilisateur remplir le formulaire
+    // pour lui apprendre ensuite que la fonctionnalité n'existe pas.
+    await expect(page.locator('#profile-edit-deferred')).toContainText('Pas encore disponible');
+    await expect(page.locator('#profile-edit-deferred')).toContainText('rien ne sera enregistré');
+    await expect(page.locator('#profile-edit-submit')).toHaveAttribute('title', /Pas encore branché/);
     await page.locator('#profile-edit-target').selectOption('interests');
     await page.locator('#profile-edit-text').fill('Plus de musées');
     await page.locator('#profile-edit-submit').click();

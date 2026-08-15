@@ -8,7 +8,14 @@
  *   cd tripkit-backend
  *   go test ./internal/handlers/ -run TestContractFixtures -update
  *   cp internal/handlers/testdata/contract/*.json \
+ *      internal/handlers/testdata/contract/CHECKSUMS.txt \
  *      ../tripkit-frontend/tests/fixtures/construction-contract/
+ *
+ * La recopie n'est plus laissée à la mémoire de l'auteur : CHECKSUMS.txt est un
+ * manifeste sha256 committé des deux côtés, vérifié ici ET par
+ * TestContractFixtures_Checksums côté backend, et
+ * TestContractFixtures_FrontendCopyInSync compare les deux répertoires octet à
+ * octet quand les deux dépôts sont clonés côte à côte.
  *
  * Voir tripkit-backend/internal/handlers/testdata/contract/README.md.
  *
@@ -19,6 +26,7 @@
  */
 const path = require('path');
 const fs = require('fs');
+const crypto = require('crypto');
 const assert = require('assert');
 
 process.chdir(path.join(__dirname, '..'));
@@ -69,6 +77,35 @@ test('les cinq fixtures dorées du backend sont présentes', () => {
     'phase-transition-blocked.json',
     'qa-violations.json',
   ]);
+});
+
+// ── Le manifeste sha256 partagé avec le backend ────────────────────────────────
+//
+// Sans ce contrôle, une enveloppe régénérée côté backend et jamais recopiée ici
+// laissait les deux suites vertes contre une fixture périmée — exactement l'angle
+// mort que ces fixtures existent pour fermer.
+
+test('CHECKSUMS.txt correspond aux fixtures locales', () => {
+  const manifest = fs.readFileSync(path.join(FIXTURES, 'CHECKSUMS.txt'), 'utf8');
+  const lines = manifest.split('\n').filter(l => l.trim() !== '');
+  assert.strictEqual(lines.length, 5, 'le manifeste couvre les cinq fixtures');
+
+  const listed = [];
+  lines.forEach(line => {
+    // Format sha256sum : <hash>  <nom de fichier>
+    const m = /^([0-9a-f]{64}) {2}(.+)$/.exec(line);
+    assert.ok(m, `ligne de manifeste illisible : ${line}`);
+    const [, want, name] = m;
+    listed.push(name);
+    const got = crypto.createHash('sha256').update(fs.readFileSync(path.join(FIXTURES, name))).digest('hex');
+    assert.strictEqual(got, want,
+      `${name} ne correspond pas à CHECKSUMS.txt : recopier les fixtures ET le manifeste depuis ` +
+      'tripkit-backend/internal/handlers/testdata/contract/');
+  });
+
+  const onDisk = fs.readdirSync(FIXTURES).filter(f => f.endsWith('.json')).sort();
+  assert.deepStrictEqual(listed.slice().sort(), onDisk,
+    'le manifeste et le répertoire ne listent pas les mêmes fichiers');
 });
 
 // ── QA ─────────────────────────────────────────────────────────────────────────
@@ -154,8 +191,41 @@ test('appliesTo est en camelCase, applies_to reste toléré', () => {
   const item = fixture('admin-check.json').items[0];
   assert.ok('appliesTo' in item, 'la fixture porte appliesTo');
   assert.ok(!('applies_to' in item), 'la fixture ne porte plus applies_to');
-  assert.deepStrictEqual(ConstructionContract.itemAppliesTo(item), ['FR', 'US']);
+  assert.deepStrictEqual(ConstructionContract.itemAppliesTo(item), ['FR']);
   assert.deepStrictEqual(ConstructionContract.itemAppliesTo({ applies_to: ['FR'] }), ['FR']);
+});
+
+// Le backend restreint désormais appliesTo aux nationalités qui DÉCLENCHENT la
+// règle (voyage FR+US, l'eTA canadien ne concerne que le passeport FR). Sans
+// cette restriction le regroupement par voyageur était décoratif : chacun
+// recevait toutes les formalités du voyage.
+test('appliesTo ne porte que les nationalités déclenchantes, pas tout le voyage', () => {
+  const parsed = ConstructionContract.parseAdminCheck(fixture('admin-check.json'));
+  const eta = parsed.items.find(i => i.type === 'eta');
+  const applies = ConstructionContract.itemAppliesTo(eta);
+  assert.deepStrictEqual(applies, ['FR'], "l'eTA canadien ne concerne pas le passeport US");
+  assert.ok(applies.indexOf('US') === -1, 'US ne doit pas être listé');
+  // La liste n'est jamais vide : une liste vide se relit « tous les voyageurs ».
+  parsed.items.forEach(i => {
+    assert.ok(ConstructionContract.itemAppliesTo(i).length > 0, `appliesTo vide sur ${i.country}/${i.type}`);
+  });
+});
+
+test("un voyageur hors du appliesTo ne reçoit pas l'item", () => {
+  const parsed = ConstructionContract.parseAdminCheck(fixture('admin-check.json'));
+  const groups = ConstructionContract.groupAdminItemsByTraveler(parsed.items, {
+    rene: { name: 'René', nationalities: ['FR'] },
+    dinah: { name: 'Dinah', nationalities: ['FR', 'US'] },
+    hank: { name: 'Hank', nationalities: ['US'] },
+  });
+  const byName = {};
+  groups.travelers.forEach(t => { byName[t.name] = t; });
+  assert.strictEqual(byName['René'].items.length, 1, 'René (FR) doit demander un eTA');
+  assert.strictEqual(byName['Dinah'].items.length, 1, 'Dinah (FR+US) aussi, par son passeport FR');
+  assert.strictEqual(byName['Hank'].items.length, 0,
+    "Hank (US seul) n'est pas éligible à l'eTA canadien : il ne doit rien recevoir");
+  assert.strictEqual(groups.everyone.length, 0, 'aucun item universel ici');
+  assert.strictEqual(groups.unassigned.length, 0, 'aucun item orphelin');
 });
 
 test('cas bi-national FR+US : eTA canadien pour tous, aucun ESTA', () => {

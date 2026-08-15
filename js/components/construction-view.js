@@ -13,6 +13,15 @@ var ConstructionView = (() => {
   // voyageur (le backend n'envoie que des nationalités).
   let _people = null;
 
+  // Les écritures seed par Léo ne sont pas branchées (501 not_implemented). Les
+  // trois commandes concernées — Retenir (Découverte), Épingler dans le seed et
+  // le formulaire de profil — l'annoncent AVANT le clic : ne le révéler qu'après
+  // l'action fait remplir un formulaire pour rien. Les contrôles restent
+  // actionnables, la réponse 501 portant le détail exact du backend.
+  const DEFERRED_HINT = "Pas encore branché : Léo n'écrit pas encore dans le seed, rien ne sera enregistré.";
+  const PIN_LABEL = 'Épingler dans le seed ⏳';
+  const PROFILE_SUBMIT_LABEL = 'Envoyer à Léo ⏳';
+
   function esc(s) {
     return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   }
@@ -300,6 +309,8 @@ var ConstructionView = (() => {
     const formHtml = `<div class="profile-edit-overlay" id="profile-edit-overlay">
       <form id="profile-edit-form" class="profile-edit-form">
         <h4>Modifier le profil voyageur</h4>
+        <p class="profile-edit-deferred" id="profile-edit-deferred">⏳ Pas encore disponible : Léo ne modifie pas encore
+          le profil voyageur. Vous pouvez formuler la demande, mais rien ne sera enregistré.</p>
         <div class="guided-field">
           <label for="profile-edit-target">Section à modifier</label>
           <select id="profile-edit-target" name="target" required>
@@ -317,7 +328,8 @@ var ConstructionView = (() => {
             placeholder="Ex : nous préférons un rythme lent avec des pauses fréquentes..." required></textarea>
         </div>
         <div class="profile-edit-actions">
-          <button type="submit" class="btn btn-primary" id="profile-edit-submit">Envoyer à Léo</button>
+          <button type="submit" class="btn btn-primary deferred" id="profile-edit-submit"
+            title="${DEFERRED_HINT}">${PROFILE_SUBMIT_LABEL}</button>
           <button type="button" class="btn btn-sm" id="profile-edit-cancel">Annuler</button>
         </div>
         <div id="profile-edit-status" class="profile-edit-status"></div>
@@ -375,7 +387,7 @@ var ConstructionView = (() => {
       statusEl.textContent = res.error || 'Erreur lors de la demande';
       statusEl.className = 'profile-edit-status error';
       submitBtn.disabled = false;
-      submitBtn.textContent = 'Envoyer à Léo';
+      submitBtn.textContent = PROFILE_SUBMIT_LABEL;
       return;
     }
 
@@ -384,7 +396,7 @@ var ConstructionView = (() => {
       statusEl.textContent = 'Réponse inattendue du serveur';
       statusEl.className = 'profile-edit-status error';
       submitBtn.disabled = false;
-      submitBtn.textContent = 'Envoyer à Léo';
+      submitBtn.textContent = PROFILE_SUBMIT_LABEL;
       return;
     }
 
@@ -580,8 +592,8 @@ var ConstructionView = (() => {
   function appendPinButton(el) {
     if (!el) return;
     el.insertAdjacentHTML('beforeend',
-      `<div class="nuisance-pin-wrap"><button type="button" class="btn btn-accent nuisance-pin-btn" id="nuisance-pin-btn"
-        title="L'écriture dans le seed par Léo n'est pas encore branchée">Épingler dans le seed</button></div>`);
+      `<div class="nuisance-pin-wrap"><button type="button" class="btn btn-accent nuisance-pin-btn deferred" id="nuisance-pin-btn"
+        title="${DEFERRED_HINT}">${PIN_LABEL}</button></div>`);
     const pinBtn = document.getElementById('nuisance-pin-btn');
     if (pinBtn) pinBtn.addEventListener('click', () => handlePinNuisance(pinBtn));
   }
@@ -643,7 +655,11 @@ var ConstructionView = (() => {
 
   function resetPinButton(btn, msg) {
     btn.textContent = msg;
-    setTimeout(() => { btn.textContent = 'Épingler dans le seed'; btn.disabled = false; }, 2500);
+    setTimeout(() => {
+      btn.textContent = PIN_LABEL;
+      btn.title = DEFERRED_HINT;
+      btn.disabled = false;
+    }, 2500);
   }
 
   /** 501 (ou corps {error:'not_implemented'}) : fonctionnalité pas encore branchée. */

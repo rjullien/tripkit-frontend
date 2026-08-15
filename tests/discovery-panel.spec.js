@@ -246,6 +246,10 @@ test.describe('Discovery panel', () => {
     await expect(page.locator('#discovery-results')).toContainText('Village de marques');
 
     const retain = page.locator('.discovery-retain-btn').first();
+    // L'indisponibilité est annoncée avant le clic, comme « Épingler dans le seed ».
+    await expect(retain).toHaveAttribute('title', /Pas encore branché/);
+    await expect(retain).toHaveClass(/deferred/);
+    await expect(retain).toContainText('⏳');
     await retain.click();
     await expect(retain).toHaveText('Pas encore disponible');
     await expect(retain).toBeDisabled();

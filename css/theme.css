@@ -1797,3 +1797,11 @@ a:visited { color: var(--accent); }
 .hotel-nuisance-result:not(:empty) { margin-top: 6px; }
 .discovery-retain-btn.unavailable, .nuisance-pin-btn.unavailable { opacity: .6; }
 .profile-edit-status.unavailable { color: var(--orange); }
+/* Écriture seed pas encore branchée : signalé avant l'action, pas après. */
+.btn.deferred { opacity: .82; }
+.profile-edit-deferred {
+  color: var(--orange);
+  font-size: .86em;
+  margin: 0 0 10px;
+  line-height: 1.35;
+}

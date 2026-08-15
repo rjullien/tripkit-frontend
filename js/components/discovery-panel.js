@@ -6,6 +6,14 @@
 var DiscoveryPanel = (() => {
   const aborts = new WeakMap();
 
+  // L'écriture dans le seed par Léo n'est pas branchée : POST /discovery/retain
+  // répond 501. Le bouton le dit AVANT le clic, comme « Épingler dans le seed »
+  // côté Construction : laisser l'utilisateur agir pour lui apprendre ensuite que
+  // la fonctionnalité n'existe pas est honnête trop tard. Le bouton reste
+  // cliquable (la réponse 501 porte le détail exact du backend).
+  const DEFERRED_HINT = "Pas encore branché : Léo n'écrit pas encore dans le seed, rien ne sera enregistré.";
+  const RETAIN_LABEL = 'Retenir ⏳';
+
   function esc(s) {
     return String(s || '')
       .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -209,7 +217,8 @@ var DiscoveryPanel = (() => {
         : '';
       const meta = [when, km, link].filter(Boolean).join(' · ');
       const note = it.note ? `<div class="discovery-item-note">${esc(it.note)}</div>` : '';
-      const retainBtn = `<button type="button" class="btn btn-sm discovery-retain-btn" data-idx="${idx}">Retenir</button>`;
+      const retainBtn = `<button type="button" class="btn btn-sm discovery-retain-btn deferred" data-idx="${idx}"
+        title="${DEFERRED_HINT}">${RETAIN_LABEL}</button>`;
       return `<div class="discovery-item">
         <div class="discovery-item-row">
           <div class="discovery-item-name">${esc(it.name || '')}</div>
@@ -292,9 +301,10 @@ var DiscoveryPanel = (() => {
     btn.textContent = msg;
     btn.className = 'btn btn-sm discovery-retain-btn error';
     setTimeout(() => {
-      btn.textContent = 'Retenir';
+      btn.textContent = RETAIN_LABEL;
       btn.disabled = false;
-      btn.className = 'btn btn-sm discovery-retain-btn';
+      btn.className = 'btn btn-sm discovery-retain-btn deferred';
+      btn.title = DEFERRED_HINT;
     }, 2500);
   }
 
