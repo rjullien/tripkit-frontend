@@ -5,7 +5,7 @@
  * Bump CACHE_NAME when deploying new shell versions.
  */
 
-const CACHE_NAME = 'tripkit-118';
+const CACHE_NAME = 'tripkit-119';
 
 
 const ASSETS = [
@@ -49,6 +49,7 @@ const ASSETS = [
   '/js/edge-model/engine.js',
   '/js/components/route-view.js',
   '/js/components/culture-view.js',
+  '/js/components/construction-view.js',
   '/js/lib/qrcode-svg.min.js',
   // Wllama JS only in precache — wasm (~7MB) loads on demand when user opts in.
   '/js/lib/wllama/index.min.js',

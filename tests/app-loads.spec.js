@@ -20,11 +20,11 @@ test.describe('App Loading', () => {
     await expect(dayNav.first()).toBeVisible({ timeout: 5000 });
   });
 
-  test('has 5 tabs', async ({ page }) => {
+  test('has 6 tab views', async ({ page }) => {
     await page.goto('/');
     const tabs = page.locator('.tab-item, [class*="tab"]');
-    // 5 tabs: Programme, Route, Culture, Hotels, Plus
-    await expect(tabs).toHaveCount(5, { timeout: 5000 });
+    // 6 tab views: Programme, Route, Culture, Hotels, Construction (hidden button), Plus
+    await expect(tabs).toHaveCount(6, { timeout: 5000 });
   });
 
   test('navigates between days', async ({ page }) => {

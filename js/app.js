@@ -91,6 +91,9 @@ var App = (() => {
     // Magic link: intercept ?token=xxx in URL → exchange for JWT
     await handleMagicLink();
 
+    // Paint construction nav visibility on boot
+    paintConstructionNav();
+
     // Load version.json (non-blocking, best-effort)
     fetch('version.json').then(r => r.ok ? r.json() : null)
       .then(v => {
@@ -350,7 +353,12 @@ var App = (() => {
     const parts = hash.split('/');
     const tab = parts[0];
 
-    if (['programme', 'route', 'culture', 'hotels', 'plus'].includes(tab)) {
+    if (['programme', 'route', 'culture', 'hotels', 'construction', 'plus'].includes(tab)) {
+      // Hash guard: if construction mode is OFF, redirect to programme
+      if (tab === 'construction' && !Store.get('tk-construction-mode')) {
+        window.location.hash = 'programme';
+        return;
+      }
       _updateTabUI(tab);
       currentTab = tab;
 
@@ -402,6 +410,7 @@ var App = (() => {
       case 'route':     renderRoute(tripData);     break;
       case 'culture':   renderCulture(tripData);   break;
       case 'hotels':    renderHotels(tripData);    break;
+      case 'construction': renderConstruction(tripData); break;
       case 'plus':      renderPlus(tripData);      break;
     }
   }
@@ -463,6 +472,17 @@ var App = (() => {
     const container = document.getElementById('hotels-content');
     container.innerHTML = `<div class="empty-state">
       <div class="empty-emoji">📋</div><h3>Réservations indisponibles</h3></div>`;
+  }
+
+  // ── Construction tab ──────────────────────────────────────────────────────
+  function renderConstruction(tripData) {
+    if (typeof ConstructionView !== 'undefined') {
+      ConstructionView.render('construction-content', tripData);
+      return;
+    }
+    const container = document.getElementById('construction-content');
+    if (container) container.innerHTML = `<div class="empty-state">
+      <div class="empty-emoji">🏗️</div><h3>Mode Construction</h3></div>`;
   }
 
   // ── Plus tab (listes + settings) ──────────────────────────────────────────
@@ -631,6 +651,12 @@ var App = (() => {
           🛠️ Mode dev (pas de cache images)
         </label>
       </div>
+      <div id="construction-mode-toggle-wrap" style="display:none;align-items:center;gap:10px;margin-top:8px;padding:10px 12px;background:var(--card);border-radius:var(--radius)">
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;flex:1;color:var(--text);font-size:.85em">
+          <input type="checkbox" id="construction-toggle" ${Store.get('tk-construction-mode') ? 'checked' : ''} onchange="App.toggleConstructionMode(this.checked)" style="width:18px;height:18px">
+          🏗️ Mode construction
+        </label>
+      </div>
     </div>`;
 
     container.innerHTML = html;
@@ -651,6 +677,11 @@ var App = (() => {
       tripsReady.then(() => PublishPanel.loadSources()).then(() => {
         PublishPanel.renderSection(publishEl);
         PublishPanel.resumeIfNeeded();
+        // Show construction toggle only if user has publish sources
+        const cWrap = document.getElementById('construction-mode-toggle-wrap');
+        if (cWrap && PublishPanel.sources && PublishPanel.sources().length > 0) {
+          cWrap.style.display = 'flex';
+        }
       });
     }
 
@@ -954,6 +985,30 @@ var App = (() => {
     }
   }
 
+  // ── Construction mode visibility ──────────────────────────────────
+  function paintConstructionNav() {
+    const btn = document.getElementById('nav-construction');
+    if (!btn) return;
+    const enabled = !!Store.get('tk-construction-mode');
+    btn.style.display = enabled ? '' : 'none';
+  }
+
+  function toggleConstructionMode(checked) {
+    Store.set('tk-construction-mode', !!checked);
+    paintConstructionNav();
+    if (checked) {
+      showToast('🏗️ Mode construction activé');
+    } else {
+      showToast('✅ Mode construction désactivé');
+      // If currently viewing construction, redirect
+      if (currentTab === 'construction') {
+        switchTab('programme');
+        return;
+      }
+    }
+    renderCurrentTab();
+  }
+
   return {
     switchTab,
     openList,
@@ -966,5 +1021,7 @@ var App = (() => {
     clearCache,
     installPWA,
     toggleNoCache,
+    paintConstructionNav,
+    toggleConstructionMode,
   };
 })();
