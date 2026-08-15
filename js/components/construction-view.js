@@ -1,19 +1,34 @@
 /**
- * construction-view.js — Construction mode tab view (placeholder)
- * Renders a simple "Mode Construction" empty state until real content is added.
+ * construction-view.js — Construction mode tab view.
+ * Renders the construction Leo chat widget (ideation mode).
  */
 var ConstructionView = (() => {
+
+  let _leoInstance = null;
 
   function render(containerId, tripData) {
     const container = document.getElementById(containerId);
     if (!container) return;
 
     container.innerHTML = `<div class="page-header"><h1>🏗️ Mode Construction</h1></div>
-      <div class="empty-state">
-        <div class="empty-emoji">🏗️</div>
-        <h3>Mode Construction</h3>
-        <p style="color:var(--muted)">Cette vue sera enrichie prochainement.</p>
-      </div>`;
+      <div id="construction-leo-section"></div>`;
+
+    // Create or reuse the construction Leo instance
+    if (typeof LeoChatStream !== 'undefined' && LeoChatStream.create) {
+      if (!_leoInstance) {
+        _leoInstance = LeoChatStream.create({
+          prefix: 'construction-leo',
+          mode: 'construction:ideation',
+          storageKey: 'tk-construction-leo',
+        });
+      }
+      const leoEl = document.getElementById('construction-leo-section');
+      if (leoEl) {
+        LeoChatStream.loadStatus().then(() => {
+          _leoInstance.renderSection(leoEl);
+        });
+      }
+    }
   }
 
   return { render };
