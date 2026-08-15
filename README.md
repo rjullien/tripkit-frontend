@@ -118,7 +118,11 @@ npm run build   # node scripts/build-bundles.mjs → js/dist/bundle-*.js
   The order is the old `<script>` order, so it matters.
 - `js/dist/` is generated and **gitignored** — never edit it, re-run `npm run build`.
 - `index.html` loads `config.js`, `bundle-core` and `bundle-components` with `defer`;
-  `bundle-edge` (local AI + chat streams) is injected on demand from the Plus tab.
+  `bundle-edge` (local AI + chat streams) is injected on demand from the Plus tab
+  with the `?v=<cache>` buster. `sw.js` precaches the bare path, so its offline
+  lookups retry with `ignoreSearch` — otherwise the Léo / Bifrost / local-AI
+  sections would be lost offline for anyone who never opened the Plus tab online
+  (`tests/sw-offline.test.cjs`).
 - The Docker image builds the bundles itself in a `node:22-alpine` stage, so
   `docker build` needs no prior `npm run build`.
 - Zero npm dependency: the build script only uses Node's standard library.
@@ -127,10 +131,12 @@ npm run build   # node scripts/build-bundles.mjs → js/dist/bundle-*.js
 # Run tests (npm test builds first, then runs Playwright)
 npm test
 
-# Playwright alone: its webServer command runs the build before serving
+# Playwright alone: a globalSetup rebuilds the bundles first, so this is safe
+# even when a dev server is already listening on 4173 (reuseExistingServer then
+# skips the webServer command, and with it the build it carries)
 npx playwright test
 
-# Node unit tests (the CI superset, 11 files)
+# Node unit tests (the CI superset, 13 files)
 for f in tests/*.test.cjs; do node "$f"; done
 
 # Seed integrity check

@@ -12,6 +12,10 @@
  *
  * Idempotent : réécrit les mêmes octets pour les mêmes sources.
  * Sort en 1 si une source de bundles.json manque sur le disque.
+ *
+ * Usage : node scripts/build-bundles.mjs [--manifest <fichier>] [--out-dir <dir>]
+ * Les deux options n'existent que pour tests/build-bundles.test.cjs, qui vérifie
+ * le contrat de sortie en 1 sans toucher au vrai bundles.json ni à js/dist.
  */
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
@@ -19,8 +23,15 @@ import { fileURLToPath } from 'node:url';
 import { gzipSync } from 'node:zlib';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const OUT_DIR = join(ROOT, 'js', 'dist');
-const MANIFEST = join(ROOT, 'bundles.json');
+
+function arg(name, fallback) {
+  const i = process.argv.indexOf(name);
+  return i > -1 && process.argv[i + 1] ? resolve(process.argv[i + 1]) : fallback;
+}
+
+// Les chemins des sources restent toujours relatifs à la racine du repo.
+const OUT_DIR = arg('--out-dir', join(ROOT, 'js', 'dist'));
+const MANIFEST = arg('--manifest', join(ROOT, 'bundles.json'));
 
 // nginx.conf gzips en level 5 : on mesure au même niveau pour que le rapport
 // reflète les octets réellement transférés.
@@ -30,7 +41,13 @@ function kb(bytes) {
   return (bytes / 1024).toFixed(1) + ' Ko';
 }
 
-const manifest = JSON.parse(readFileSync(MANIFEST, 'utf8'));
+let manifest;
+try {
+  manifest = JSON.parse(readFileSync(MANIFEST, 'utf8'));
+} catch (err) {
+  console.error(`[build] manifeste illisible : ${MANIFEST} (${err.message})`);
+  process.exit(1);
+}
 // Les clés `_*` sont de la documentation dans le manifeste, pas des bundles.
 const bundles = Object.entries(manifest).filter(([name]) => !name.startsWith('_'));
 

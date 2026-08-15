@@ -4,6 +4,10 @@ import { defineConfig } from '@playwright/test';
 export default defineConfig({
   testDir: './tests',
   testMatch: '**/*.spec.{js,ts}',
+  // js/dist/*.js est généré : on le régénère avant chaque exécution, y compris
+  // quand un serveur écoute déjà sur 4173 et que la commande webServer (qui
+  // contient aussi le build) est sautée par reuseExistingServer.
+  globalSetup: './scripts/playwright-global-setup.mjs',
   testIgnore: ['**/e2e-prod*'],
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
