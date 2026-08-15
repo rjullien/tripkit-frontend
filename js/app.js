@@ -19,6 +19,7 @@ var App = (() => {
   let _backendVersionFetch = null; // in-flight promise (dedupe)
   let _deferredInstallPrompt = null; // Android/Chrome install prompt
   let _edgeBundlePromise = null; // in-flight injection of js/dist/bundle-edge.js
+  let _experimentalOpen = false; // « Expérimental » : état replié/déplié, survit aux re-render
 
   // ── PWA Install prompt capture (Android/Chrome) ─────────────────────────────
   window.addEventListener('beforeinstallprompt', (e) => {
@@ -108,6 +109,10 @@ var App = (() => {
   // ── Init ──────────────────────────────────────────────────────────────────
   async function init() {
     window.addEventListener('hashchange', handleHash);
+    // NOTE (FEAT-004) : personne ne dispatche « tripkit-sync-done » dans le repo
+    // aujourd'hui (aucun dispatchEvent/CustomEvent dans js/). Le listener est
+    // gardé comme point d'extension, mais il ne participe PAS aux refresh
+    // parasites de l'onglet Plus : ceux-ci viennent de setupConnectivityResume().
     window.addEventListener('tripkit-sync-done', () => {
       // Don't auto-re-render while user is on the list (causes tap misses).
       // Only re-render if on the Plus tab but NOT viewing a specific list.
@@ -212,7 +217,13 @@ var App = (() => {
   }
 
   /**
-   * Fetch seed for tripId; returns true if local trip data is usable afterwards.
+   * Fetch seed for tripId.
+   * @returns {Promise<'updated'|'unchanged'|false>} 'updated' when a new seed was
+   *   merged and stored, 'unchanged' when the backend version matched (or the
+   *   version check failed) but local data stays usable, false when there is
+   *   nothing usable at all. Both strings are truthy, so the historical
+   *   `if (!ok)` / `if (ok || …)` call sites keep their control flow — but only
+   *   'updated' may trigger a re-render (cf. refreshFromBackend).
    * Network failure never invalidates a good local cache.
    */
   async function loadTripSeed(tripId) {
@@ -221,7 +232,7 @@ var App = (() => {
     if (!verRes.ok || !verRes.data) {
       console.debug('[App] Version check failed for', tripId, verRes.status || verRes.error);
       // Keep current trip usable offline / when backend is flaky
-      return hasLocal;
+      return hasLocal ? 'unchanged' : false;
     }
     const ver = verRes.data;
 
@@ -230,12 +241,12 @@ var App = (() => {
     // A leftover *-data-version without tk-trip-* must NOT skip (boot would stall).
     if (hasLocal && cachedVersion && String(cachedVersion) === String(ver.version)) {
       console.debug('[App] Data up to date (v' + ver.version + ') — skip refresh');
-      return true;
+      return 'unchanged';
     }
 
     console.log('[App] Fetching seed:', tripId, 'version', cachedVersion, '→', ver.version);
     const seed = await API.fetchSeed(tripId);
-    if (!seed) return hasLocal;
+    if (!seed) return hasLocal ? 'unchanged' : false;
 
     const tripData = SeedMerge.merge(seed, Store.getTripData(tripId) || {});
     Store.registerTrip(tripId);
@@ -245,7 +256,7 @@ var App = (() => {
     Store.set(tripId + '-data-version', ver.version);
     console.log('[App] Backend data refreshed:', tripId, tripData.days?.length, 'days, version:', ver.version);
     if (typeof API.warmTripAssets === 'function') API.warmTripAssets(tripId, tripData);
-    return true;
+    return 'updated';
   }
 
   /**
@@ -274,17 +285,21 @@ var App = (() => {
     }
   }
 
-  async function refreshFromBackend() {
+  /**
+   * @param {{probed?: boolean}} [opts] probed: le caller vient de sonder /health
+   *   avec succès (kick()), inutile de le refaire — cela économise une requête
+   *   /health par retour dans l'app.
+   */
+  async function refreshFromBackend(opts) {
+    if (!navigator.onLine) return;
     // Prefer a real probe when the device claims to be online
-    if (navigator.onLine && typeof API !== 'undefined' && API.probe) {
+    if (!(opts && opts.probed) && typeof API !== 'undefined' && API.probe) {
       const up = await API.probe();
       if (!up) {
         // Stay on cache — do not rediscover / wipe
         if (typeof API.flushOutbox === 'function') API.flushOutbox();
         return;
       }
-    } else if (!navigator.onLine) {
-      return;
     }
 
     // Drop deleted / ACL-lost trips from local registry (BE success only).
@@ -316,7 +331,14 @@ var App = (() => {
         }
       }
 
-      if (ok || Store.getTripData(tripId)) renderCurrentTab();
+      // Re-render ONLY when the seed really changed, or when this refresh is what
+      // brought the first usable data (cold boot / rediscovered trip).
+      // Repainting on an unchanged version was the « refresh parasite » of the
+      // Plus tab: every app switch / screen unlock rebuilt #plus-content, which
+      // restarted PublishPanel.loadSources(), LeoChatStream.loadStatus(),
+      // PlusChatStream.loadStatus() and lost the scroll position.
+      const firstPaint = !hasLocal && !!Store.getTripData(tripId);
+      if (ok === 'updated' || firstPaint) renderCurrentTab();
     } catch (e) {
       console.debug('[App] Backend refresh failed (using cached):', e.message);
     }
@@ -329,17 +351,30 @@ var App = (() => {
     }
   }
 
+  // Deux garde-fous cumulés contre les reprises en rafale (l'utilisateur qui
+  // bascule entre applis fait pleuvoir les visibilitychange) :
+  //  1. un debounce de 400 ms qui fusionne les événements rapprochés ;
+  //  2. un intervalle minimum entre deux reprises déclenchées par la visibilité.
+  // L'événement « online » reste immédiat (hors intervalle minimum) : retrouver
+  // le réseau doit resynchroniser tout de suite.
+  const RESUME_MIN_INTERVAL_MS = 10000;
+
   /** Resume when network is really back (probe), not merely navigator.onLine. */
   function setupConnectivityResume() {
     let _resumeTimer = null;
-    const kick = () => {
+    let _lastResumeAt = 0;
+    const kick = (force) => {
+      if (!force && _lastResumeAt && Date.now() - _lastResumeAt < RESUME_MIN_INTERVAL_MS) {
+        return;
+      }
       clearTimeout(_resumeTimer);
       _resumeTimer = setTimeout(async () => {
         if (typeof API === 'undefined') return;
+        _lastResumeAt = Date.now();
         const up = await API.probe();
         paintConnectivity();
         if (!up) return;
-        await refreshFromBackend();
+        await refreshFromBackend({ probed: true });
         if (typeof PublishPanel !== 'undefined' && PublishPanel.resumeIfNeeded) {
           PublishPanel.resumeIfNeeded();
         }
@@ -357,9 +392,9 @@ var App = (() => {
         }
       }, 400);
     };
-    window.addEventListener('online', kick);
+    window.addEventListener('online', () => kick(true));
     document.addEventListener('visibilitychange', () => {
-      if (document.visibilityState === 'visible') kick();
+      if (document.visibilityState === 'visible') kick(false);
     });
     if (typeof API.onReachabilityChange === 'function') {
       API.onReachabilityChange(() => paintConnectivity());
@@ -563,14 +598,16 @@ var App = (() => {
     html += `<div id="plus-publish-panel"></div>`;
     html += `<div id="plus-polarsteps-panel"></div>`;
     html += `<div id="plus-leo-chat-stream"></div>`;
+    // Replié par défaut au premier rendu ; un re-render légitime (changement de
+    // voyage, nouvelles données) restitue l'état choisi par l'utilisateur.
     html += `<div class="section-wrap plus-docs-wrap plus-experimental-wrap" id="plus-experimental-wrap"
       style="margin-top:16px;border:none;background:transparent">
-      <div class="section-head collapsed plus-docs-head" id="plus-experimental-head" role="button" tabindex="0"
-        aria-expanded="false" aria-controls="plus-experimental-body">
+      <div class="section-head${_experimentalOpen ? '' : ' collapsed'} plus-docs-head" id="plus-experimental-head" role="button" tabindex="0"
+        aria-expanded="${_experimentalOpen ? 'true' : 'false'}" aria-controls="plus-experimental-body">
         <span class="s-title">🧪 Expérimental</span>
         <span class="s-chevron">▼</span>
       </div>
-      <div class="section-body hidden plus-docs-body" id="plus-experimental-body">
+      <div class="section-body${_experimentalOpen ? '' : ' hidden'} plus-docs-body" id="plus-experimental-body">
         <div id="plus-chat-stream"></div>
         <div id="plus-edge-chat-stream"></div>
       </div>
@@ -768,6 +805,7 @@ var App = (() => {
       const open = body.classList.toggle('hidden') === false;
       head.classList.toggle('collapsed', !open);
       head.setAttribute('aria-expanded', open ? 'true' : 'false');
+      _experimentalOpen = open; // survit au prochain rendu de l'onglet Plus
     };
     head.addEventListener('click', toggle);
     head.addEventListener('keydown', (e) => {
