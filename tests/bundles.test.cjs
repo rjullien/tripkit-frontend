@@ -124,6 +124,10 @@ test('nuisance-stream précède construction-view dans bundle-components', () =>
   assert.ok(at('js/components/nuisance-stream.js') < at('js/components/construction-view.js'));
 });
 
+test('discovery-panel précède construction-view dans bundle-components', () => {
+  assert.ok(at('js/components/discovery-panel.js') < at('js/components/construction-view.js'));
+});
+
 // ── Contrat d'échec : rien ne l'épinglait ────────────────────────────────────
 function withTempManifest(content, fn) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'tk-bundles-'));

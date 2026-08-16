@@ -1203,6 +1203,26 @@ var ConstructionView = (() => {
     });
   }
 
+  function mountConstructionDiscovery(tripId, tripData) {
+    const el = document.getElementById('construction-discovery');
+    if (!el || typeof DiscoveryPanel === 'undefined' || !DiscoveryPanel.firstCorridorLeg) return;
+    const found = DiscoveryPanel.firstCorridorLeg(tripData);
+    if (!found) {
+      el.innerHTML = '';
+      return;
+    }
+    const day = (typeof DayHelpers !== 'undefined' && DayHelpers.enrich)
+      ? DayHelpers.enrich(found.day, tripData)
+      : found.day;
+    DiscoveryPanel.render(el, {
+      tripId,
+      day,
+      tripData,
+      corridorOnly: true,
+      leg: found.leg,
+    });
+  }
+
   // ── Main render ─────────────────────────────────────────────────────────────
 
   function render(containerId, tripData) {
@@ -1242,6 +1262,7 @@ var ConstructionView = (() => {
       ${renderPhaseBarLoading()}
       ${renderContextLoading()}
       ${renderGuidedForm()}
+      <div id="construction-discovery"></div>
       <div id="construction-leo-section"></div>
       ${renderActionBar()}
     `;
@@ -1265,6 +1286,7 @@ var ConstructionView = (() => {
     // Load async data
     loadPhaseBar(tripId);
     loadTravelerContext(tripId);
+    mountConstructionDiscovery(tripId, tripData);
 
     mountConstructionLeo('construction:ideation');
     const resumed = typeof NuisanceStream !== 'undefined' && NuisanceStream.resumeIfNeeded

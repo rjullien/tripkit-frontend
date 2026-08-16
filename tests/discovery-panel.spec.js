@@ -254,4 +254,78 @@ test.describe('Discovery panel', () => {
     await expect(retain).toHaveAttribute('title', /pas encore branchée/);
     await expect(page.locator('#discovery-results')).not.toContainText('Retenu');
   });
+
+  test('travel day : Sur le trajet cherche le corridor et affiche le détour estimé', async ({ page }) => {
+    const themes = {
+      themes: [
+        { id: 'outlets', label: 'Outlets & bons plans', emoji: '🏷️', engine: 'geo', corridor: true },
+        { id: 'festivals', label: 'Festivals & saisonnier', emoji: '🎪', engine: 'editorial', corridor: false },
+      ],
+    };
+    let searchBody = null;
+    await page.route(`**/api/trips/${TRIP_ID}/seed`, (route) => {
+      const seed = JSON.parse(JSON.stringify(SEED));
+      seed.trip.startDate = '2026-08-10';
+      seed.trip.endDate = '2026-08-20';
+      seed.locations.home = { lat: 48.9, lon: 2.25, name: 'Home' };
+      seed.days[3].locationId = 'home';
+      seed.days[3].to = 'Home';
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          trip: {
+            id: TRIP_ID,
+            name: seed.trip.name,
+            emoji: seed.trip.emoji,
+            start_date: seed.trip.startDate,
+            end_date: seed.trip.endDate,
+            data: {
+              travelers: seed.trip.travelers,
+              locations: seed.locations,
+              hotels: seed.hotels,
+              homeTz: 'Europe/Paris',
+            },
+          },
+          days: seed.days.map((d) => ({ day_num: d.day, data: d })),
+          hotels: [],
+          lists: [],
+        }),
+      });
+    });
+    await page.route(`**/api/trips/${TRIP_ID}/discovery/themes`, (route) =>
+      route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(themes) }),
+    );
+    await page.route(`**/api/trips/${TRIP_ID}/discovery/results**`, (route) =>
+      route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ items: [] }) }),
+    );
+    await page.route(`**/api/trips/${TRIP_ID}/discovery/search`, async (route) => {
+      searchBody = route.request().postDataJSON();
+      return route.fulfill({ status: 202, contentType: 'application/json', body: JSON.stringify({ jobId: 'job-corridor-1' }) });
+    });
+    await page.route('**/api/leo/jobs/job-corridor-1/stream**', (route) => {
+      const body = [
+        'event: result',
+        'data: {"reply":"{\\"items\\":[{\\"id\\":\\"osm:1\\",\\"name\\":\\"Village de marques\\",\\"detourKm\\":18,\\"detourEstimated\\":true,\\"url\\":\\"https://maps.google.com\\"}]}"}',
+        '',
+        'event: done',
+        'data: {}',
+        '',
+      ].join('\n');
+      return route.fulfill({ status: 200, contentType: 'text/event-stream', body });
+    });
+
+    await page.goto('/');
+    await page.waitForSelector('#programme-content .day-nav', { timeout: 8000 });
+    await page.locator('#discovery-toggle').click();
+    await expect(page.locator('.discovery-mode[data-mode="corridor"]')).toBeVisible();
+    await page.locator('.discovery-mode[data-mode="corridor"]').click();
+    await expect(page.locator('#discovery-toggle')).toContainText('Sur le trajet');
+    await expect(page.locator('#discovery-themes input[value="festivals"]')).toHaveCount(0);
+    await page.locator('#discovery-search').click();
+    await expect(page.locator('#discovery-results')).toContainText('Village de marques');
+    await expect(page.locator('#discovery-results')).toContainText('détour (estimé)');
+    expect(searchBody).toBeTruthy();
+    expect(searchBody.scope.corridor).toEqual(['city-center', 'home']);
+  });
 });

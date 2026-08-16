@@ -1366,6 +1366,26 @@ a:visited { color: var(--accent); }
 .discovery-chip input { width: 18px; height: 18px; accent-color: var(--sec); }
 .discovery-chip.is-soon { opacity: .45; }
 .discovery-search { width: 100%; min-height: 44px; }
+.discovery-modes {
+  display: flex;
+  gap: 8px;
+  margin: 0 0 12px;
+}
+.discovery-mode {
+  flex: 1;
+  min-height: 44px;
+  border-radius: 10px;
+  border: 1px solid rgba(255,255,255,.1);
+  background: rgba(255,255,255,.04);
+  color: var(--text);
+  font: inherit;
+  font-size: .82em;
+  cursor: pointer;
+}
+.discovery-mode.is-on {
+  border-color: var(--sec);
+  background: rgba(74, 159, 213, .15);
+}
 .discovery-status { font-size: .82em; color: var(--muted); margin: 10px 0 0; }
 .discovery-empty { font-size: .82em; color: var(--muted); margin: 10px 0 0; }
 .discovery-item {

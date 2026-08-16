@@ -690,6 +690,9 @@ var API = (() => {
     const q = [];
     if (opts.dayNum != null) q.push(`dayNum=${encodeURIComponent(String(opts.dayNum))}`);
     if (opts.locationId) q.push(`locationId=${encodeURIComponent(opts.locationId)}`);
+    if (opts.fromLoc) q.push(`fromLoc=${encodeURIComponent(opts.fromLoc)}`);
+    if (opts.toLoc) q.push(`toLoc=${encodeURIComponent(opts.toLoc)}`);
+    if (opts.dateISO) q.push(`dateISO=${encodeURIComponent(opts.dateISO)}`);
     if (opts.themes) q.push(`themes=${encodeURIComponent(opts.themes)}`);
     const qs = q.length ? `?${q.join('&')}` : '';
     return requestJSON(`/trips/${encodeURIComponent(tripId)}/discovery/results${qs}`);
