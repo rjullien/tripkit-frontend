@@ -14,7 +14,8 @@
  *
  * Enveloppes réellement émises par le backend :
  *   POST construction/qa   -> { violations: [QAViolation], phase, count }
- *   POST admin-check       -> { verdict, countries, items: [AdminCheckItem], summary? }
+ *   GET  construction/qa   -> { violations, phase, count, cached, cachedAt? }
+ *   POST admin-check       -> { verdict, countries, items, travelers?: [TravelerChecklist], summary? }
  *   POST health-check      -> { verdict, countries, items: [HealthCheckItem], summary? }
  *   GET  nuisance-check    -> { results: [LocationResult] }   (verdict par lieu)
  *   409  construction/phase-> { error: 'transition_blocked', blockers: [QAViolation] }
@@ -140,7 +141,20 @@ var ConstructionContract = (() => {
   }
 
   function parseAdminCheck(data) {
-    return parseItemsEnvelope(data);
+    const parsed = parseItemsEnvelope(data);
+    if (!parsed.ok) return parsed;
+    const raw = unwrapCached(data);
+    const list = readList(raw, 'travelers');
+    if (list !== undefined) {
+      parsed.travelers = list.filter(isPlainObject).map(t => ({
+        id: readString(t, 'id'),
+        name: readString(t, 'name') || readString(t, 'id'),
+        nationalities: readStringList(t, 'nationalities'),
+        verdict: readString(t, 'verdict'),
+        items: Array.isArray(t.items) ? t.items.filter(isPlainObject) : [],
+      }));
+    }
+    return parsed;
   }
 
   function parseHealthCheck(data) {
@@ -176,14 +190,9 @@ var ConstructionContract = (() => {
   }
 
   /**
-   * Regroupe les items admin par voyageur, comme le veut construction/SPEC.md §7
-   * (« une checklist par voyageur »). Le backend n'envoie pas de voyageurs : ses
-   * items sont plats, indexés par pays, avec un `appliesTo` de NATIONALITÉS. Le
-   * rattachement se fait donc ici, à partir des nationalités des voyageurs.
-   *
-   * @returns {{grouped:boolean, travelers:Array, everyone:Array, unassigned:Array}}
-   *   grouped=false quand aucune personne n'est connue : l'appelant doit alors
-   *   afficher la liste plate par pays plutôt que d'inventer un regroupement.
+   * Checklist admin par voyageur (SPEC §7.1). Le backend envoie travelers[]
+   * (passeport par passeport). On le lit en priorité. Sans travelers[], repli
+   * sur le regroupement local depuis people + note d'union.
    */
   function groupAdminItemsByTraveler(items, people) {
     const list = Array.isArray(items) ? items.filter(isPlainObject) : [];

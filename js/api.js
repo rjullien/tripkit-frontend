@@ -745,7 +745,9 @@ var API = (() => {
   }
 
   async function getQA(tripId) {
-    return requestJSON(`/trips/${encodeURIComponent(tripId)}/construction/qa`);
+    return requestJSON(`/trips/${encodeURIComponent(tripId)}/construction/qa`, {
+      timeoutMs: 15000,
+    });
   }
 
   // 60 s : admin et santé incluent un appel Bifrost (SPEC §7), et le client

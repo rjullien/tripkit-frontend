@@ -9,8 +9,7 @@ var ConstructionView = (() => {
   // et au ré-affichage de la vue ou au changement de voyage.
   let _nuisanceAbort = null;
   let _currentTripId = null;
-  // Voyageurs du dernier profil chargé, pour regrouper la checklist admin par
-  // voyageur (le backend n'envoie que des nationalités).
+  // Voyageurs du dernier profil chargé (repli admin si travelers[] absent).
   let _people = null;
   // Dernière erreur de transition : reste affichée jusqu'à dismiss / succès /
   // changement de voyage. Le setTimeout 6 s faisait disparaître les blocages QA
@@ -436,6 +435,12 @@ var ConstructionView = (() => {
       ? ` (${children.map(c => c.age ? c.age + ' ans' : '').filter(Boolean).join(', ')})`
       : '';
 
+    const natsPeople = ConstructionContract.normalizePeople(people);
+    const natsLine = natsPeople
+      .filter(p => p.nationalities.length)
+      .map(p => `${p.name} (${p.nationalities.join(', ')})`)
+      .join(' · ');
+
     // travel-profile.js (famille Jullien) stores style under travelStyle /
     // budgetRules. Older fixtures still put pace at the root.
     const style = profile.travelStyle || {};
@@ -480,6 +485,7 @@ var ConstructionView = (() => {
         <button class="btn btn-sm" id="construction-ctx-edit" title="Modifier le profil">Modifier</button>
       </div>
       <div class="ctx-group">${esc(groupLine)}${esc(childAges)}</div>
+      ${natsLine ? `<div class="ctx-nats"><strong>Nationalités :</strong> ${esc(natsLine)}</div>` : ''}
       ${pace ? `<div class="ctx-style"><strong>Rythme :</strong> ${esc(pace)}</div>` : ''}
       ${maxDriving ? `<div class="ctx-style"><strong>Conduite max/jour :</strong> ${esc(maxDriving)}</div>` : ''}
       ${budget ? `<div class="ctx-style"><strong>Budget :</strong> ${esc(budget)}</div>` : ''}
@@ -1010,10 +1016,8 @@ var ConstructionView = (() => {
   }
 
   /**
-   * Checklist admin par voyageur (construction/SPEC.md §7). Le backend renvoie
-   * des items PLATS indexés par pays, avec un `appliesTo` de nationalités : le
-   * regroupement par voyageur est reconstruit ici depuis les nationalités du
-   * profil (revue finding 2).
+   * Checklist admin par voyageur (construction/SPEC.md §7). Prefer travelers[]
+   * from the server (D-D). Fallback: regroup items via people + union note.
    */
   async function handleAdmin(tripId) {
     setButtonLoading('action-admin', true);
@@ -1054,18 +1058,24 @@ var ConstructionView = (() => {
     }
 
     const groups = ConstructionContract.groupAdminItemsByTraveler(parsed.items, peopleForTrip(tripId));
+    const serverTravelers = Array.isArray(parsed.travelers) ? parsed.travelers : [];
 
-    if (groups.grouped) {
-      groups.travelers.forEach(t => {
-        html += `<div class="admin-traveler">`;
-        html += `<div class="admin-traveler-name">${esc(t.name)}${t.nationalities.length ? ` <span class="admin-nats">(${esc(t.nationalities.join(', '))})</span>` : ''}</div>`;
-        if (t.items.length) {
-          t.items.forEach(item => { html += adminItemHtml(item); });
-        } else {
-          html += `<div class="admin-check-item admin-unknown">${ADMIN_UNKNOWN_TRAVELER}</div>`;
-        }
-        html += `</div>`;
-      });
+    function travelerBlock(t) {
+      let block = `<div class="admin-traveler">`;
+      block += `<div class="admin-traveler-name">${esc(t.name)}${t.nationalities && t.nationalities.length ? ` <span class="admin-nats">(${esc(t.nationalities.join(', '))})</span>` : ''}</div>`;
+      if (t.items && t.items.length) {
+        t.items.forEach(item => { block += adminItemHtml(item); });
+      } else {
+        block += `<div class="admin-check-item admin-unknown">${ADMIN_UNKNOWN_TRAVELER}</div>`;
+      }
+      block += `</div>`;
+      return block;
+    }
+
+    if (serverTravelers.length) {
+      serverTravelers.forEach(t => { html += travelerBlock(t); });
+    } else if (groups.grouped) {
+      groups.travelers.forEach(t => { html += travelerBlock(t); });
       if (groups.everyone.length) {
         html += `<div class="admin-traveler admin-everyone"><div class="admin-traveler-name">Tous les voyageurs</div>`;
         groups.everyone.forEach(item => { html += adminItemHtml(item); });
@@ -1076,14 +1086,14 @@ var ConstructionView = (() => {
         groups.unassigned.forEach(item => { html += adminItemHtml(item); });
         html += `</div>`;
       }
+      html += `<div class="admin-limitation">ℹ️ ${ADMIN_UNION_NOTE}</div>`;
     } else {
-      // Aucun voyageur connu : liste plate par pays, sans inventer de regroupement.
       html += `<div class="admin-traveler admin-flat"><div class="admin-traveler-name">Voyageurs inconnus : liste par pays</div>`;
       groups.everyone.forEach(item => { html += adminItemHtml(item); });
       html += `</div>`;
+      html += `<div class="admin-limitation">ℹ️ ${ADMIN_UNION_NOTE}</div>`;
     }
 
-    html += `<div class="admin-limitation">ℹ️ ${ADMIN_UNION_NOTE}</div>`;
     html += '</div>';
     showResults(html);
   }

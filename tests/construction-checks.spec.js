@@ -150,7 +150,7 @@ test.describe('Construction ActionBar', () => {
     await expect(results).not.toContainText('QA :');
   });
 
-  test('Admin : checklist par voyageur, pays et lien officiel', async ({ page }) => {
+  test('Admin : checklist par voyageur depuis travelers[]', async ({ page }) => {
     await page.route('**/travel-profile', route => route.fulfill(json(PROFILE)));
     await page.route('**/admin-check', route => route.fulfill(json(ADMIN)));
     await openConstruction(page);
@@ -160,14 +160,14 @@ test.describe('Construction ActionBar', () => {
     await expect(results).toContainText('Formalités administratives');
     await expect(results).toContainText('Pays détectés : CA, US');
     await expect(results).toContainText('Démarches à effectuer');
-    // Un voyageur FR et un voyageur FR+US : les deux ont besoin de l'eTA canadien.
-    await expect(results.locator('.admin-traveler')).toHaveCount(2);
-    await expect(results.locator('.admin-traveler').first()).toContainText('Alice');
-    await expect(results.locator('.admin-traveler').nth(1)).toContainText('Bob');
-    await expect(results.locator('.admin-check-item')).toHaveCount(2);
+    await expect(results.locator('.admin-traveler')).toHaveCount(1);
+    await expect(results).toContainText('dinah');
+    await expect(results).toContainText('FR, US');
+    await expect(results.locator('.admin-check-item')).toHaveCount(1);
     await expect(results).toContainText('eTA / AVE');
     await expect(results).toContainText('7 CAD');
-    await expect(results.locator('a[href="https://www.canada.ca/eta"]')).toHaveCount(2);
+    await expect(results.locator('a[href="https://www.canada.ca/eta"]')).toHaveCount(1);
+    await expect(results.locator('.admin-limitation')).toHaveCount(0);
     await expect(results).not.toContainText('Aucune formalité administrative requise');
   });
 
@@ -176,25 +176,36 @@ test.describe('Construction ActionBar', () => {
   // donc « zéro item » veut dire « pas de règle connue », jamais « rien à faire » —
   // un passeport chinois parti aux États-Unis a besoin d'un visa B1/B2.
   test("Admin : un passeport que la base ne couvre pas n'est jamais annoncé en vert", async ({ page }) => {
+    const payload = {
+      verdict: 'action_required',
+      countries: ['CA', 'US'],
+      items: JSON.parse(ADMIN).items,
+      travelers: [
+        {
+          id: 'alice', name: 'Alice', nationalities: ['FR'], verdict: 'action_required',
+          items: JSON.parse(ADMIN).items,
+        },
+        {
+          id: 'chen', name: 'Chen', nationalities: ['CN'], verdict: 'ok',
+          items: [],
+        },
+      ],
+    };
     await page.route('**/travel-profile', route => route.fulfill(json(PROFILE_MIXED)));
-    await page.route('**/admin-check', route => route.fulfill(json(ADMIN)));
+    await page.route('**/admin-check', route => route.fulfill(json(JSON.stringify(payload))));
     await openConstruction(page);
 
     await page.locator('#action-admin').click();
     const results = page.locator('#action-bar-results');
     await expect(results.locator('.admin-traveler')).toHaveCount(2);
 
-    // Alice (FR) reçoit l'eTA canadien ; Chen (CN) n'est visé par aucune règle.
     const chen = results.locator('.admin-traveler').filter({ hasText: 'Chen' });
     await expect(chen).toContainText('Aucune règle connue pour ce passeport');
     await expect(chen).toContainText('à vérifier');
     await expect(chen.locator('.admin-unknown')).toHaveCount(1);
     await expect(chen).not.toContainText('Aucune démarche spécifique');
     await expect(results).not.toContainText('✅ Aucune');
-
-    // Et la limite du moteur est dite dans le panneau, pas seulement dans un doc :
-    // la présence d'un item est calculée sur l'union des nationalités du voyage.
-    await expect(results.locator('.admin-limitation')).toContainText("pas passeport par passeport");
+    await expect(results.locator('.admin-limitation')).toHaveCount(0);
   });
 
   // La charge utile est celle que le service envoie VRAIMENT sur un check vide :
@@ -250,15 +261,18 @@ test.describe('Construction ActionBar', () => {
     const payload = JSON.parse(ADMIN);
     payload.summary = 'Alice doit demander un eTA canadien.';
     payload.items[0].deadline = '72h';
+    if (payload.travelers && payload.travelers[0] && payload.travelers[0].items[0]) {
+      payload.travelers[0].items[0].deadline = '72h';
+    }
     await page.route('**/travel-profile', route => route.fulfill(json(PROFILE)));
     await page.route('**/admin-check', route => route.fulfill(json(JSON.stringify(payload))));
     await openConstruction(page);
 
     await page.locator('#action-admin').click();
     const results = page.locator('#action-bar-results');
-    await expect(results.locator('.admin-deadline')).toHaveCount(2);
+    await expect(results.locator('.admin-deadline')).toHaveCount(1);
     await expect(results).toContainText('Échéance : 72h');
-    await expect(results.locator('a[href="https://www.canada.ca/eta"]')).toHaveCount(2);
+    await expect(results.locator('a[href="https://www.canada.ca/eta"]')).toHaveCount(1);
     await expect(results.locator('.action-result-summary')).toContainText('Alice doit demander un eTA canadien.');
   });
 
@@ -266,6 +280,9 @@ test.describe('Construction ActionBar', () => {
   test("Admin : un statut inconnu n'est jamais un tick vert", async ({ page }) => {
     const payload = JSON.parse(ADMIN);
     payload.items[0].status = 'invalid';
+    if (payload.travelers && payload.travelers[0] && payload.travelers[0].items[0]) {
+      payload.travelers[0].items[0].status = 'invalid';
+    }
     await page.route('**/travel-profile', route => route.fulfill(json(PROFILE)));
     await page.route('**/admin-check', route => route.fulfill(json(JSON.stringify(payload))));
     await openConstruction(page);
@@ -491,6 +508,15 @@ test.describe('Construction profil voyageur', () => {
     await expect(box).toContainText('modéré');
     await expect(box).toContainText('4h');
     await expect(box).toContainText('parcs nationaux');
+  });
+
+  test('TravelerContextBox affiche les nationalités', async ({ page }) => {
+    await page.route('**/travel-profile', route => route.fulfill(json(PROFILE)));
+    await openConstruction(page);
+    const box = page.locator('#construction-context-box');
+    await expect(box).toContainText('Nationalités');
+    await expect(box).toContainText('Alice (FR)');
+    await expect(box).toContainText('Bob (FR, US)');
   });
 
   test('demande de modification : un 202 + done peint le succès', async ({ page }) => {
