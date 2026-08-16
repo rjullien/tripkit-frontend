@@ -549,4 +549,34 @@ test.describe('Construction PhaseBar', () => {
     });
     expect(stored).toBe(2);
   });
+
+  test('200 + seedPush en échec : la phase avance, la boîte git reste', async ({ page }) => {
+    let phase = 1;
+    await page.route('**/construction', route => {
+      const url = route.request().url();
+      if (url.includes('/qa') || url.includes('/phase')) return route.fallback();
+      return route.fulfill(json(JSON.stringify({ phase })));
+    });
+    await page.route('**/construction/phase*', route => {
+      phase = 2;
+      return route.fulfill(json(JSON.stringify({
+        phase: 2,
+        seedPush: { ok: false, error: 'SHA conflict (le fichier a changé sur GitHub, pas d\'écrasement).' },
+      })));
+    });
+
+    await openConstruction(page);
+    await page.locator('#construction-phase-next').click();
+    await expect(page.locator('#construction-phase-bar')).toHaveAttribute('data-phase', '2');
+    const err = page.locator('#phase-transition-error');
+    await expect(err).toBeVisible();
+    await expect(err).toContainText('pas dans le repo seed');
+    await expect(err).toContainText('SHA conflict');
+    const stored = await page.evaluate(() => {
+      const td = Store.getTripData(Store.getCurrentTripId());
+      return td && td.trip && td.trip.construction;
+    });
+    expect(stored.phase).toBe(2);
+    expect(stored.seedPush).toBeUndefined();
+  });
 });
