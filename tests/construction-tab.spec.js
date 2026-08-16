@@ -205,4 +205,23 @@ test.describe('Construction Tab', () => {
       p4: 'construction:activities',
     });
   });
+
+  test('construction mounts Sur le trajet on the first travel leg', async ({ page }) => {
+    await page.evaluate(() => {
+      const tripId = Store.getCurrentTripId();
+      const data = Store.getTripData(tripId);
+      data.locations = Object.assign({}, data.locations, {
+        home: { lat: 48.9, lon: 2.25, name: 'Home' },
+      });
+      const day = data.days.find((d) => d.day === 3);
+      day.locationId = 'home';
+      day.to = 'Home';
+      Store.setTripData(tripId, data);
+      Store.set('tk-construction-mode', true);
+      App.paintConstructionNav();
+    });
+    await page.locator(NAV_BTN).click();
+    await expect(page.locator('#construction-discovery')).toContainText('Sur le trajet');
+    await expect(page.locator('#construction-discovery')).toContainText('City exploration');
+  });
 });
