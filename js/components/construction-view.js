@@ -131,6 +131,9 @@ var ConstructionView = (() => {
       _nuisanceAbort.abort();
       _nuisanceAbort = null;
     }
+    if (typeof NuisanceStream !== 'undefined' && NuisanceStream.stopFollow) {
+      NuisanceStream.stopFollow();
+    }
   }
 
   function peopleForTrip(tripId) {
@@ -1204,6 +1207,9 @@ var ConstructionView = (() => {
     loadTravelerContext(tripId);
 
     mountConstructionLeo('construction:ideation');
+    if (typeof NuisanceStream !== 'undefined' && NuisanceStream.resumeIfNeeded) {
+      NuisanceStream.resumeIfNeeded();
+    }
   }
 
   return { render, handleNuisances, handleAdmin, handleSante, abortNuisanceStream, leoModeForPhase, statusBadge };

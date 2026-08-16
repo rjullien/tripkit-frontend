@@ -27,6 +27,114 @@ var NuisanceStream = (() => {
     if (el) el.innerHTML = html;
   }
 
+  // Léo Plus pattern: the job lives in the BE. sessionStorage remembers which
+  // one we started so a Safari lock / tab switch can reattach. Aborting the
+  // SSE must not look like a product error and must not cancel Overpass.
+  const JOB_KEY = 'tk-nuisance-job';
+  const SEQ_KEY = 'tk-nuisance-seq';
+  const CTX_KEY = 'tk-nuisance-ctx';
+
+  let _jobId = null;
+  let _lastSeq = 0;
+  let _ctx = null;
+  let _following = false;
+  let _followAC = null;
+
+  function stopFollow() {
+    if (_followAC) {
+      try { _followAC.abort(); } catch (_) {}
+      _followAC = null;
+    }
+    _following = false;
+  }
+
+  function attachFollow(caller) {
+    const ac = new AbortController();
+    _followAC = ac;
+    if (caller) {
+      if (caller.aborted) ac.abort();
+      else if (typeof caller.addEventListener === 'function') {
+        caller.addEventListener('abort', () => ac.abort());
+      }
+    }
+    return ac.signal;
+  }
+
+  function inferPanel(o) {
+    if (o && o.locationId) return 'hotels';
+    if (o && o.compact) return 'plus';
+    return 'construction';
+  }
+
+  function ctxFrom(o) {
+    return {
+      tripId: (o && o.tripId) || '',
+      locationId: (o && o.locationId) || '',
+      compact: !!(o && o.compact),
+      panel: (o && o.panel) || inferPanel(o),
+    };
+  }
+
+  function persistJob() {
+    try {
+      if (!_jobId) {
+        sessionStorage.removeItem(JOB_KEY);
+        sessionStorage.removeItem(SEQ_KEY);
+        sessionStorage.removeItem(CTX_KEY);
+        return;
+      }
+      sessionStorage.setItem(JOB_KEY, _jobId);
+      sessionStorage.setItem(SEQ_KEY, String(_lastSeq || 0));
+      if (_ctx) sessionStorage.setItem(CTX_KEY, JSON.stringify(_ctx));
+    } catch (_) {}
+  }
+
+  function rememberJob(jobId, seq, ctx) {
+    _jobId = jobId || null;
+    _lastSeq = seq || 0;
+    _ctx = ctx || null;
+    persistJob();
+  }
+
+  function clearJob() {
+    _jobId = null;
+    _lastSeq = 0;
+    _ctx = null;
+    persistJob();
+  }
+
+  function readJob() {
+    if (_jobId) return { jobId: _jobId, seq: _lastSeq, ctx: _ctx };
+    try {
+      const id = sessionStorage.getItem(JOB_KEY);
+      if (!id) return null;
+      const seq = Number(sessionStorage.getItem(SEQ_KEY) || 0) || 0;
+      const raw = sessionStorage.getItem(CTX_KEY);
+      const ctx = raw ? JSON.parse(raw) : null;
+      return { jobId: id, seq, ctx };
+    } catch (_) {
+      return null;
+    }
+  }
+
+  function targetEl(ctx) {
+    if (!ctx || typeof document === 'undefined') return null;
+    if (ctx.locationId) {
+      return document.querySelector('.hotel-nuisance-result[data-loc="' + ctx.locationId + '"]');
+    }
+    if (ctx.panel === 'plus') return document.getElementById('plus-nuisance-result');
+    return document.getElementById('action-bar-results');
+  }
+
+  function panelVisible(ctx) {
+    if (!ctx || typeof document === 'undefined') return false;
+    const id = ctx.panel === 'hotels' ? 'tab-hotels'
+      : ctx.panel === 'plus' ? 'tab-plus'
+      : 'tab-construction';
+    const view = document.getElementById(id);
+    return !!(view && view.classList.contains('active'));
+  }
+
   // ── Rendu ───────────────────────────────────────────────────────────────────
 
   function loadingHtml(compact) {
@@ -229,18 +337,51 @@ var NuisanceStream = (() => {
   }
 
   /**
+   * SSE tombé (iPhone lock, idle proxy) : le job continue en BE. On relit le
+   * store. S'il y a déjà des lieux, on les montre sans crier à l'erreur. S'il
+   * n'y a rien, on laisse « Analyse en cours » — resumeIfNeeded réattachera.
+   */
+  async function recoverFromStore(el, opts) {
+    const o = opts || {};
+    if (aborted(o.signal)) return false;
+    try {
+      const stored = await API.getNuisanceCheck(o.tripId);
+      if (aborted(o.signal)) return false;
+      if (stored && stored.ok) {
+        let parsed = ConstructionContract.parseNuisance(stored.data);
+        if (parsed.ok && o.locationId) parsed = filterLocation(parsed, o.locationId);
+        if (parsed.ok && parsed.locations.length) {
+          paint(el, resultsHtml(parsed, !!o.compact));
+          if (typeof o.onRendered === 'function') o.onRendered(parsed);
+          return true;
+        }
+      }
+    } catch (_) {}
+    if (!aborted(o.signal) && el && !(el.querySelector && el.querySelector('.nuisance-progress'))) {
+      paint(el, loadingHtml(!!o.compact));
+    }
+    return false;
+  }
+
+  /**
    * Suit un job d'analyse jusqu'à sa trame `done`, puis récupère et affiche le
-   * résultat définitif. `signal` (obligatoire côté appelant) coupe tout écriture
-   * dans le DOM dès que l'appelant a abandonné.
+   * résultat définitif. `signal` (obligatoire côté appelant) coupe la lecture
+   * SSE — pas le job. Un abandon (onglet, lock) n'est pas une erreur produit.
    */
   async function subscribe(el, opts) {
     const o = opts || {};
     const compact = !!o.compact;
-    const signal = o.signal;
+    const signal = attachFollow(o.signal);
+    if (o.jobId) rememberJob(o.jobId, o.after || _lastSeq || 0, ctxFrom(o));
 
     try {
-      for await (const frame of API.leoJobStream(o.jobId, 0, { signal })) {
+      for await (const frame of API.leoJobStream(o.jobId, o.after || 0, { signal })) {
         if (aborted(signal)) return;
+
+        if (frame && frame.data && typeof frame.data.seq === 'number') {
+          _lastSeq = frame.data.seq;
+          persistJob();
+        }
 
         if (frame.event === 'done') {
           const final = await API.getNuisanceCheck(o.tripId);
@@ -250,13 +391,15 @@ var NuisanceStream = (() => {
           } else {
             paint(el, errorHtml('Analyse terminée mais résultats indisponibles : ' + (final.error || 'HTTP ' + final.status), compact));
           }
+          clearJob();
           return;
         }
 
         if (frame.event === 'error') {
           // Une annulation volontaire n'est pas une erreur à afficher.
           if ((frame.data && frame.data.code === 'cancelled') || aborted(signal)) return;
-          await paintPartialOrError(el, o, (frame.data && frame.data.error) || "Erreur lors de l'analyse");
+          await paintPartialOrError(el, Object.assign({}, o, { signal }), (frame.data && frame.data.error) || "Erreur lors de l'analyse");
+          clearJob();
           return;
         }
 
@@ -266,9 +409,11 @@ var NuisanceStream = (() => {
           if (text && progressEl) progressEl.textContent = 'Analyse : ' + text;
         }
       }
+      // Stream closed without `done` (Safari lock, proxy idle). Job still runs.
+      if (!aborted(signal)) await recoverFromStore(el, Object.assign({}, o, { signal }));
     } catch (e) {
-      if (aborted(signal)) return; // abandon volontaire (re-render, changement de voyage)
-      paint(el, errorHtml('Connexion perdue. Réessaie.', compact));
+      if (aborted(signal)) return;
+      await recoverFromStore(el, Object.assign({}, o, { signal }));
     }
   }
 
@@ -279,12 +424,42 @@ var NuisanceStream = (() => {
   function start(el, opts) {
     const o = opts || {};
     if (o.data && o.data.jobId) {
+      stopFollow();
+      rememberJob(o.data.jobId, 0, ctxFrom(o));
       paint(el, loadingHtml(!!o.compact));
-      return subscribe(el, Object.assign({}, o, { jobId: o.data.jobId }));
+      _following = true;
+      return subscribe(el, Object.assign({}, o, { jobId: o.data.jobId, after: 0 }))
+        .finally(() => { _following = false; });
     }
     render(el, o.data, o);
     return Promise.resolve();
   }
 
-  return { render, subscribe, start, verdictLabel, filterLocation, paintPartialOrError };
+  /**
+   * Réattache le job mémorisé quand l'onglet est de nouveau visible.
+   * No-op si le panneau n'est pas à l'écran (on ne repeint pas un onglet caché).
+   */
+  function resumeIfNeeded() {
+    if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
+    const saved = readJob();
+    if (!saved || !saved.jobId || !saved.ctx) return;
+    if (!panelVisible(saved.ctx)) return;
+    const el = targetEl(saved.ctx);
+    if (!el) return;
+    if (_following) return;
+    _jobId = saved.jobId;
+    _lastSeq = saved.seq || 0;
+    _ctx = saved.ctx;
+    _following = true;
+    const o = Object.assign({}, saved.ctx, {
+      jobId: saved.jobId,
+      after: saved.seq || 0,
+    });
+    subscribe(el, o).finally(() => { _following = false; });
+  }
+
+  return {
+    render, subscribe, start, resumeIfNeeded, stopFollow, clearJob,
+    verdictLabel, filterLocation, paintPartialOrError,
+  };
 })();

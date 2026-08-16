@@ -746,7 +746,7 @@ var API = (() => {
 
   // 60 s : admin et santé incluent un appel Bifrost (SPEC §7), et le client
   // Go Bifrost lui-même autorise jusqu'à 60 s. 30 s coupait le flux avant la
-  // prose. Nuisances reste à 30 s (Overpass, pas Bifrost sur le POST).
+  // prose. Nuisances : POST 15 s (202 jobId), Overpass tourne dans leo.Hub.
   async function runAdminCheck(tripId) {
     return requestJSON(`/trips/${encodeURIComponent(tripId)}/admin-check`, {
       method: 'POST',
@@ -768,7 +768,7 @@ var API = (() => {
     return requestJSON(`/trips/${encodeURIComponent(tripId)}/nuisance-check`, {
       method: 'POST',
       body: JSON.stringify(body),
-      timeoutMs: 30000,
+      timeoutMs: 15000,
     });
   }
 
