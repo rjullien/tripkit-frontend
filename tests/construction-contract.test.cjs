@@ -203,8 +203,17 @@ test('parseAdminCheck lit {verdict, countries, items} de la fixture', () => {
   assert.strictEqual(parsed.items[0].status, 'action_required');
   assert.strictEqual(parsed.items[0].url, 'https://www.canada.ca/eta');
   assert.strictEqual(parsed.items[0].cost, '7 CAD');
-  // summary est optionnel (absent sans Bifrost configuré).
   assert.strictEqual(parsed.summary, '');
+});
+
+test('parseAdminCheck lit travelers[] de la fixture (checklist par voyageur)', () => {
+  const parsed = ConstructionContract.parseAdminCheck(fixture('admin-check.json'));
+  assert.ok(Array.isArray(parsed.travelers));
+  assert.strictEqual(parsed.travelers.length, 1);
+  assert.strictEqual(parsed.travelers[0].name, 'dinah');
+  assert.deepStrictEqual(parsed.travelers[0].nationalities, ['FR', 'US']);
+  assert.strictEqual(parsed.travelers[0].items.length, 1);
+  assert.strictEqual(parsed.travelers[0].items[0].type, 'eta');
 });
 
 test('appliesTo est en camelCase, applies_to reste toléré', () => {
