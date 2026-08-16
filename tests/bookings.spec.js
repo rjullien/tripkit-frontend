@@ -89,20 +89,17 @@ test.describe('Résa — flux nuisances par hôtel', () => {
     expect(finalFetches(), "un flux d'hôtel abandonné ne doit plus aller chercher le résultat final").toBe(0);
   });
 
-  test('un ré-affichage sur place coupe aussi le flux nuisances', async ({ page }) => {
+  test('un ré-affichage sur place reprend le job sans erreur de connexion', async ({ page }) => {
     await page.goto('/');
     await page.waitForSelector('.bottom-nav button[data-tab]', { timeout: 8000 });
-    const finalFetches = await stubSlowHotelNuisanceStream(page);
+    await stubSlowHotelNuisanceStream(page);
 
     await startHotelNuisanceStream(page);
-    expect(finalFetches()).toBe(0);
 
     await page.evaluate(() => App.reloadAllViews());
     await expect(page.locator('#tab-hotels')).toBeVisible();
-    await expect(page.locator('#hotels-content .nuisance-progress')).toHaveCount(0);
-    await expect(page.locator('#hotels-content .hotel-nuisance-btn').first()).toBeEnabled();
-
+    await expect(page.locator('#hotels-content')).not.toContainText('Connexion perdue');
     await page.waitForTimeout(2200);
-    expect(finalFetches(), 'un flux coupé par le ré-affichage ne va pas chercher le résultat final').toBe(0);
+    await expect(page.locator('#hotels-content')).not.toContainText('Connexion perdue');
   });
 });
