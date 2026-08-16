@@ -512,6 +512,29 @@ testAsync("un job en échec sans résultat enregistré n'affiche que l'erreur", 
   assert.ok(!/Résultats partiels/.test(el.innerHTML));
 });
 
+testAsync("un SSE coupé n'est pas une erreur : on relit le store", async () => {
+  const el = { innerHTML: '' };
+  await withAPI({
+    leoJobStream: () => { throw new Error('network dropped'); },
+    getNuisanceCheck: () => Promise.resolve({ ok: true, status: 200, data: fixture('nuisance-check.json') }),
+  }, () => NuisanceStream.subscribe(el, { jobId: 'j-lock', tripId: 'trip-1' }));
+
+  assert.ok(el.innerHTML.includes('Montréal Vieux-Port'), 'les lieux déjà en base sont montrés');
+  assert.ok(!/Connexion perdue/.test(el.innerHTML), 'un iPhone lock ne doit pas afficher une erreur');
+  assert.ok(!/Réessaie/.test(el.innerHTML), 'pas d’invite à relancer : le job continue');
+});
+
+testAsync("un SSE fermé sans done relit le store, sans erreur", async () => {
+  const el = { innerHTML: '' };
+  await withAPI({
+    leoJobStream: streamOf([{ event: 'progress', data: { text: '1/3', seq: 2 } }]),
+    getNuisanceCheck: () => Promise.resolve({ ok: true, status: 200, data: fixture('nuisance-check.json') }),
+  }, () => NuisanceStream.subscribe(el, { jobId: 'j-idle', tripId: 'trip-1' }));
+
+  assert.ok(el.innerHTML.includes('Montréal Vieux-Port'));
+  assert.ok(!/Connexion perdue/.test(el.innerHTML));
+});
+
 testAsync('une annulation volontaire ne peint rien', async () => {
   const el = { innerHTML: 'intact' };
   await withAPI({

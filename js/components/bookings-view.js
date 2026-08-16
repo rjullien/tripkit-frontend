@@ -12,6 +12,9 @@ var BookingsView = (() => {
   function abortHotelNuisanceStreams() {
     _hotelNuisanceAborts.forEach(ac => { try { ac.abort(); } catch (_) { /* déjà terminé */ } });
     _hotelNuisanceAborts.clear();
+    if (typeof NuisanceStream !== 'undefined' && NuisanceStream.stopFollow) {
+      NuisanceStream.stopFollow();
+    }
   }
 
   function esc(s) {
@@ -626,6 +629,9 @@ var BookingsView = (() => {
 
     container.innerHTML = html;
     bindHotelNuisanceButtons(container);
+    if (typeof NuisanceStream !== 'undefined' && NuisanceStream.resumeIfNeeded) {
+      NuisanceStream.resumeIfNeeded();
+    }
   }
 
   function bindHotelNuisanceButtons(container) {

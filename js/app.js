@@ -425,6 +425,9 @@ var App = (() => {
         if (typeof LeoChatStream !== 'undefined' && LeoChatStream.resumeIfNeeded) {
           LeoChatStream.resumeIfNeeded();
         }
+        if (typeof NuisanceStream !== 'undefined' && NuisanceStream.resumeIfNeeded) {
+          NuisanceStream.resumeIfNeeded();
+        }
         // If a shared list is open, re-pull so Nicole sees René's ticks after
         // unlocking the phone / coming back to Safari.
         if (currentListId && typeof ListComponent !== 'undefined') {
@@ -517,6 +520,9 @@ var App = (() => {
     if (tab === 'plus' && _nuisanceAbort) {
       _nuisanceAbort.abort();
       _nuisanceAbort = null;
+    }
+    if (typeof NuisanceStream !== 'undefined' && NuisanceStream.stopFollow) {
+      NuisanceStream.stopFollow();
     }
   }
 
@@ -1027,6 +1033,9 @@ var App = (() => {
         compact: true,
       });
     });
+    if (typeof NuisanceStream !== 'undefined' && NuisanceStream.resumeIfNeeded) {
+      NuisanceStream.resumeIfNeeded();
+    }
   }
 
   function formatBackendVersion(v) {
