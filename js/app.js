@@ -688,6 +688,8 @@ var App = (() => {
     html += `<div class="section-title" style="margin-top:24px">🌍 Voyage actif</div>`;
     html += `<div id="plus-trip-selector"></div>`;
     html += `<div id="plus-publish-panel"></div>`;
+    // Polarsteps is a Plus landmark (SPEC-polarsteps-caption), not Expérimental.
+    // tests/plus-inventory.* fail if this mount or its order is dropped.
     html += `<div id="plus-polarsteps-panel"></div>`;
     html += `<div id="plus-leo-chat-stream"></div>`;
     // Replié par défaut au premier rendu ; un re-render légitime (changement de
@@ -832,9 +834,12 @@ var App = (() => {
       }).catch(() => paintConstructionToggle());
     }
 
-    const polarstepsEl = document.getElementById('plus-polarsteps-panel');
-    if (polarstepsEl && typeof PolarstepsPanel !== 'undefined') {
-      PolarstepsPanel.loadStatus().then(() => PolarstepsPanel.renderSection(polarstepsEl));
+    if (typeof PolarstepsPanel !== 'undefined') {
+      const paintPolarsteps = () => {
+        const live = document.getElementById('plus-polarsteps-panel');
+        if (live) PolarstepsPanel.renderSection(live);
+      };
+      PolarstepsPanel.loadStatus().then(paintPolarsteps).catch(paintPolarsteps);
     }
 
     // Order: Polarsteps → Léo → Bifrost → Local (edge)
