@@ -744,6 +744,10 @@ var API = (() => {
     });
   }
 
+  async function getQA(tripId) {
+    return requestJSON(`/trips/${encodeURIComponent(tripId)}/construction/qa`);
+  }
+
   // 60 s : admin et santé incluent un appel Bifrost (SPEC §7), et le client
   // Go Bifrost lui-même autorise jusqu'à 60 s. 30 s coupait le flux avant la
   // prose. Nuisances : POST 15 s (202 jobId), Overpass tourne dans leo.Hub.
@@ -848,7 +852,7 @@ var API = (() => {
     getDiscoveryThemes, getDiscoveryResults, postDiscoverySearch,
     retainDiscoveryItem, pinNuisanceToSeed,
     getTravelProfile, getConstruction, transitionPhase, createProfileRequest,
-    runQA, runAdminCheck, runHealthCheck, runNuisanceCheck, getNuisanceCheck,
+    runQA, getQA, runAdminCheck, runHealthCheck, runNuisanceCheck, getNuisanceCheck,
     assetUrl, getBaseUrl, warmTripAssets,
     probe, isReachable, getReachability, onReachabilityChange,
   };

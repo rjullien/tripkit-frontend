@@ -152,6 +152,18 @@ test("parseQA : l'ancienne clé data.results n'est PAS acceptée", () => {
   assert.strictEqual(parsed.reason, 'unrecognized_payload');
 });
 
+test('parseQA accepte l\'enveloppe GET (cached / cachedAt en plus)', () => {
+  const data = Object.assign({}, fixture('qa-violations.json'), {
+    cached: true,
+    cachedAt: '2026-08-16T10:00:00Z',
+  });
+  const parsed = ConstructionContract.parseQA(data);
+  assert.strictEqual(parsed.ok, true);
+  assert.strictEqual(parsed.phase, 2);
+  assert.strictEqual(parsed.violations.length, 2);
+  assert.strictEqual(parsed.count, 2);
+});
+
 // ── Phase ──────────────────────────────────────────────────────────────────────
 
 test('readPhase préserve la phase 0 et signale une phase absente', () => {

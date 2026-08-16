@@ -17,14 +17,8 @@ var ConstructionView = (() => {
   // avant qu'on puisse les lire (surtout une liste).
   let _phaseError = null;
 
-  // Les écritures seed par Léo ne sont pas branchées (501 not_implemented). Les
-  // trois commandes concernées — Retenir (Découverte), Épingler dans le seed et
-  // le formulaire de profil — l'annoncent AVANT le clic : ne le révéler qu'après
-  // l'action fait remplir un formulaire pour rien. Les contrôles restent
-  // actionnables, la réponse 501 portant le détail exact du backend.
-  const DEFERRED_HINT = "Pas encore branché : Léo n'écrit pas encore dans le seed, rien ne sera enregistré.";
-  const PIN_LABEL = 'Épingler dans le seed ⏳';
-  const PROFILE_SUBMIT_LABEL = 'Envoyer à Léo ⏳';
+  const PIN_LABEL = 'Épingler dans le seed';
+  const PROFILE_SUBMIT_LABEL = 'Envoyer à Léo';
 
   // La base de règles administratives ne couvre qu'une douzaine de destinations et
   // quelques listes de nationalités. Zéro item pour un passeport ne veut donc PAS
@@ -398,6 +392,7 @@ var ConstructionView = (() => {
       case 'transition_blocked': return 'Transition bloquée par la QA.';
       case 'admin_required': return 'Transition forcée réservée à un administrateur.';
       case 'not_implemented': return 'Pas encore disponible.';
+      case 'missing_hermes_key': return 'Léo n\'est pas configuré (clé Hermes).';
       default: return code;
     }
   }
@@ -582,8 +577,6 @@ var ConstructionView = (() => {
     const formHtml = `<div class="profile-edit-overlay" id="profile-edit-overlay">
       <form id="profile-edit-form" class="profile-edit-form">
         <h4>Modifier le profil voyageur</h4>
-        <p class="profile-edit-deferred" id="profile-edit-deferred">⏳ Pas encore disponible : Léo ne modifie pas encore
-          le profil voyageur. Vous pouvez formuler la demande, mais rien ne sera enregistré.</p>
         <div class="guided-field">
           <label for="profile-edit-target">Section à modifier</label>
           <select id="profile-edit-target" name="target" required>
@@ -601,8 +594,7 @@ var ConstructionView = (() => {
             placeholder="Ex : nous préférons un rythme lent avec des pauses fréquentes..." required></textarea>
         </div>
         <div class="profile-edit-actions">
-          <button type="submit" class="btn btn-primary deferred" id="profile-edit-submit"
-            title="${DEFERRED_HINT}">${PROFILE_SUBMIT_LABEL}</button>
+          <button type="submit" class="btn btn-primary" id="profile-edit-submit">${PROFILE_SUBMIT_LABEL}</button>
           <button type="button" class="btn btn-sm" id="profile-edit-cancel">Annuler</button>
         </div>
         <div id="profile-edit-status" class="profile-edit-status"></div>
@@ -660,7 +652,10 @@ var ConstructionView = (() => {
     }
 
     if (!res.ok) {
-      statusEl.textContent = res.error || 'Erreur lors de la demande';
+      const msg = (res.status === 503)
+        ? (errorLabel(res.data && res.data.code) || res.error || 'Léo n\'est pas configuré.')
+        : (res.error || 'Erreur lors de la demande');
+      statusEl.textContent = msg;
       statusEl.className = 'profile-edit-status error';
       submitBtn.disabled = false;
       submitBtn.textContent = PROFILE_SUBMIT_LABEL;
@@ -808,6 +803,19 @@ var ConstructionView = (() => {
     showResults(`<div class="construction-error unrecognized-payload">Réponse inattendue du serveur : impossible d'afficher ${esc(what)}.</div>`);
   }
 
+  function paintQA(parsed) {
+    if (!parsed.violations.length) {
+      showResults(`<div class="action-result-ok">Aucun problème détecté</div>`);
+      return;
+    }
+    const n = parsed.violations.length;
+    let html = '<div class="action-results-qa">';
+    html += `<div class="action-results-header">QA : ${n} problème${n > 1 ? 's' : ''}${parsed.phase !== null ? ` (phase ${parsed.phase})` : ''}</div>`;
+    html += violationsHtml(parsed.violations);
+    html += '</div>';
+    showResults(html);
+  }
+
   async function handleQA(tripId) {
     setButtonLoading('action-qa', true);
     const res = await API.runQA(tripId);
@@ -823,18 +831,32 @@ var ConstructionView = (() => {
       showUnrecognized('le résultat QA');
       return;
     }
+    paintQA(parsed);
+  }
 
-    if (!parsed.violations.length) {
-      showResults(`<div class="action-result-ok">Aucun problème détecté</div>`);
-      return;
+  function resultsPaneIsEmpty() {
+    const el = document.getElementById('action-bar-results');
+    return !el || !el.innerHTML || !el.innerHTML.trim();
+  }
+
+  /** GET du dernier QA. Silence si rien en cache ou enveloppe inconnue — ne
+   *  pas voler le panneau avec une erreur au simple ouverture d'onglet.
+   *  Relit le panneau après le GET : un clic Admin/QA pendant l'aller-retour
+   *  ne doit pas se faire écraser. */
+  async function hydrateQA(tripId) {
+    if (!tripId || typeof API === 'undefined' || !API.getQA) return false;
+    try {
+      const res = await API.getQA(tripId);
+      if (!res || !res.ok || !res.data || res.data.cached !== true) return false;
+      if (tripId !== _currentTripId || !resultsPaneIsEmpty()) return false;
+      const parsed = ConstructionContract.parseQA(res.data);
+      if (!parsed.ok) return false;
+      if (tripId !== _currentTripId || !resultsPaneIsEmpty()) return false;
+      paintQA(parsed);
+      return true;
+    } catch (_) {
+      return false;
     }
-
-    const n = parsed.violations.length;
-    let html = '<div class="action-results-qa">';
-    html += `<div class="action-results-header">QA : ${n} problème${n > 1 ? 's' : ''}${parsed.phase !== null ? ` (phase ${parsed.phase})` : ''}</div>`;
-    html += violationsHtml(parsed.violations);
-    html += '</div>';
-    showResults(html);
   }
 
   // ── Nuisances check ──
@@ -869,15 +891,14 @@ var ConstructionView = (() => {
     if (!el) return;
     if (el.querySelector && el.querySelector('#nuisance-pin-btn')) return;
     el.insertAdjacentHTML('beforeend',
-      `<div class="nuisance-pin-wrap"><button type="button" class="btn btn-accent nuisance-pin-btn deferred" id="nuisance-pin-btn"
-        title="${DEFERRED_HINT}">${PIN_LABEL}</button></div>`);
+      `<div class="nuisance-pin-wrap"><button type="button" class="btn btn-accent nuisance-pin-btn" id="nuisance-pin-btn">${PIN_LABEL}</button></div>`);
     const pinBtn = document.getElementById('nuisance-pin-btn');
     if (pinBtn) pinBtn.addEventListener('click', () => handlePinNuisance(pinBtn));
   }
 
   /**
-   * L'endpoint pin-nuisance renvoie 501 not_implemented : aucun job n'est lancé,
-   * donc aucun « Épinglé ✓ » à peindre (revue findings 5 à 7).
+   * Épingler écrit hotels[].nuisance + lastQa (200). Un 501 d'un backend plus
+   * ancien reste affiché comme indisponible.
    */
   async function handlePinNuisance(btn) {
     const tripId = (typeof Store !== 'undefined' && Store.getCurrentTripId)
@@ -886,7 +907,7 @@ var ConstructionView = (() => {
     if (!tripId) return;
 
     btn.disabled = true;
-    btn.textContent = 'Envoi à Léo...';
+    btn.textContent = 'Enregistrement…';
 
     const res = await API.pinNuisanceToSeed(tripId);
 
@@ -898,43 +919,32 @@ var ConstructionView = (() => {
       return;
     }
 
-    if (!res || !res.ok || !res.data || !res.data.jobId) {
-      resetPinButton(btn, 'Erreur');
-      return;
-    }
-
-    // Suivi du job : une trame `error` ou un flux coupé est un échec, pas un succès.
-    let done = false;
-    try {
-      for await (const ev of API.leoJobStream(res.data.jobId, 0)) {
-        if (ev.event === 'done') { done = true; break; }
-        if (ev.event === 'error') {
-          resetPinButton(btn, 'Erreur');
-          return;
-        }
-        if (ev.event === 'delta' && ev.data && ev.data.text) {
-          btn.textContent = 'Léo : ' + ev.data.text.slice(0, 30);
-        }
-      }
-    } catch (_) {
-      resetPinButton(btn, 'Connexion perdue');
-      return;
-    }
-
-    if (!done) {
+    if (!res || !res.ok) {
       resetPinButton(btn, 'Erreur');
       return;
     }
 
     btn.textContent = 'Épinglé ✓';
     btn.disabled = true;
+    btn.classList.remove('unavailable');
+    const seedPush = res.data && res.data.seedPush;
+    const wrap = btn.closest('.nuisance-pin-wrap') || btn.parentNode;
+    const old = wrap && wrap.querySelector && wrap.querySelector('.nuisance-pin-warn');
+    if (old) old.remove();
+    if (seedPush && seedPush.ok === false && wrap) {
+      const detail = (typeof seedPush.error === 'string' && seedPush.error)
+        ? seedPush.error
+        : 'écriture git refusée';
+      wrap.insertAdjacentHTML('beforeend',
+        `<p class="nuisance-pin-warn">Enregistré dans TripKit, pas dans le repo seed : ${esc(detail)}</p>`);
+    }
   }
 
   function resetPinButton(btn, msg) {
     btn.textContent = msg;
     setTimeout(() => {
       btn.textContent = PIN_LABEL;
-      btn.title = DEFERRED_HINT;
+      btn.removeAttribute('title');
       btn.disabled = false;
     }, 2500);
   }
@@ -1269,13 +1279,21 @@ var ConstructionView = (() => {
     mountConstructionLeo('construction:ideation');
     const resumed = typeof NuisanceStream !== 'undefined' && NuisanceStream.resumeIfNeeded
       && NuisanceStream.resumeIfNeeded();
-    if (!resumed && typeof NuisanceStream !== 'undefined' && NuisanceStream.hydrate) {
-      const resultsEl = document.getElementById('action-bar-results');
-      NuisanceStream.hydrate(resultsEl, {
-        tripId,
-        onRendered: () => appendPinButton(resultsEl),
-      });
-    }
+    const resultsEl = document.getElementById('action-bar-results');
+    (async () => {
+      if (resumed) return;
+      let nuisancePainted = false;
+      if (typeof NuisanceStream !== 'undefined' && NuisanceStream.hydrate) {
+        const parsed = await NuisanceStream.hydrate(resultsEl, {
+          tripId,
+          onRendered: () => appendPinButton(resultsEl),
+        });
+        nuisancePainted = !!(parsed && parsed.locations && parsed.locations.length);
+      }
+      if (nuisancePainted) return;
+      if (resultsEl && resultsEl.innerHTML && resultsEl.innerHTML.trim()) return;
+      await hydrateQA(tripId);
+    })();
   }
 
   return { render, handleNuisances, handleAdmin, handleSante, abortNuisanceStream, leoModeForPhase, statusBadge };

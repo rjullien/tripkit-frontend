@@ -6,11 +6,9 @@
 var DiscoveryPanel = (() => {
   const aborts = new WeakMap();
 
-  // L'écriture dans le seed par Léo n'est pas branchée : POST /discovery/retain
-  // répond 501. Le bouton le dit AVANT le clic. Le bouton reste cliquable
-  // (la réponse 501 porte le détail exact du backend).
-  const DEFERRED_HINT = "Pas encore branché : Léo n'écrit pas encore dans le seed, rien ne sera enregistré.";
-  const RETAIN_LABEL = 'Retenir ⏳';
+  // POST /discovery/retain writes trip.activities (bookingStatus: candidate)
+  // via typed seedgit. A 501 from an older backend is still shown as unavailable.
+  const RETAIN_LABEL = 'Retenir';
 
   function esc(s) {
     return String(s || '')
@@ -215,8 +213,7 @@ var DiscoveryPanel = (() => {
         : '';
       const meta = [when, km, link].filter(Boolean).join(' · ');
       const note = it.note ? `<div class="discovery-item-note">${esc(it.note)}</div>` : '';
-      const retainBtn = `<button type="button" class="btn btn-sm discovery-retain-btn deferred" data-idx="${idx}"
-        title="${DEFERRED_HINT}">${RETAIN_LABEL}</button>`;
+      const retainBtn = `<button type="button" class="btn btn-sm discovery-retain-btn" data-idx="${idx}">${RETAIN_LABEL}</button>`;
       return `<div class="discovery-item">
         <div class="discovery-item-row">
           <div class="discovery-item-name">${esc(it.name || '')}</div>
@@ -241,7 +238,7 @@ var DiscoveryPanel = (() => {
     if (!tripId) return;
 
     btn.disabled = true;
-    btn.textContent = 'Envoi à Léo...';
+    btn.textContent = 'Enregistrement…';
 
     const res = await API.retainDiscoveryItem(tripId, {
       id: item.id || '',
@@ -254,43 +251,29 @@ var DiscoveryPanel = (() => {
       source: item.source || '',
     });
 
-    // L'endpoint renvoie 501 not_implemented : rien n'est écrit dans le seed,
-    // donc pas de « Retenu ✓ ».
     if (res && (res.status === 501 || (res.data && res.data.error === 'not_implemented'))) {
       btn.textContent = 'Pas encore disponible';
       btn.className = 'btn btn-sm discovery-retain-btn unavailable';
       btn.title = (res.data && typeof res.data.detail === 'string' && res.data.detail)
-        || "Léo n'écrit pas encore dans le seed.";
+        || "L'écriture dans le seed n'est pas encore branchée.";
       btn.disabled = true;
       return;
     }
 
-    if (!res || !res.ok || !res.data || !res.data.jobId) {
-      retainFailed(btn, 'Erreur');
-      return;
-    }
-
-    let done = false;
-    try {
-      for await (const ev of API.leoJobStream(res.data.jobId, 0)) {
-        if (ev.event === 'done') { done = true; break; }
-        if (ev.event === 'error') {
-          retainFailed(btn, 'Erreur');
-          return;
-        }
-      }
-    } catch (_) {
-      retainFailed(btn, 'Connexion perdue');
-      return;
-    }
-
-    if (!done) {
+    if (!res || !res.ok || !(res.data && (res.data.activity || res.data.ok))) {
       retainFailed(btn, 'Erreur');
       return;
     }
 
     btn.textContent = 'Retenu ✓';
     btn.className = 'btn btn-sm discovery-retain-btn done';
+    const seedPush = res.data.seedPush;
+    if (seedPush && seedPush.ok === false) {
+      const detail = (typeof seedPush.error === 'string' && seedPush.error)
+        ? seedPush.error
+        : 'écriture git refusée';
+      btn.title = 'Enregistré dans TripKit, pas dans le repo seed : ' + detail;
+    }
   }
 
   function retainFailed(btn, msg) {
@@ -299,8 +282,8 @@ var DiscoveryPanel = (() => {
     setTimeout(() => {
       btn.textContent = RETAIN_LABEL;
       btn.disabled = false;
-      btn.className = 'btn btn-sm discovery-retain-btn deferred';
-      btn.title = DEFERRED_HINT;
+      btn.className = 'btn btn-sm discovery-retain-btn';
+      btn.removeAttribute('title');
     }, 2500);
   }
 

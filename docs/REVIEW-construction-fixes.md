@@ -28,7 +28,7 @@ Légende : ✅ **corrigé** · 🟡 **partiellement corrigé** · ⏸️ **diff�
 | 2 | Enveloppe admin-check + rendu construit autour d'un groupement « par voyageur » que le backend ne produit pas | ✅ | `js/construction-contract.js` (`parseAdminCheck`, `groupAdminItemsByTraveler`), `js/components/construction-view.js` (`handleAdmin`), `css/theme.css`. `appliesTo` porte les **nationalités** du voyage : la checklist par voyageur est reconstruite par intersection, avec un panier « Nationalités non rattachées à un voyageur » pour ne jamais perdre un item, et une liste plate par pays quand aucun voyageur n'est connu |
 | 3 | Enveloppe health-check : `data.recommendations` au lieu de `items` | ✅ | `js/construction-contract.js` (`parseHealthCheck`), `js/components/construction-view.js` (`handleSante`). Règle de silence conservée : verdict `none` ou zéro item → « Aucune recommandation santé pour cette destination » |
 | 4 | Les trois ratés retombaient sur `[]`, donc sur l'état vide rassurant | ✅ | Un payload non reconnu renvoie `{ok:false, reason:'unrecognized_payload'}` et affiche « Réponse inattendue du serveur… », jamais « Aucun problème détecté ». L'état vide légitime n'est rendu que pour un payload **reconnu** à zéro item. `items: null` (slice nil Go) compte comme liste vide reconnue |
-| 5 | Endpoints stub : l'UI annonçait un succès | ✅ | `isNotImplemented(res)` (501 ou `error === 'not_implemented'`) → « Pas encore disponible », contrôle désactivé, `detail` du backend dans le `title`. `js/components/discovery-panel.js`, `js/components/construction-view.js`. La fonctionnalité elle-même reste ⏸️ côté backend |
+| 5 | Endpoints stub : l'UI annonçait un succès | ✅ | Retain / pin / profil écrivent vraiment (200 / 202). Un 501 d'un backend plus ancien reste affiché comme « Pas encore disponible » (`isNotImplemented`). `js/components/discovery-panel.js`, `js/components/construction-view.js` |
 | 6 | « Retenu ✓ » sur un no-op | ✅ | `js/components/discovery-panel.js` : le badge de succès exige une trame `done` explicite |
 | 7 | Retain « réussissait » sur échec de flux SSE | ✅ | Une trame `error` ou une exception va sur la branche d'échec (`retainFailed` / `resetPinButton` / `profileEditFailed`) ; le swallow-and-continue a disparu des trois flux |
 | 9 | Rendu : un échec Overpass ne doit pas se lire comme un feu vert | ✅ | `js/construction-contract.js` (`parseNuisance`, `worstNuisanceVerdict` avec la précédence `ELEVE > INDETERMINE > MODERE > FAIBLE`), `js/components/nuisance-stream.js` : bandeau « Analyse incomplète : certaines données n'ont pas pu être récupérées » nommant les catégories en échec, classe `.nuisance-cat-unavailable`, verdict global recalculé depuis `results[]` (le backend n'émet pas de verdict au niveau racine) |
@@ -109,9 +109,8 @@ divergentes livrées avec deux suites vertes. C'est corrigé :
 
 ### Genuinement non implémenté
 
-- **Write-back Léo** : `retain-discovery-item`, `pin-nuisance-to-seed` et `travel-profile/request`
-  répondent 501 côté backend. L'UI le dit honnêtement (« Pas encore disponible ») mais **aucune de
-  ces trois actions n'écrit quoi que ce soit**.
+- ~~**Write-back Léo**~~ : retain / pin / profil écrivent (200 / 202). Un 501 d'un backend plus ancien
+  reste affiché honnêtement ; plus de bandeau ⏳ ni classe `deferred`.
 - **Loader de config ops** `TRIPKIT_CONSTRUCTION_*` (lot 0.3) : côté frontend rien à faire, mais les
   seuils et phases affichés restent ceux compilés en dur dans le backend.
 - ~~**Précision de `appliesTo`**~~ : corrigé côté backend dans la deuxième passe (§6) —
@@ -141,8 +140,7 @@ d'acceptation) et **`construction/TASKS.md`** :
    (et `["*"]` pour une règle universelle), ce qui rend ce regroupement significatif.
 4. **Loader de config ops différé** (lot 0.3) et synthèse construction empruntant la config Bifrost de
    plus-chat.
-5. **`retain` / `pin-nuisance` / `profile-edit` répondent 501** : les critères d'acceptation
-   correspondants ne peuvent pas être cochés.
+5. **`retain` / `pin-nuisance` / `profile-edit` sont branchés** : 200 (seedgit) / 202 (job Léo).
 
 ---
 
@@ -155,7 +153,7 @@ Côté frontend :
 |---|---|---|---|
 | 1 (rendu) | Le regroupement par voyageur était décoratif : `appliesTo` portait toutes les nationalités du voyage | ✅ | Corrigé côté backend ; ici la fixture `admin-check.json` a été resynchronisée (l'eTA canadien passe de `["FR","US"]` à `["FR"]`) et `tests/construction-contract.test.cjs` épingle la sémantique restreinte : un voyageur **US seul** ne reçoit pas l'eTA canadien, aucun `appliesTo` n'est vide, et René (FR) comme Dinah (FR+US) le reçoivent toujours |
 | 2 | La recopie des fixtures n'était contrôlée par rien | ✅ | `tests/fixtures/construction-contract/CHECKSUMS.txt` (manifeste sha256 committé des deux côtés) est vérifié par le test unitaire — hash de chaque fixture **et** égalité des listes de fichiers. Côté backend, `TestContractFixtures_Checksums` et `TestContractFixtures_FrontendCopyInSync` (comparaison octet à octet des deux répertoires quand les dépôts sont côte à côte). Vérifié par mutation : altérer une fixture ici fait tomber 3 assertions, altérer la copie backend fait tomber le test Go |
-| 3 | Le report n'était visible qu'après l'action | ✅ | Les trois commandes concernées l'annoncent maintenant d'entrée, comme le faisait déjà « Épingler » : marqueur ⏳ dans le libellé, `title` explicite (« Pas encore branché : Léo n'écrit pas encore dans le seed, rien ne sera enregistré. »), classe `deferred` (opacité réduite), et pour le formulaire de profil un bandeau `#profile-edit-deferred` en tête. `js/components/discovery-panel.js`, `js/components/construction-view.js`, `css/theme.css`. **Les contrôles restent actionnables** : le corps 501 porte le détail exact du backend, et le traitement après action est inchangé (« Pas encore disponible », contrôle désactivé, aucun succès peint). Tests : `construction-checks.spec.js`, `discovery-panel.spec.js` |
+| 3 | Le report n'était visible qu'après l'action | ✅ puis retiré | Annoncé d'entrée (⏳, classe `deferred`, bandeau `#profile-edit-deferred`) tant que le backend répondait 501. **Retiré** une fois retain / pin / profil branchés : plus de CSS `deferred`, les contrôles montrent le succès réel (Retenu ✓ / Épinglé ✓ / Modification effectuée) |
 | 10 | Un flux nuisances survivait à la sortie de l'onglet | ✅ | `js/app.js` : `_teardownTab(onglet quitté)` appelé depuis `switchTab` **et** depuis le routeur `handleHash` (retour navigateur, hash saisi à la main) ; il coupe le flux de `ConstructionView` et celui du panneau Plus. Les abandons par panneau (PR #73) et les contrôleurs par hôtel de Résa (`btn._nuisanceAbort`) sont inchangés : ils appartiennent à leurs boutons et restent hors de portée de `_teardownTab`. Test Playwright : le GET final n'est jamais émis après la sortie d'onglet (vérifié par mutation — retirer les deux appels fait tomber le test) |
 
 Constats 4, 5, 6, 7, 9 (backend), 8 et 11 (acceptés comme documentés) et 12 (dépôt de specs) : voir
