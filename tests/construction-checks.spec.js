@@ -130,6 +130,26 @@ test.describe('Construction ActionBar', () => {
     await expect(results).not.toContainText('QA :');
   });
 
+  test('un GET QA lent ne vole pas un panneau Admin déjà peint', async ({ page }) => {
+    const cached = JSON.parse(QA);
+    cached.cached = true;
+    cached.cachedAt = '2026-08-16T10:00:00Z';
+    await page.route('**/construction/qa', async route => {
+      if (route.request().method() === 'POST') return route.abort();
+      await new Promise(r => setTimeout(r, 800));
+      return route.fulfill(json(JSON.stringify(cached)));
+    });
+    await page.route('**/travel-profile', route => route.fulfill(json(PROFILE)));
+    await page.route('**/admin-check', route => route.fulfill(json(ADMIN)));
+    await openConstruction(page);
+    await page.locator('#action-admin').click();
+    const results = page.locator('#action-bar-results');
+    await expect(results).toContainText('Formalités administratives');
+    await page.waitForTimeout(1000);
+    await expect(results).toContainText('Formalités administratives');
+    await expect(results).not.toContainText('QA :');
+  });
+
   test('Admin : checklist par voyageur, pays et lien officiel', async ({ page }) => {
     await page.route('**/travel-profile', route => route.fulfill(json(PROFILE)));
     await page.route('**/admin-check', route => route.fulfill(json(ADMIN)));

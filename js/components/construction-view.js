@@ -834,15 +834,24 @@ var ConstructionView = (() => {
     paintQA(parsed);
   }
 
+  function resultsPaneIsEmpty() {
+    const el = document.getElementById('action-bar-results');
+    return !el || !el.innerHTML || !el.innerHTML.trim();
+  }
+
   /** GET du dernier QA. Silence si rien en cache ou enveloppe inconnue — ne
-   *  pas voler le panneau avec une erreur au simple ouverture d'onglet. */
+   *  pas voler le panneau avec une erreur au simple ouverture d'onglet.
+   *  Relit le panneau après le GET : un clic Admin/QA pendant l'aller-retour
+   *  ne doit pas se faire écraser. */
   async function hydrateQA(tripId) {
     if (!tripId || typeof API === 'undefined' || !API.getQA) return false;
     try {
       const res = await API.getQA(tripId);
-      if (!res || !res.ok || !res.data || res.data.cached === false) return false;
+      if (!res || !res.ok || !res.data || res.data.cached !== true) return false;
+      if (tripId !== _currentTripId || !resultsPaneIsEmpty()) return false;
       const parsed = ConstructionContract.parseQA(res.data);
       if (!parsed.ok) return false;
+      if (tripId !== _currentTripId || !resultsPaneIsEmpty()) return false;
       paintQA(parsed);
       return true;
     } catch (_) {
