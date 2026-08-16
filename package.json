@@ -6,7 +6,7 @@
   "scripts": {
     "build": "node scripts/build-bundles.mjs",
     "test": "npm run build && npx playwright test",
-    "test:unit": "node tests/store-api-contract.test.cjs && node tests/seed-merge.test.cjs && node tests/list-unit.test.cjs && node tests/list-sync-two-devices.test.cjs && node tests/tz-helpers.test.cjs && node tests/people-helpers.test.cjs && node tests/trip-groups.test.cjs && node tests/edge-intent.test.cjs && node tests/edge-prompt.test.cjs && node tests/leo-chat-factory.test.cjs && node tests/construction-contract.test.cjs && node tests/bundles.test.cjs && node tests/nginx-api-timeout.test.cjs",
+    "test:unit": "node tests/store-api-contract.test.cjs && node tests/seed-merge.test.cjs && node tests/list-unit.test.cjs && node tests/list-sync-two-devices.test.cjs && node tests/tz-helpers.test.cjs && node tests/people-helpers.test.cjs && node tests/trip-groups.test.cjs && node tests/edge-intent.test.cjs && node tests/edge-prompt.test.cjs && node tests/leo-chat-factory.test.cjs && node tests/construction-contract.test.cjs && node tests/hotel-card.test.cjs && node tests/bundles.test.cjs && node tests/nginx-api-timeout.test.cjs",
     "test:ui": "npx playwright test --ui",
     "test:headed": "npx playwright test --headed"
   },

@@ -209,9 +209,10 @@ var NuisanceStream = (() => {
    * chose devant la porte de l'hôtel et au centre de la ville qui l'entoure :
    * un verdict dont on ignore le point de mesure n'est pas exploitable.
    *
-   * - `addressSource: "hotel"` → adresse de l'hôtel réservé (le cas voulu)
-   * - `addressSource: "step"` + `addressNote` → repli sur le point d'étape, la
-   *   note dit pourquoi (hôtel non réservé, adresse introuvable, géocodage HS)
+   * - `addressSource: "hotel"` → adresse du seed (candidate / to_book / booked)
+   * - `addressSource: "guessed"` → point trouvé via le nom, à vérifier
+   * - `addressSource: "missing"` → pas de bâtiment : on réclame hotels[].addr
+   * - `addressSource: "step"` + `addressNote` → repli sur le point d'étape
    * - `step` sans note → simple lieu d'étape sans hébergement : rien à signaler
    */
   function addressHtml(loc, compact) {
@@ -225,12 +226,18 @@ var NuisanceStream = (() => {
         ? `<div style="font-size:.9em;color:var(--muted);margin:2px 0 2px 8px">${esc(txt)}</div>`
         : `<div class="nuisance-address">${esc(txt)}</div>`;
     }
-    if (note) {
-      // Repli assumé : la mesure ne vaut PAS pour l'adresse de l'hôtel.
-      const txt = `📍 ${note}`;
+    if (source === 'guessed') {
+      const txt = `📍 Adresse proposée (pas dans le seed)${addr ? ' : ' + addr : ''} — dites si ce n'est pas le bon bâtiment`;
       return compact
         ? `<div style="font-size:.9em;color:var(--warn,#e0a800);margin:2px 0 2px 8px">${esc(txt)}</div>`
-        : `<div class="nuisance-address nuisance-address-fallback">${esc(txt)}</div>`;
+        : `<div class="nuisance-address nuisance-address-fallback nuisance-address-guessed">${esc(txt)}</div>`;
+    }
+    if (source === 'missing' || note) {
+      const txt = `📍 ${note || "Adresse manquante : ajoutez hotels[].addr"}`;
+      const cls = source === 'missing' ? 'nuisance-address nuisance-address-missing' : 'nuisance-address nuisance-address-fallback';
+      return compact
+        ? `<div style="font-size:.9em;color:var(--warn,#e0a800);margin:2px 0 2px 8px">${esc(txt)}</div>`
+        : `<div class="${cls}">${esc(txt)}</div>`;
     }
     return '';
   }

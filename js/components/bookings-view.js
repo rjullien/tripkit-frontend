@@ -442,6 +442,41 @@ var BookingsView = (() => {
     return html;
   }
 
+  function hotelDict(tripData) {
+    const raw = tripData && tripData.hotels;
+    if (!raw) return {};
+    if (Array.isArray(raw)) {
+      const out = {};
+      raw.forEach(h => {
+        const id = h && (h.id || h.hotelId);
+        if (id) out[id] = h;
+      });
+      return out;
+    }
+    return raw;
+  }
+
+  function hotelsForDay(day, hotels) {
+    const out = [];
+    const seen = new Set();
+    const add = (id, data) => {
+      if (!id || seen.has(id) || !data || !data.name) return;
+      seen.add(id);
+      out.push({ id, data });
+    };
+    if (day.hotelId && day.hotelId !== '—' && day.hotelId !== '') {
+      add(day.hotelId, hotels[day.hotelId] || (typeof HotelCard !== 'undefined' ? HotelCard.fromDay(day, hotels) : null));
+    }
+    Object.entries(hotels).forEach(([id, h]) => {
+      if (!h || seen.has(id)) return;
+      const days = Array.isArray(h.dayNums) ? h.dayNums.map(Number) : [];
+      const sameDay = days.includes(Number(day.day));
+      const sameLoc = h.locationId && day.locationId && h.locationId === day.locationId;
+      if (sameDay || sameLoc) add(id, h);
+    });
+    return out;
+  }
+
   function renderHotelsSection(tripData) {
     if (!tripData || !tripData.days) return '';
 
@@ -449,7 +484,8 @@ var BookingsView = (() => {
       ? Store.getCurrentTripId() : null;
 
     let body = '';
-    const seen = new Set();
+    const shown = new Set();
+    const hotels = hotelDict(tripData);
     const days = tripData.days.map(d => (typeof DayHelpers !== 'undefined' ? DayHelpers.enrich(d, tripData) : d));
 
     // J0 = veille à la maison (pas de hotelId) — ancrage calendrier
@@ -459,15 +495,8 @@ var BookingsView = (() => {
       body += `<div class="booking-note" style="margin:0 0 12px">🏠 Préparation à la maison (veille du départ)</div>`;
     }
 
-    days.forEach(day => {
-      // Normalized seeds: only hotelId (ignore legacy day.hotel pollution from stale merges)
-      const key = day.hotelId;
-      if (!key || key === '—' || key === '') return;
-      if (seen.has(key)) return;
-      seen.add(key);
-      const hotelData = typeof HotelCard !== 'undefined' ? HotelCard.fromDay(day, tripData.hotels) : null;
-      if (!hotelData) return;
-
+    function appendHotelCard(day, hotelId, hotelData) {
+      if (typeof HotelCard === 'undefined' || !hotelData) return;
       let headerDate = day.date || '';
       if (hotelData.dates && hotelData.dates.checkin) {
         headerDate = formatDate(hotelData.dates.checkin);
@@ -478,15 +507,10 @@ var BookingsView = (() => {
       }
       if (!headerCity) headerCity = day.from || '';
 
-      // day.day is already the calendar day index (0 = veille, 1 = startDate)
       body += `<div class="booking-hotel-day">Jour ${day.day} · ${esc(headerDate)} — ${esc(headerCity)}</div>`;
       body += HotelCard.render(hotelData);
 
-      // Cible de l'analyse : l'HÔTEL d'abord, l'étape en repli. Le backend
-      // accepte les deux ids ; avec l'id d'hôtel, un hôtel réservé est analysé à
-      // sa propre adresse et deux hôtels d'une même ville ont enfin deux
-      // verdicts distincts (avant, l'id d'étape donnait le même à tous).
-      const targetId = key || day.locationId;
+      const targetId = hotelId || day.locationId;
       if (targetId) {
         body += `<div class="hotel-nuisance-action" style="margin:-4px 0 12px;padding:0 12px">
           <button class="btn btn-sm hotel-nuisance-btn" data-location-id="${esc(targetId)}" data-trip-id="${esc(tripId || '')}">
@@ -495,6 +519,26 @@ var BookingsView = (() => {
           <div class="hotel-nuisance-result" data-loc="${esc(targetId)}"></div>
         </div>`;
       }
+    }
+
+    days.forEach(day => {
+      const group = hotelsForDay(day, hotels).filter(h => !shown.has(h.id));
+      if (!group.length) return;
+      group.forEach(({ id, data }) => {
+        shown.add(id);
+        appendHotelCard(day, id, data);
+      });
+    });
+
+    // Construction: candidats / to_book not yet attached to a night.
+    const leftover = Object.entries(hotels).filter(([id, h]) => !shown.has(id) && h && h.name);
+    leftover.forEach(([id, h]) => {
+      shown.add(id);
+      const fakeDay = { day: (Array.isArray(h.dayNums) && h.dayNums[0]) || '—', date: '', to: h.city || '', locationId: h.locationId || '' };
+      const booked = typeof HotelCard !== 'undefined' && HotelCard.isBooked
+        ? HotelCard.isBooked(h)
+        : String(h.bookingStatus || '').toLowerCase() === 'booked' || h.booked === true;
+      if (!booked) appendHotelCard(fakeDay, id, h);
     });
 
     if (!body) return '';

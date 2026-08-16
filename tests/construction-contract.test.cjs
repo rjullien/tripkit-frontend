@@ -552,7 +552,7 @@ testAsync('une annulation volontaire ne peint rien', async () => {
 // au centre de sa ville. Le backend dit lequel des deux il a mesuré
 // (addressSource / addressUsed / addressNote) ; l'afficher n'est pas cosmétique.
 
-test("l'analyse à l'adresse de l'hôtel réservé est annoncée", () => {
+test("l'analyse à l'adresse de l'hôtel est annoncée", () => {
   const el = { innerHTML: '' };
   NuisanceStream.render(el, {
     results: [{
@@ -595,6 +595,41 @@ test("un lieu d'étape sans hôtel n'affiche aucun avertissement d'adresse", () 
     }],
   }, {});
   assert.ok(!el.innerHTML.includes('nuisance-address'), 'aucun bandeau superflu');
+});
+
+test('un point proposé via le nom est affiché pour pouvoir le contester', () => {
+  const el = { innerHTML: '' };
+  NuisanceStream.render(el, {
+    results: [{
+      locationId: 'toulouse',
+      hotelId: 'hotel-x',
+      locationName: 'Hôtel X',
+      addressSource: 'guessed',
+      addressUsed: 'Hôtel X, 12 rue Inventée, Toulouse',
+      verdict: 'MODERE',
+      categories: [],
+    }],
+  }, {});
+  assert.ok(el.innerHTML.includes('Adresse proposée'), 'proposition visible');
+  assert.ok(el.innerHTML.includes('12 rue Inventée'), 'le point trouvé est montré');
+  assert.ok(el.innerHTML.includes('nuisance-address-guessed'), 'visuellement distinct');
+});
+
+test("une adresse manquante est réclamée, pas mesurée en silence", () => {
+  const el = { innerHTML: '' };
+  NuisanceStream.render(el, {
+    results: [{
+      locationId: 'toulouse',
+      hotelId: 'hotel-x',
+      locationName: 'Hôtel X',
+      addressSource: 'missing',
+      addressNote: "pas d'adresse dans le seed, et « Hôtel X, Toulouse » n'a rien donné : ajoutez hotels[].addr",
+      verdict: 'INDETERMINE',
+      categories: [],
+    }],
+  }, {});
+  assert.ok(el.innerHTML.includes('hotels[].addr'), 'on réclame l\'adresse');
+  assert.ok(el.innerHTML.includes('nuisance-address-missing'), 'manque visuellement distinct');
 });
 
 test('filterLocation restreint par id d\'hôtel comme par id d\'étape', () => {
