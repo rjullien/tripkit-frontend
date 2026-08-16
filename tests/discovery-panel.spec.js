@@ -178,7 +178,7 @@ test.describe('Discovery panel', () => {
     await expect(results).not.toContainText('0 km');
   });
 
-  test('« Retenir » sur un endpoint 501 dit « pas encore disponible », jamais « Retenu »', async ({ page }) => {
+  test('« Retenir » sur un 200 peint « Retenu ✓ »', async ({ page }) => {
     await page.route(`**/api/trips/${TRIP_ID}/seed`, (route) => {
       const seed = JSON.parse(JSON.stringify(SEED));
       seed.trip.startDate = '2026-08-10';
@@ -232,9 +232,16 @@ test.describe('Discovery panel', () => {
     });
     await page.route(`**/api/trips/${TRIP_ID}/discovery/retain`, (route) =>
       route.fulfill({
-        status: 501,
+        status: 200,
         contentType: 'application/json',
-        body: JSON.stringify({ error: 'not_implemented', detail: "L'écriture dans le seed n'est pas encore branchée." }),
+        body: JSON.stringify({
+          activity: {
+            id: 'osm:9',
+            name: 'Village de marques',
+            theme: 'outlets',
+            bookingStatus: 'candidate',
+          },
+        }),
       }),
     );
 
@@ -245,13 +252,10 @@ test.describe('Discovery panel', () => {
     await expect(page.locator('#discovery-results')).toContainText('Village de marques');
 
     const retain = page.locator('.discovery-retain-btn').first();
-    await expect(retain).toHaveAttribute('title', /Pas encore branché/);
-    await expect(retain).toHaveClass(/deferred/);
-    await expect(retain).toContainText('⏳');
+    await expect(retain).toHaveText('Retenir');
+    await expect(retain).not.toHaveClass(/deferred/);
     await retain.click();
-    await expect(retain).toHaveText('Pas encore disponible');
+    await expect(retain).toHaveText('Retenu ✓');
     await expect(retain).toBeDisabled();
-    await expect(retain).toHaveAttribute('title', /pas encore branchée/);
-    await expect(page.locator('#discovery-results')).not.toContainText('Retenu');
   });
 });

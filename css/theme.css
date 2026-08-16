@@ -1939,6 +1939,7 @@ a:visited { color: var(--accent); }
 .admin-deadline, .admin-url { color: var(--muted); font-size: .92em; margin-top: 2px; }
 .nuisance-progress { color: var(--muted); }
 .nuisance-pin-wrap { margin-top: 8px; }
+.nuisance-pin-warn { color: var(--orange); font-size: .86em; margin: 6px 0 0; line-height: 1.35; }
 .hotel-nuisance-result:not(:empty) { margin-top: 6px; }
 .discovery-retain-btn.unavailable, .nuisance-pin-btn.unavailable { opacity: .6; }
 .profile-edit-status.unavailable { color: var(--orange); }

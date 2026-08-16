@@ -324,18 +324,20 @@ test.describe('Construction ActionBar', () => {
     await expect(results.locator('.nuisance-alts')).toContainText('Airbnb intérieur');
   });
 
-  // Le report d'une fonctionnalité doit se voir AVANT l'action : révéler « Pas
-  // encore disponible » seulement après le clic est honnête trop tard.
-  test('Épingler : indisponibilité annoncée avant le clic', async ({ page }) => {
+  test('Épingler : un 200 dit « Épinglé ✓ »', async ({ page }) => {
     await page.route('**/nuisance-check', route => route.fulfill(json(NUISANCE)));
+    await page.route('**/nuisance-check/pin', route => route.fulfill(json(
+      '{"lastQa":{"at":"2026-08-16T10:00:00Z","verdict":"WARNING","blockers":[]},"hotels":{"montreal":{"verdict":"MODERE"}}}')));
     await openConstruction(page);
 
     await page.locator('#action-nuisances').click();
     const pin = page.locator('#nuisance-pin-btn');
     await expect(pin).toBeVisible();
-    await expect(pin).toHaveAttribute('title', /Pas encore branché/);
-    await expect(pin).toHaveClass(/deferred/);
-    await expect(pin).toContainText('⏳');
+    await expect(pin).toHaveText('Épingler dans le seed');
+    await expect(pin).not.toHaveClass(/deferred/);
+    await pin.click();
+    await expect(pin).toHaveText('Épinglé ✓');
+    await expect(pin).toBeDisabled();
   });
 
   // Un flux nuisances abandonné continuait jusqu'à sa trame `done` puis allait
@@ -402,19 +404,18 @@ test.describe('Construction ActionBar', () => {
     expect(finalFetches, 'handleHash doit couper le flux comme switchTab').toBe(afterStart);
   });
 
-  test('Épingler : un 501 dit « pas encore disponible », jamais « Épinglé »', async ({ page }) => {
+  test('Épingler : seedPush en échec reste « Épinglé » avec l\'avertissement git', async ({ page }) => {
     await page.route('**/nuisance-check', route => route.fulfill(json(NUISANCE)));
     await page.route('**/nuisance-check/pin', route => route.fulfill(json(
-      '{"error":"not_implemented","detail":"L\'écriture dans le seed n\'est pas encore branchée."}', 501)));
+      '{"lastQa":{"verdict":"PASS","blockers":[]},"seedPush":{"ok":false,"error":"SHA conflict"}}')));
     await openConstruction(page);
 
     await page.locator('#action-nuisances').click();
     const pin = page.locator('#nuisance-pin-btn');
-    await expect(pin).toBeVisible();
     await pin.click();
-    await expect(pin).toHaveText('Pas encore disponible');
-    await expect(pin).toBeDisabled();
-    await expect(page.locator('#action-bar-results')).not.toContainText('Épinglé');
+    await expect(pin).toHaveText('Épinglé ✓');
+    await expect(page.locator('.nuisance-pin-warn')).toContainText('pas dans le repo seed');
+    await expect(page.locator('.nuisance-pin-warn')).toContainText('SHA conflict');
   });
 });
 
@@ -436,27 +437,42 @@ test.describe('Construction profil voyageur', () => {
     await expect(box).toContainText('parcs nationaux');
   });
 
-  test('demande de modification : un 501 ne peint aucun succès', async ({ page }) => {
+  test('demande de modification : un 202 + done peint le succès', async ({ page }) => {
     await page.route('**/travel-profile', route => route.fulfill(json(PROFILE)));
-    await page.route('**/travel-profile/request', route => route.fulfill(json(
-      '{"error":"not_implemented","detail":"Léo ne modifie pas encore le profil."}', 501)));
+    await page.route('**/travel-profile/request', route => route.fulfill(json('{"jobId":"job-profile-1"}', 202)));
+    await page.route('**/leo/jobs/job-profile-1/stream**', route => route.fulfill({
+      status: 200,
+      contentType: 'text/event-stream',
+      body: 'event: done\ndata: {"reply":"ok"}\n\n',
+    }));
     await openConstruction(page);
 
     await page.locator('#construction-ctx-edit').click();
-    // Annoncé d'entrée : on ne laisse pas l'utilisateur remplir le formulaire
-    // pour lui apprendre ensuite que la fonctionnalité n'existe pas.
-    await expect(page.locator('#profile-edit-deferred')).toContainText('Pas encore disponible');
-    await expect(page.locator('#profile-edit-deferred')).toContainText('rien ne sera enregistré');
-    await expect(page.locator('#profile-edit-submit')).toHaveAttribute('title', /Pas encore branché/);
+    await expect(page.locator('#profile-edit-deferred')).toHaveCount(0);
+    await expect(page.locator('#profile-edit-submit')).toHaveText('Envoyer à Léo');
     await page.locator('#profile-edit-target').selectOption('interests');
     await page.locator('#profile-edit-text').fill('Plus de musées');
     await page.locator('#profile-edit-submit').click();
 
     const status = page.locator('#profile-edit-status');
-    await expect(status).toContainText('Pas encore disponible');
-    await expect(status).toContainText('Léo ne modifie pas encore le profil.');
-    await expect(status).not.toContainText('Modification effectuée');
-    await expect(page.locator('#profile-edit-submit')).toBeDisabled();
+    await expect(status).toContainText('Modification effectuée');
+  });
+
+  test('demande de modification : un 503 est une erreur, pas « pas encore disponible »', async ({ page }) => {
+    await page.route('**/travel-profile', route => route.fulfill(json(PROFILE)));
+    await page.route('**/travel-profile/request', route => route.fulfill(json(
+      '{"error":"Léo (Hermes) n\'est pas configuré côté serveur","code":"missing_hermes_key"}', 503)));
+    await openConstruction(page);
+
+    await page.locator('#construction-ctx-edit').click();
+    await page.locator('#profile-edit-target').selectOption('interests');
+    await page.locator('#profile-edit-text').fill('Plus de musées');
+    await page.locator('#profile-edit-submit').click();
+
+    const status = page.locator('#profile-edit-status');
+    await expect(status).toContainText('Léo n\'est pas configuré');
+    await expect(status).not.toContainText('Pas encore disponible');
+    await expect(page.locator('#profile-edit-submit')).toBeEnabled();
   });
 });
 
