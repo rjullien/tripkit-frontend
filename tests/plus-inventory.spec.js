@@ -60,9 +60,20 @@ test.describe('Plus inventory — Polarsteps visible', () => {
   });
 
   test('les autres landmarks Plus sont toujours là', async ({ page }) => {
+    await page.route('**/publish/sources', (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify([{
+          sourceId: 'jullien', repo: 'rjullien/tripkit-seeds', ref: 'main', enabled: true,
+          family: 'jullien', tripId: 'quebec-2026', seedPath: 'quebec-2026.js',
+          title: 'Québec 2026', operation: 'update', inProd: true,
+        }]),
+      }),
+    );
     await openPlus(page);
     await expect(page.locator('#plus-trip-selector')).not.toBeEmpty();
-    await expect(page.locator('#plus-publish-panel')).toContainText('Publier');
+    await expect(page.locator('#plus-publish-panel')).toContainText('Publier depuis git', { timeout: 8000 });
     await expect(page.locator('#plus-leo-chat-stream')).toContainText('Léo');
     await expect(page.locator('#plus-experimental-head')).toContainText('Expérimental');
     await expect(page.locator('#plus-content')).toContainText('Infos app');
