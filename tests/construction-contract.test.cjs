@@ -67,6 +67,11 @@ function test(name, fn) {
   catch (e) { console.log(`  \u274c ${name}\n     ${e.message}`); fail++; process.exitCode = 1; }
 }
 
+// Les cas qui traversent le flux SSE sont asynchrones : ils sont collectés ici
+// et joués après les tests synchrones, avant le récapitulatif.
+const asyncTests = [];
+function testAsync(name, fn) { asyncTests.push([name, fn]); }
+
 console.log('\n\u2500\u2500 Construction contract (golden fixtures) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500');
 
 // ── Les cinq fixtures sont présentes ───────────────────────────────────────────
@@ -464,4 +469,63 @@ test('statusBadge : un statut inconnu rend ❓, jamais ✅', () => {
   assert.strictEqual(ConstructionView.statusBadge(''), '❓');
 });
 
-console.log(`\n${pass} tests passed${fail ? `, ${fail} failed` : ''}\n`);
+// ── Flux SSE : job en échec vs résultats déjà enregistrés ──────────────────────
+//
+// Le backend interroge Overpass séquentiellement et enregistre chaque lieu au
+// fur et à mesure. Un job qui casse en route (temps imparti, redémarrage) laisse
+// donc des résultats partiels en base : les jeter pour n'afficher qu'une erreur
+// perdait du travail déjà payé en requêtes Overpass.
+
+function streamOf(frames) {
+  return function () {
+    return (async function* () { for (const f of frames) yield f; })();
+  };
+}
+
+async function withAPI(overrides, fn) {
+  const saved = {};
+  Object.keys(overrides).forEach(k => { saved[k] = API[k]; API[k] = overrides[k]; });
+  try { await fn(); } finally { Object.keys(saved).forEach(k => { API[k] = saved[k]; }); }
+}
+
+testAsync("un job en échec affiche les résultats partiels déjà enregistrés", async () => {
+  const el = { innerHTML: '' };
+  await withAPI({
+    leoJobStream: streamOf([{ event: 'error', data: { code: 'timeout', error: 'Analyse trop longue.' } }]),
+    getNuisanceCheck: () => Promise.resolve({ ok: true, status: 200, data: fixture('nuisance-check.json') }),
+  }, () => NuisanceStream.subscribe(el, { jobId: 'j1', tripId: 'trip-1' }));
+
+  assert.ok(el.innerHTML.includes('Analyse trop longue.'), "l'erreur reste affichée");
+  assert.ok(el.innerHTML.includes('Résultats partiels'), 'le caractère partiel est dit');
+  assert.ok(el.innerHTML.includes('Montréal Vieux-Port'), 'les lieux déjà analysés sont rendus');
+  assert.ok(!/Nuisances faibles/.test(el.innerHTML), 'aucun verdict rassurant inventé');
+});
+
+testAsync("un job en échec sans résultat enregistré n'affiche que l'erreur", async () => {
+  const el = { innerHTML: '' };
+  await withAPI({
+    leoJobStream: streamOf([{ event: 'error', data: { code: 'network', error: 'Connexion perdue.' } }]),
+    getNuisanceCheck: () => Promise.resolve({ ok: false, status: 0, data: null, error: 'stub' }),
+  }, () => NuisanceStream.subscribe(el, { jobId: 'j1', tripId: 'trip-1' }));
+
+  assert.ok(el.innerHTML.includes('Connexion perdue.'));
+  assert.ok(!/Résultats partiels/.test(el.innerHTML));
+});
+
+testAsync('une annulation volontaire ne peint rien', async () => {
+  const el = { innerHTML: 'intact' };
+  await withAPI({
+    leoJobStream: streamOf([{ event: 'error', data: { code: 'cancelled', error: 'Annulé.' } }]),
+    getNuisanceCheck: () => { throw new Error('ne doit pas être appelé'); },
+  }, () => NuisanceStream.subscribe(el, { jobId: 'j1', tripId: 'trip-1' }));
+
+  assert.strictEqual(el.innerHTML, 'intact');
+});
+
+(async () => {
+  for (const [name, fn] of asyncTests) {
+    try { await fn(); console.log(`  \u2705 ${name}`); pass++; }
+    catch (e) { console.log(`  \u274c ${name}\n     ${e.message}`); fail++; process.exitCode = 1; }
+  }
+  console.log(`\n${pass} tests passed${fail ? `, ${fail} failed` : ''}\n`);
+})();

@@ -200,6 +200,35 @@ var NuisanceStream = (() => {
   // ── Abonnement SSE ──────────────────────────────────────────────────────────
 
   /**
+   * Affiche l'erreur, mais pas au prix du travail déjà fait : le backend
+   * interroge Overpass lieu par lieu et enregistre chaque résultat au fur et à
+   * mesure, donc un job qui casse en route (temps imparti dépassé, redémarrage
+   * du pod) laisse des résultats partiels lisibles en base. On les récupère et
+   * on les affiche SOUS l'erreur — jamais à la place, l'analyse reste incomplète.
+   */
+  async function paintPartialOrError(el, opts, msg) {
+    const o = opts || {};
+    const compact = !!o.compact;
+    try {
+      const stored = await API.getNuisanceCheck(o.tripId);
+      if (aborted(o.signal)) return;
+      if (stored && stored.ok) {
+        let parsed = ConstructionContract.parseNuisance(stored.data);
+        if (parsed.ok && o.locationId) parsed = filterLocation(parsed, o.locationId);
+        if (parsed.ok && parsed.locations.length) {
+          paint(el, errorHtml(msg + ' Résultats partiels ci-dessous.', compact) + resultsHtml(parsed, compact));
+          if (typeof o.onRendered === 'function') o.onRendered(parsed);
+          return;
+        }
+      }
+    } catch (_) {
+      // Rien de récupérable : on s'en tient à l'erreur.
+    }
+    if (aborted(o.signal)) return;
+    paint(el, errorHtml(msg, compact));
+  }
+
+  /**
    * Suit un job d'analyse jusqu'à sa trame `done`, puis récupère et affiche le
    * résultat définitif. `signal` (obligatoire côté appelant) coupe tout écriture
    * dans le DOM dès que l'appelant a abandonné.
@@ -227,7 +256,7 @@ var NuisanceStream = (() => {
         if (frame.event === 'error') {
           // Une annulation volontaire n'est pas une erreur à afficher.
           if ((frame.data && frame.data.code === 'cancelled') || aborted(signal)) return;
-          paint(el, errorHtml((frame.data && frame.data.error) || "Erreur lors de l'analyse", compact));
+          await paintPartialOrError(el, o, (frame.data && frame.data.error) || "Erreur lors de l'analyse");
           return;
         }
 
@@ -257,5 +286,5 @@ var NuisanceStream = (() => {
     return Promise.resolve();
   }
 
-  return { render, subscribe, start, verdictLabel, filterLocation };
+  return { render, subscribe, start, verdictLabel, filterLocation, paintPartialOrError };
 })();
