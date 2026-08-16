@@ -94,6 +94,42 @@ test.describe('Construction ActionBar', () => {
     await expect(page.locator('#action-bar-results .action-result-ok')).toContainText('Aucun problème détecté');
   });
 
+  test('QA : le dernier résultat revient en ouvrant l’onglet', async ({ page }) => {
+    let posts = 0;
+    const cached = JSON.parse(QA);
+    cached.cached = true;
+    cached.cachedAt = '2026-08-16T10:00:00Z';
+    await page.route('**/construction/qa', route => {
+      if (route.request().method() === 'POST') {
+        posts++;
+        return route.fulfill(json(QA));
+      }
+      return route.fulfill(json(JSON.stringify(cached)));
+    });
+    await openConstruction(page);
+    await expect(page.locator('#action-bar-results .action-results-header')).toContainText('QA : 2 problèmes');
+    await expect(page.locator('#action-bar-results .action-results-header')).toContainText('phase 2');
+    expect(posts, 'ouvrir l’onglet ne doit pas relancer le POST QA').toBe(0);
+  });
+
+  test('QA en cache ne vole pas un hydrate nuisances', async ({ page }) => {
+    const cached = JSON.parse(QA);
+    cached.cached = true;
+    cached.cachedAt = '2026-08-16T10:00:00Z';
+    await page.route('**/construction/qa', route => {
+      if (route.request().method() === 'POST') return route.abort();
+      return route.fulfill(json(JSON.stringify(cached)));
+    });
+    await page.route('**/nuisance-check', route => {
+      if (route.request().method() === 'GET') return route.fulfill(json(NUISANCE));
+      return route.fulfill(json('{"jobId":"job-should-not-start"}', 202));
+    });
+    await openConstruction(page);
+    const results = page.locator('#action-bar-results');
+    await expect(results.locator('.nuisance-verdict')).toContainText('Analyse incomplète');
+    await expect(results).not.toContainText('QA :');
+  });
+
   test('Admin : checklist par voyageur, pays et lien officiel', async ({ page }) => {
     await page.route('**/travel-profile', route => route.fulfill(json(PROFILE)));
     await page.route('**/admin-check', route => route.fulfill(json(ADMIN)));

@@ -803,6 +803,19 @@ var ConstructionView = (() => {
     showResults(`<div class="construction-error unrecognized-payload">Réponse inattendue du serveur : impossible d'afficher ${esc(what)}.</div>`);
   }
 
+  function paintQA(parsed) {
+    if (!parsed.violations.length) {
+      showResults(`<div class="action-result-ok">Aucun problème détecté</div>`);
+      return;
+    }
+    const n = parsed.violations.length;
+    let html = '<div class="action-results-qa">';
+    html += `<div class="action-results-header">QA : ${n} problème${n > 1 ? 's' : ''}${parsed.phase !== null ? ` (phase ${parsed.phase})` : ''}</div>`;
+    html += violationsHtml(parsed.violations);
+    html += '</div>';
+    showResults(html);
+  }
+
   async function handleQA(tripId) {
     setButtonLoading('action-qa', true);
     const res = await API.runQA(tripId);
@@ -818,18 +831,23 @@ var ConstructionView = (() => {
       showUnrecognized('le résultat QA');
       return;
     }
+    paintQA(parsed);
+  }
 
-    if (!parsed.violations.length) {
-      showResults(`<div class="action-result-ok">Aucun problème détecté</div>`);
-      return;
+  /** GET du dernier QA. Silence si rien en cache ou enveloppe inconnue — ne
+   *  pas voler le panneau avec une erreur au simple ouverture d'onglet. */
+  async function hydrateQA(tripId) {
+    if (!tripId || typeof API === 'undefined' || !API.getQA) return false;
+    try {
+      const res = await API.getQA(tripId);
+      if (!res || !res.ok || !res.data || res.data.cached === false) return false;
+      const parsed = ConstructionContract.parseQA(res.data);
+      if (!parsed.ok) return false;
+      paintQA(parsed);
+      return true;
+    } catch (_) {
+      return false;
     }
-
-    const n = parsed.violations.length;
-    let html = '<div class="action-results-qa">';
-    html += `<div class="action-results-header">QA : ${n} problème${n > 1 ? 's' : ''}${parsed.phase !== null ? ` (phase ${parsed.phase})` : ''}</div>`;
-    html += violationsHtml(parsed.violations);
-    html += '</div>';
-    showResults(html);
   }
 
   // ── Nuisances check ──
@@ -899,7 +917,7 @@ var ConstructionView = (() => {
 
     btn.textContent = 'Épinglé ✓';
     btn.disabled = true;
-    btn.classList.remove('deferred', 'unavailable');
+    btn.classList.remove('unavailable');
     const seedPush = res.data && res.data.seedPush;
     const wrap = btn.closest('.nuisance-pin-wrap') || btn.parentNode;
     const old = wrap && wrap.querySelector && wrap.querySelector('.nuisance-pin-warn');
@@ -1252,13 +1270,21 @@ var ConstructionView = (() => {
     mountConstructionLeo('construction:ideation');
     const resumed = typeof NuisanceStream !== 'undefined' && NuisanceStream.resumeIfNeeded
       && NuisanceStream.resumeIfNeeded();
-    if (!resumed && typeof NuisanceStream !== 'undefined' && NuisanceStream.hydrate) {
-      const resultsEl = document.getElementById('action-bar-results');
-      NuisanceStream.hydrate(resultsEl, {
-        tripId,
-        onRendered: () => appendPinButton(resultsEl),
-      });
-    }
+    const resultsEl = document.getElementById('action-bar-results');
+    (async () => {
+      if (resumed) return;
+      let nuisancePainted = false;
+      if (typeof NuisanceStream !== 'undefined' && NuisanceStream.hydrate) {
+        const parsed = await NuisanceStream.hydrate(resultsEl, {
+          tripId,
+          onRendered: () => appendPinButton(resultsEl),
+        });
+        nuisancePainted = !!(parsed && parsed.locations && parsed.locations.length);
+      }
+      if (nuisancePainted) return;
+      if (resultsEl && resultsEl.innerHTML && resultsEl.innerHTML.trim()) return;
+      await hydrateQA(tripId);
+    })();
   }
 
   return { render, handleNuisances, handleAdmin, handleSante, abortNuisanceStream, leoModeForPhase, statusBadge };
