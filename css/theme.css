@@ -1830,6 +1830,9 @@ a:visited { color: var(--accent); }
 .nuisance-cat-unavailable { color: var(--muted); }
 .nuisance-level, .nuisance-count, .nuisance-distance { color: var(--muted); }
 .nuisance-detail, .nuisance-alts { color: var(--muted); font-size: .92em; }
+/* Point de mesure : à l'adresse de l'hôtel réservé, ou repli sur l'étape. */
+.nuisance-address { color: var(--muted); font-size: .88em; margin-bottom: 4px; }
+.nuisance-address-fallback { color: #ffcc80; }
 .nuisance-recommendation, .nuisance-reco {
   font-size: .85em; line-height: 1.5; margin-top: 8px;
   padding: 8px 12px; border-radius: 8px;

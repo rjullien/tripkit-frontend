@@ -96,6 +96,37 @@ var NuisanceStream = (() => {
     return html;
   }
 
+  /**
+   * Dit OÙ la mesure a été prise. « Trains à 76 m » ne veut pas dire la même
+   * chose devant la porte de l'hôtel et au centre de la ville qui l'entoure :
+   * un verdict dont on ignore le point de mesure n'est pas exploitable.
+   *
+   * - `addressSource: "hotel"` → adresse de l'hôtel réservé (le cas voulu)
+   * - `addressSource: "step"` + `addressNote` → repli sur le point d'étape, la
+   *   note dit pourquoi (hôtel non réservé, adresse introuvable, géocodage HS)
+   * - `step` sans note → simple lieu d'étape sans hébergement : rien à signaler
+   */
+  function addressHtml(loc, compact) {
+    const source = String(loc.addressSource || '');
+    const note = loc.addressNote || '';
+    const addr = loc.addressUsed || '';
+
+    if (source === 'hotel') {
+      const txt = `📍 Analysé à l'adresse de l'hôtel${addr ? ' : ' + addr : ''}`;
+      return compact
+        ? `<div style="font-size:.9em;color:var(--muted);margin:2px 0 2px 8px">${esc(txt)}</div>`
+        : `<div class="nuisance-address">${esc(txt)}</div>`;
+    }
+    if (note) {
+      // Repli assumé : la mesure ne vaut PAS pour l'adresse de l'hôtel.
+      const txt = `📍 ${note}`;
+      return compact
+        ? `<div style="font-size:.9em;color:var(--warn,#e0a800);margin:2px 0 2px 8px">${esc(txt)}</div>`
+        : `<div class="nuisance-address nuisance-address-fallback">${esc(txt)}</div>`;
+    }
+    return '';
+  }
+
   function resultsHtml(parsed, compact) {
     const wrapOpen = compact ? `<div style="font-size:.82em">` : `<div class="action-results-nuisance">`;
     let html = wrapOpen;
@@ -125,6 +156,8 @@ var NuisanceStream = (() => {
         ? `<div style="margin-top:6px;font-weight:600">${esc(head)}</div>`
         : `<div class="nuisance-location"><div class="nuisance-loc-name">${esc(head)}</div>`;
 
+      html += addressHtml(loc, compact);
+
       const cats = Array.isArray(loc.categories) ? loc.categories : [];
       cats.forEach(cat => { html += categoryHtml(cat, compact); });
 
@@ -141,10 +174,16 @@ var NuisanceStream = (() => {
     return html;
   }
 
-  /** Restreint un résultat à un hébergement (bouton par hôtel dans Résa). */
-  function filterLocation(parsed, locationId) {
+  /**
+   * Restreint un résultat à un hébergement (bouton par hôtel dans Résa).
+   * `id` peut être un id d'hôtel ou un id d'étape : le bouton envoie l'id
+   * d'hôtel quand il en a un, et l'historique de l'app envoie l'id d'étape.
+   */
+  function filterLocation(parsed, id) {
     const locations = parsed.locations.filter(l =>
-      (l.locationId || '') === locationId || (l.locationName || l.name || '') === locationId);
+      (l.hotelId || '') === id
+      || (l.locationId || '') === id
+      || (l.locationName || l.name || '') === id);
     const verdict = ConstructionContract.worstNuisanceVerdict(locations.map(l => l.verdict));
     const failed = [];
     let incomplete = false;

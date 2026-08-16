@@ -479,13 +479,17 @@ var BookingsView = (() => {
       body += `<div class="booking-hotel-day">Jour ${day.day} · ${esc(headerDate)} — ${esc(headerCity)}</div>`;
       body += HotelCard.render(hotelData);
 
-      const locId = day.locationId || key;
-      if (locId) {
+      // Cible de l'analyse : l'HÔTEL d'abord, l'étape en repli. Le backend
+      // accepte les deux ids ; avec l'id d'hôtel, un hôtel réservé est analysé à
+      // sa propre adresse et deux hôtels d'une même ville ont enfin deux
+      // verdicts distincts (avant, l'id d'étape donnait le même à tous).
+      const targetId = key || day.locationId;
+      if (targetId) {
         body += `<div class="hotel-nuisance-action" style="margin:-4px 0 12px;padding:0 12px">
-          <button class="btn btn-sm hotel-nuisance-btn" data-location-id="${esc(locId)}" data-trip-id="${esc(tripId || '')}">
+          <button class="btn btn-sm hotel-nuisance-btn" data-location-id="${esc(targetId)}" data-trip-id="${esc(tripId || '')}">
             ⚠️ Nuisances
           </button>
-          <div class="hotel-nuisance-result" data-loc="${esc(locId)}"></div>
+          <div class="hotel-nuisance-result" data-loc="${esc(targetId)}"></div>
         </div>`;
       }
     });

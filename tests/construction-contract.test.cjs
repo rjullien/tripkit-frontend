@@ -522,6 +522,82 @@ testAsync('une annulation volontaire ne peint rien', async () => {
   assert.strictEqual(el.innerHTML, 'intact');
 });
 
+
+// ── Point de mesure : adresse de l'hôtel réservé vs point d'étape ─────────────
+//
+// « Trains à 76 m » ne veut pas dire la même chose devant la porte de l'hôtel et
+// au centre de sa ville. Le backend dit lequel des deux il a mesuré
+// (addressSource / addressUsed / addressNote) ; l'afficher n'est pas cosmétique.
+
+test("l'analyse à l'adresse de l'hôtel réservé est annoncée", () => {
+  const el = { innerHTML: '' };
+  NuisanceStream.render(el, {
+    results: [{
+      locationId: 'toulouse',
+      hotelId: 'hotel-matabiau',
+      locationName: 'Hôtel Matabiau',
+      addressSource: 'hotel',
+      addressUsed: '64 Bd Pierre Semard, Toulouse',
+      verdict: 'ELEVE',
+      categories: [{ category: 'trains', level: 'ELEVE', emoji: '🚂', distance: 76 }],
+    }],
+  }, {});
+  assert.ok(el.innerHTML.includes("adresse de l'hôtel"), 'point de mesure annoncé');
+  assert.ok(el.innerHTML.includes('64 Bd Pierre Semard'), 'adresse réellement analysée');
+});
+
+test('un repli sur le point d\'étape est signalé, pas masqué', () => {
+  const el = { innerHTML: '' };
+  NuisanceStream.render(el, {
+    results: [{
+      locationId: 'toulouse',
+      hotelId: 'hotel-matabiau',
+      locationName: 'Hôtel Matabiau',
+      addressSource: 'step',
+      addressNote: "adresse introuvable (64 Bd Pierre Semard) : analyse au point d'étape",
+      verdict: 'FAIBLE',
+      categories: [{ category: 'trains', level: 'FAIBLE', emoji: '🚂' }],
+    }],
+  }, {});
+  assert.ok(el.innerHTML.includes('adresse introuvable'), 'la raison du repli est affichée');
+  assert.ok(el.innerHTML.includes('nuisance-address-fallback'), 'repli visuellement distinct');
+});
+
+test("un lieu d'étape sans hôtel n'affiche aucun avertissement d'adresse", () => {
+  const el = { innerHTML: '' };
+  NuisanceStream.render(el, {
+    results: [{
+      locationId: 'nice', locationName: 'Nice', addressSource: 'step',
+      verdict: 'FAIBLE', categories: [],
+    }],
+  }, {});
+  assert.ok(!el.innerHTML.includes('nuisance-address'), 'aucun bandeau superflu');
+});
+
+test('filterLocation restreint par id d\'hôtel comme par id d\'étape', () => {
+  const payload = {
+    results: [
+      { locationId: 'toulouse', hotelId: 'hotel-a', locationName: 'Hôtel A', verdict: 'ELEVE', categories: [] },
+      { locationId: 'toulouse', hotelId: 'hotel-b', locationName: 'Hôtel B', verdict: 'FAIBLE', categories: [] },
+    ],
+  };
+  const parsed = ConstructionContract.parseNuisance(payload);
+
+  // Deux hôtels d'une même ville = deux verdicts distincts, sélectionnables.
+  const a = NuisanceStream.filterLocation(parsed, 'hotel-a');
+  assert.strictEqual(a.locations.length, 1);
+  assert.strictEqual(a.verdict, 'ELEVE');
+  const b = NuisanceStream.filterLocation(parsed, 'hotel-b');
+  assert.strictEqual(b.locations.length, 1);
+  assert.strictEqual(b.verdict, 'FAIBLE');
+
+  // L'id d'étape reste accepté (ce que l'app envoie historiquement).
+  const step = NuisanceStream.filterLocation(parsed, 'toulouse');
+  assert.strictEqual(step.locations.length, 2);
+  assert.strictEqual(step.verdict, 'ELEVE', 'le pire des deux');
+});
+
+
 (async () => {
   for (const [name, fn] of asyncTests) {
     try { await fn(); console.log(`  \u2705 ${name}`); pass++; }
