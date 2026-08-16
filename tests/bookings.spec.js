@@ -81,12 +81,12 @@ test.describe('Résa — flux nuisances par hôtel', () => {
     const finalFetches = await stubSlowHotelNuisanceStream(page);
 
     await startHotelNuisanceStream(page);
-    expect(finalFetches()).toBe(0);
+    const afterStart = finalFetches();
 
     await page.locator('.bottom-nav button[data-tab="programme"]').click();
     await page.waitForTimeout(2200);
 
-    expect(finalFetches(), "un flux d'hôtel abandonné ne doit plus aller chercher le résultat final").toBe(0);
+    expect(finalFetches(), "un flux d'hôtel abandonné ne doit plus aller chercher le résultat final").toBe(afterStart);
   });
 
   test('un ré-affichage sur place reprend le job sans erreur de connexion', async ({ page }) => {

@@ -486,13 +486,13 @@ var NuisanceStream = (() => {
    * No-op si le panneau n'est pas à l'écran (on ne repeint pas un onglet caché).
    */
   function resumeIfNeeded() {
-    if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
+    if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return false;
     const saved = readJob();
-    if (!saved || !saved.jobId || !saved.ctx) return;
-    if (!panelVisible(saved.ctx)) return;
+    if (!saved || !saved.jobId || !saved.ctx) return false;
+    if (!panelVisible(saved.ctx)) return false;
     const el = targetEl(saved.ctx);
-    if (!el) return;
-    if (_following) return;
+    if (!el) return false;
+    if (_following) return true;
     _jobId = saved.jobId;
     _lastSeq = saved.seq || 0;
     _ctx = saved.ctx;
@@ -502,10 +502,59 @@ var NuisanceStream = (() => {
       after: saved.seq || 0,
     });
     subscribe(el, o).finally(() => { _following = false; });
+    return true;
+  }
+
+  /**
+   * Recharge le dernier résultat persisté (construction_checks). Un job
+   * terminé n'est plus dans sessionStorage : sans ça, quitter l'onglet
+   * ou un refreshFromBackend (touchTrip en fin d'analyse) vide le panneau.
+   * No-op s'il n'y a rien en base — on ne peint pas « aucun hébergement ».
+   */
+  async function hydrate(el, opts) {
+    const o = opts || {};
+    if (!el || !o.tripId || typeof API === 'undefined' || !API.getNuisanceCheck) return null;
+    if (aborted(o.signal)) return null;
+    try {
+      const stored = await API.getNuisanceCheck(o.tripId);
+      if (aborted(o.signal)) return null;
+      if (!stored || !stored.ok) return null;
+      let parsed = ConstructionContract.parseNuisance(stored.data);
+      if (parsed.ok && o.locationId) parsed = filterLocation(parsed, o.locationId);
+      if (!parsed.ok || !parsed.locations.length) return null;
+      paint(el, resultsHtml(parsed, !!o.compact));
+      if (typeof o.onRendered === 'function') o.onRendered(parsed);
+      return parsed;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /**
+   * Une GET pour tout le voyage, puis peinture de chaque carte hôtel.
+   */
+  async function hydrateHotels(root, tripId) {
+    if (!root || !tripId || typeof API === 'undefined' || !API.getNuisanceCheck) return;
+    const nodes = root.querySelectorAll && root.querySelectorAll('.hotel-nuisance-result[data-loc]');
+    if (!nodes || !nodes.length) return;
+    try {
+      const stored = await API.getNuisanceCheck(tripId);
+      if (!stored || !stored.ok) return;
+      const parsed = ConstructionContract.parseNuisance(stored.data);
+      if (!parsed.ok || !parsed.locations.length) return;
+      nodes.forEach((el) => {
+        const id = el.getAttribute('data-loc');
+        if (!id) return;
+        const one = filterLocation(parsed, id);
+        if (!one.locations.length) return;
+        paint(el, resultsHtml(one, true));
+      });
+    } catch (_) {}
   }
 
   return {
     render, subscribe, start, resumeIfNeeded, stopFollow, clearJob,
+    hydrate, hydrateHotels,
     verdictLabel, filterLocation, paintPartialOrError,
   };
 })();

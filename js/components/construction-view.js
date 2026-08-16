@@ -262,6 +262,15 @@ var ConstructionView = (() => {
     return c && typeof c === 'object' ? c : null;
   }
 
+  function rememberConstruction(tripId, data) {
+    if (!tripId || !data || typeof Store === 'undefined' || !Store.getTripData || !Store.setTripData) return;
+    const td = Store.getTripData(tripId);
+    if (!td) return;
+    td.trip = td.trip || {};
+    td.trip.construction = Object.assign({}, td.trip.construction, data);
+    Store.setTripData(tripId, td);
+  }
+
   async function loadPhaseBar(tripId) {
     const el = document.getElementById('construction-phase-bar');
     if (!el) return;
@@ -278,6 +287,7 @@ var ConstructionView = (() => {
       return;
     }
     const data = Object.assign({}, local || {}, res.data || {});
+    rememberConstruction(tripId, data);
     el.outerHTML = renderPhaseBarContent(data);
     bindPhaseNext(tripId, data);
     mountConstructionLeo(leoModeForPhase(currentPhaseOf(data)));
@@ -293,7 +303,7 @@ var ConstructionView = (() => {
       btn.textContent = 'Transition...';
       const res = await API.transitionPhase(tripId, nextPhase, false);
       if (res.ok) {
-        // Reload phase bar with updated data
+        if (res.data) rememberConstruction(tripId, res.data);
         const container = document.getElementById('construction-phase-bar');
         if (container) {
           container.outerHTML = renderPhaseBarLoading();
@@ -809,6 +819,7 @@ var ConstructionView = (() => {
 
   function appendPinButton(el) {
     if (!el) return;
+    if (el.querySelector && el.querySelector('#nuisance-pin-btn')) return;
     el.insertAdjacentHTML('beforeend',
       `<div class="nuisance-pin-wrap"><button type="button" class="btn btn-accent nuisance-pin-btn deferred" id="nuisance-pin-btn"
         title="${DEFERRED_HINT}">${PIN_LABEL}</button></div>`);
@@ -1207,8 +1218,14 @@ var ConstructionView = (() => {
     loadTravelerContext(tripId);
 
     mountConstructionLeo('construction:ideation');
-    if (typeof NuisanceStream !== 'undefined' && NuisanceStream.resumeIfNeeded) {
-      NuisanceStream.resumeIfNeeded();
+    const resumed = typeof NuisanceStream !== 'undefined' && NuisanceStream.resumeIfNeeded
+      && NuisanceStream.resumeIfNeeded();
+    if (!resumed && typeof NuisanceStream !== 'undefined' && NuisanceStream.hydrate) {
+      const resultsEl = document.getElementById('action-bar-results');
+      NuisanceStream.hydrate(resultsEl, {
+        tripId,
+        onRendered: () => appendPinButton(resultsEl),
+      });
     }
   }
 

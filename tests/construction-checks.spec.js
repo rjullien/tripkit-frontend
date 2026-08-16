@@ -297,6 +297,18 @@ test.describe('Construction ActionBar', () => {
     await expect(results).not.toContainText('Aucune nuisance');
   });
 
+  test('Nuisances : le dernier résultat revient en ouvrant l’onglet', async ({ page }) => {
+    await page.route('**/nuisance-check', route => {
+      if (route.request().method() === 'GET') return route.fulfill(json(NUISANCE));
+      return route.fulfill(json('{"jobId":"job-should-not-start"}', 202));
+    });
+    await openConstruction(page);
+    const results = page.locator('#action-bar-results');
+    await expect(results.locator('.nuisance-verdict')).toContainText('Analyse incomplète');
+    await expect(results).toContainText('Montréal Vieux-Port');
+    await expect(results.locator('#nuisance-pin-btn')).toBeVisible();
+  });
+
   // Lot #76 : la fixture d'or a recommendation vide et alternatives null.
   test('Nuisances : recommandation Bifrost et alternatives', async ({ page }) => {
     const payload = JSON.parse(NUISANCE);
@@ -350,12 +362,12 @@ test.describe('Construction ActionBar', () => {
     await openConstruction(page);
     await page.locator('#action-nuisances').click();
     await expect(page.locator('#action-bar-results .nuisance-progress')).toBeVisible();
-    expect(finalFetches).toBe(0);
+    const afterStart = finalFetches;
 
     await page.locator('.bottom-nav button[data-tab="programme"]').click();
     await page.waitForTimeout(2200);
 
-    expect(finalFetches, 'le flux abandonné ne doit plus aller chercher le résultat final').toBe(0);
+    expect(finalFetches, 'le flux abandonné ne doit plus aller chercher le résultat final').toBe(afterStart);
   });
 
   // L'autre porte de sortie : le routeur. Le clic sur la nav passe par
@@ -380,13 +392,14 @@ test.describe('Construction ActionBar', () => {
     await openConstruction(page);
     await page.locator('#action-nuisances').click();
     await expect(page.locator('#action-bar-results .nuisance-progress')).toBeVisible();
+    const afterStart = finalFetches;
 
     // Retour navigateur : aucun onclick de la nav n'est joué, seul hashchange l'est.
     await page.goBack();
     await expect(page.locator('#tab-programme')).toHaveClass(/active/);
     await page.waitForTimeout(2200);
 
-    expect(finalFetches, 'handleHash doit couper le flux comme switchTab').toBe(0);
+    expect(finalFetches, 'handleHash doit couper le flux comme switchTab').toBe(afterStart);
   });
 
   test('Épingler : un 501 dit « pas encore disponible », jamais « Épinglé »', async ({ page }) => {
@@ -493,5 +506,28 @@ test.describe('Construction PhaseBar', () => {
     await openConstruction(page);
     await page.locator('#construction-phase-next').click();
     await expect(page.locator('#phase-transition-error')).toContainText('réservée à un administrateur');
+  });
+
+  test('Phase suivante écrit la phase dans le Store', async ({ page }) => {
+    let phase = 1;
+    await page.route('**/construction', route => {
+      const url = route.request().url();
+      if (url.includes('/qa') || url.includes('/phase')) return route.fallback();
+      return route.fulfill(json(JSON.stringify({ phase })));
+    });
+    await page.route('**/construction/phase*', route => {
+      phase = 2;
+      return route.fulfill(json('{"phase":2}'));
+    });
+
+    await openConstruction(page);
+    await expect(page.locator('#construction-phase-bar')).toHaveAttribute('data-phase', '1');
+    await page.locator('#construction-phase-next').click();
+    await expect(page.locator('#construction-phase-bar')).toHaveAttribute('data-phase', '2');
+    const stored = await page.evaluate(() => {
+      const td = Store.getTripData(Store.getCurrentTripId());
+      return td && td.trip && td.trip.construction && td.trip.construction.phase;
+    });
+    expect(stored).toBe(2);
   });
 });
