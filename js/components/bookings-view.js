@@ -442,6 +442,41 @@ var BookingsView = (() => {
     return html;
   }
 
+  function hotelDict(tripData) {
+    const raw = tripData && tripData.hotels;
+    if (!raw) return {};
+    if (Array.isArray(raw)) {
+      const out = {};
+      raw.forEach(h => {
+        const id = h && (h.id || h.hotelId);
+        if (id) out[id] = h;
+      });
+      return out;
+    }
+    return raw;
+  }
+
+  function hotelsForDay(day, hotels) {
+    const out = [];
+    const seen = new Set();
+    const add = (id, data) => {
+      if (!id || seen.has(id) || !data || !data.name) return;
+      seen.add(id);
+      out.push({ id, data });
+    };
+    if (day.hotelId && day.hotelId !== '—' && day.hotelId !== '') {
+      add(day.hotelId, hotels[day.hotelId] || (typeof HotelCard !== 'undefined' ? HotelCard.fromDay(day, hotels) : null));
+    }
+    Object.entries(hotels).forEach(([id, h]) => {
+      if (!h || seen.has(id)) return;
+      const days = Array.isArray(h.dayNums) ? h.dayNums.map(Number) : [];
+      const sameDay = days.includes(Number(day.day));
+      const sameLoc = h.locationId && day.locationId && h.locationId === day.locationId;
+      if (sameDay || sameLoc) add(id, h);
+    });
+    return out;
+  }
+
   function renderHotelsSection(tripData) {
     if (!tripData || !tripData.days) return '';
 
@@ -449,7 +484,8 @@ var BookingsView = (() => {
       ? Store.getCurrentTripId() : null;
 
     let body = '';
-    const seen = new Set();
+    const shown = new Set();
+    const hotels = hotelDict(tripData);
     const days = tripData.days.map(d => (typeof DayHelpers !== 'undefined' ? DayHelpers.enrich(d, tripData) : d));
 
     // J0 = veille à la maison (pas de hotelId) — ancrage calendrier
@@ -459,39 +495,103 @@ var BookingsView = (() => {
       body += `<div class="booking-note" style="margin:0 0 12px">🏠 Préparation à la maison (veille du départ)</div>`;
     }
 
-    days.forEach(day => {
-      // Normalized seeds: only hotelId (ignore legacy day.hotel pollution from stale merges)
-      const key = day.hotelId;
-      if (!key || key === '—' || key === '') return;
-      if (seen.has(key)) return;
-      seen.add(key);
-      const hotelData = typeof HotelCard !== 'undefined' ? HotelCard.fromDay(day, tripData.hotels) : null;
-      if (!hotelData) return;
+    function isBookedHotel(h) {
+      if (typeof HotelCard !== 'undefined' && HotelCard.isBooked) return HotelCard.isBooked(h);
+      return String((h && h.bookingStatus) || '').toLowerCase() === 'booked' || !!(h && h.booked);
+    }
 
+    function stayHeader(day, hotelData) {
       let headerDate = day.date || '';
-      if (hotelData.dates && hotelData.dates.checkin) {
+      if (hotelData && hotelData.dates && hotelData.dates.checkin) {
         headerDate = formatDate(hotelData.dates.checkin);
       }
       let headerCity = day.to || '';
       if (!headerCity && day.locationId) {
         headerCity = day.locationId.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
       }
-      if (!headerCity) headerCity = day.from || '';
+      if (!headerCity) headerCity = day.from || hotelData.city || '';
+      return `<div class="booking-hotel-day">Jour ${day.day} · ${esc(headerDate)} — ${esc(headerCity)}</div>`;
+    }
 
-      // day.day is already the calendar day index (0 = veille, 1 = startDate)
-      body += `<div class="booking-hotel-day">Jour ${day.day} · ${esc(headerDate)} — ${esc(headerCity)}</div>`;
-      body += HotelCard.render(hotelData);
-
-      const locId = day.locationId || key;
-      if (locId) {
-        body += `<div class="hotel-nuisance-action" style="margin:-4px 0 12px;padding:0 12px">
-          <button class="btn btn-sm hotel-nuisance-btn" data-location-id="${esc(locId)}" data-trip-id="${esc(tripId || '')}">
+    function cardWithNuisance(day, hotelId, hotelData) {
+      let html = HotelCard.render(hotelData);
+      const targetId = hotelId || day.locationId;
+      if (targetId) {
+        html += `<div class="hotel-nuisance-action" style="margin:8px 0 0;padding:0">
+          <button class="btn btn-sm hotel-nuisance-btn" data-location-id="${esc(targetId)}" data-trip-id="${esc(tripId || '')}">
             ⚠️ Nuisances
           </button>
-          <div class="hotel-nuisance-result" data-loc="${esc(locId)}"></div>
+          <div class="hotel-nuisance-result" data-loc="${esc(targetId)}"></div>
         </div>`;
       }
+      return html;
+    }
+
+    function appendHotelCard(day, hotelId, hotelData) {
+      if (typeof HotelCard === 'undefined' || !hotelData) return;
+      body += stayHeader(day, hotelData);
+      body += cardWithNuisance(day, hotelId, hotelData);
+    }
+
+    // 2+ to_book/candidate: horizontal list. The next card peeks so it is
+    // obvious there is more to the right — not a single full-width card.
+    function appendChoiceRail(day, group) {
+      if (typeof HotelCard === 'undefined') return;
+      const n = group.length;
+      body += stayHeader(day, group[0].data);
+      body += `<div class="hotel-choice-rail">`;
+      body += `<div class="hotel-choice-head">
+        <span class="hotel-choice-count">${n} à réserver</span>
+        <span class="hotel-choice-pos">1 / ${n}</span>
+      </div>`;
+      body += `<div class="hotel-choice-hint">Swipe → encore ${n - 1} à droite</div>`;
+      body += `<div class="hotel-choice-scroller" tabindex="0">`;
+      group.forEach(({ id, data }) => {
+        body += `<div class="hotel-choice-slide">${cardWithNuisance(day, id, data)}</div>`;
+      });
+      body += `</div>`;
+      body += `<div class="hotel-choice-dots" role="tablist">`;
+      group.forEach((_, i) => {
+        body += `<button type="button" class="dot${i === 0 ? ' active' : ''}" data-index="${i}" aria-label="Option ${i + 1} sur ${n}"></button>`;
+      });
+      body += `</div></div>`;
+    }
+
+    function appendGroup(day, group) {
+      const booked = [];
+      const open = [];
+      group.forEach(h => {
+        shown.add(h.id);
+        if (isBookedHotel(h.data)) booked.push(h);
+        else open.push(h);
+      });
+      booked.forEach(h => appendHotelCard(day, h.id, h.data));
+      if (open.length >= 2) appendChoiceRail(day, open);
+      else open.forEach(h => appendHotelCard(day, h.id, h.data));
+    }
+
+    days.forEach(day => {
+      const group = hotelsForDay(day, hotels).filter(h => !shown.has(h.id));
+      if (!group.length) return;
+      appendGroup(day, group);
     });
+
+    // Construction: candidats / to_book not yet attached to a night.
+    const leftover = [];
+    Object.entries(hotels).forEach(([id, h]) => {
+      if (shown.has(id) || !h || !h.name || isBookedHotel(h)) return;
+      leftover.push({ id, data: h });
+    });
+    if (leftover.length) {
+      leftover.forEach(h => shown.add(h.id));
+      const fakeDay = {
+        day: '—',
+        date: '',
+        to: leftover[0].data.city || '',
+        locationId: leftover[0].data.locationId || '',
+      };
+      appendGroup(fakeDay, leftover);
+    }
 
     if (!body) return '';
     return sectionTitle('🏨', 'Hébergements') + body;
@@ -625,9 +725,52 @@ var BookingsView = (() => {
 
     container.innerHTML = html;
     bindHotelNuisanceButtons(container);
+    bindHotelChoiceRails(container);
     if (typeof NuisanceStream !== 'undefined' && NuisanceStream.resumeIfNeeded) {
       NuisanceStream.resumeIfNeeded();
     }
+  }
+
+  function bindHotelChoiceRails(root) {
+    if (!root || !root.querySelectorAll) return;
+    root.querySelectorAll('.hotel-choice-rail').forEach(rail => {
+      const scroller = rail.querySelector('.hotel-choice-scroller');
+      const slides = rail.querySelectorAll('.hotel-choice-slide');
+      const pos = rail.querySelector('.hotel-choice-pos');
+      const hint = rail.querySelector('.hotel-choice-hint');
+      const dots = rail.querySelectorAll('.hotel-choice-dots .dot');
+      if (!scroller || slides.length < 2) return;
+
+      const indexOf = () => {
+        const first = slides[0];
+        const gap = 10;
+        const w = first.offsetWidth + gap;
+        if (!w) return 0;
+        return Math.max(0, Math.min(slides.length - 1, Math.round(scroller.scrollLeft / w)));
+      };
+      const paint = () => {
+        const i = indexOf();
+        const n = slides.length;
+        if (pos) pos.textContent = `${i + 1} / ${n}`;
+        if (hint) {
+          const right = n - 1 - i;
+          hint.textContent = right
+            ? `Swipe → encore ${right} à droite`
+            : '← swipe pour les autres';
+        }
+        rail.classList.toggle('at-start', i === 0);
+        rail.classList.toggle('at-end', i === n - 1);
+        dots.forEach((d, di) => d.classList.toggle('active', di === i));
+      };
+      scroller.addEventListener('scroll', paint, { passive: true });
+      dots.forEach((d, di) => {
+        d.addEventListener('click', () => {
+          const left = slides[di].offsetLeft - scroller.offsetLeft + scroller.scrollLeft;
+          scroller.scrollTo({ left, behavior: 'smooth' });
+        });
+      });
+      paint();
+    });
   }
 
   function bindHotelNuisanceButtons(container) {

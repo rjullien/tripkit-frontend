@@ -39,6 +39,58 @@ var HotelCard = (() => {
   }
 
   /**
+   * Un hôtel n'est « réservé » que si le statut le dit.
+   * Nom + adresse (un candidat identifié) ne compte PAS. Construction compare
+   * plusieurs `to_book` : leurs liens de recherche / booking doivent rester.
+   *
+   * Precedence: bookingStatus > booked boolean > bookingRef/confirmationNumber.
+   */
+  function isBooked(hotelData) {
+    if (!hotelData) return false;
+    const status = String(hotelData.bookingStatus || '').trim().toLowerCase();
+    if (status === 'booked') return true;
+    if (status === 'to_book' || status === 'candidate') return false;
+    if (hotelData.booked === true) return true;
+    if (hotelData.booked === false) return false;
+    const ref = String(hotelData.bookingRef || hotelData.confirmationNumber || hotelData.ref || '').trim();
+    return ref !== '';
+  }
+
+  function generateSearchLinks(dest, checkin, checkout, adults) {
+    const enc = encodeURIComponent(String(dest || '').trim());
+    if (!enc) return null;
+    const a = adults || 2;
+    const inD = checkin ? String(checkin).slice(0, 10) : '';
+    const outD = checkout ? String(checkout).slice(0, 10) : '';
+    const datesOk = inD && outD;
+    return {
+      airbnb: datesOk
+        ? `https://www.airbnb.com/s/${enc}/homes?checkin=${inD}&checkout=${outD}&adults=${a}`
+        : `https://www.airbnb.com/s/${enc}/homes?adults=${a}`,
+      booking: datesOk
+        ? `https://www.booking.com/searchresults.html?ss=${enc}&checkin=${inD}&checkout=${outD}&group_adults=${a}&no_rooms=1`
+        : `https://www.booking.com/searchresults.html?ss=${enc}&group_adults=${a}&no_rooms=1`,
+      hotelscom: datesOk
+        ? `https://www.hotels.com/Hotel-Search?destination=${enc}&startDate=${inD}&endDate=${outD}&rooms=1&adults=${a}`
+        : `https://www.hotels.com/Hotel-Search?destination=${enc}&rooms=1&adults=${a}`,
+      kayak: datesOk
+        ? `https://www.kayak.com/hotels/${enc}/${inD}/${outD}/${a}adults`
+        : `https://www.kayak.com/hotels/${enc}`,
+      expedia: datesOk
+        ? `https://www.expedia.com/Hotel-Search?destination=${enc}&startDate=${inD}&endDate=${outD}&rooms=1&adults=${a}`
+        : `https://www.expedia.com/Hotel-Search?destination=${enc}&rooms=1&adults=${a}`,
+    };
+  }
+
+  function resolveSearchLinks(hotelData) {
+    const sl = hotelData && hotelData.searchLinks;
+    if (sl && typeof sl === 'object' && Object.keys(sl).some(k => sl[k])) return sl;
+    const dest = (hotelData && (hotelData.addr || hotelData.address || hotelData.city || hotelData.name)) || '';
+    const dates = (hotelData && hotelData.dates) || {};
+    return generateSearchLinks(dest, dates.checkin, dates.checkout, hotelData && hotelData.adults);
+  }
+
+  /**
    * Render a hotel card.
    * @param {Object} hotelData — { name, addr, booking, ref, checkin, wifi, ... }
    * @returns {string} HTML string
@@ -59,7 +111,9 @@ var HotelCard = (() => {
       ? `https://www.google.com/maps/search/${encodeURIComponent(actualAddr)}`
       : null;
 
-    const effectiveStatus = bookingStatus || (bookingRef ? 'booked' : '');
+    const effectiveStatus = hotelData.bookingStatus
+      || (isBooked(hotelData) ? 'booked' : (hotelData.booked === false ? 'to_book' : ''));
+    const booked = isBooked(hotelData);
 
     let html = `<div class="hotel-card">`;
     html += `<div class="hotel-name">\ud83c\udfe8 ${esc(name)}</div>`;
@@ -73,6 +127,10 @@ var HotelCard = (() => {
 
     if (city && !actualAddr) html += `<div>\ud83d\udccd ${esc(city)}</div>`;
     if (note) html += `<div>${esc(note)}</div>`;
+
+    if (!actualAddr) {
+      html += `<div class="hotel-addr-missing">⚠️ Pas d'adresse — ajoutez <code>hotels[].addr</code>. Le check nuisances cherchera le nom et affichera le point trouvé (à vérifier).</div>`;
+    }
 
     if (actualAddr) {
       const addrHtml = mapsUrl
@@ -91,7 +149,8 @@ var HotelCard = (() => {
     }
 
     if (bookingUrl) {
-      html += `<div><a href="${escAttr(bookingUrl)}" target="_blank" class="hotel-link-btn" style="display:inline-flex;align-items:center;gap:4px;margin-top:4px">\ud83d\udd17 Voir la r\u00e9servation</a></div>`;
+      const bookLabel = booked ? 'Voir la réservation' : 'Réserver';
+      html += `<div><a href="${escAttr(bookingUrl)}" target="_blank" class="hotel-link-btn hotel-booking-url" style="display:inline-flex;align-items:center;gap:4px;margin-top:4px">\ud83d\udd17 ${esc(bookLabel)}</a></div>`;
     }
 
     if (checkin || checkout) {
@@ -202,15 +261,17 @@ var HotelCard = (() => {
       })(_wifiQR, _qrId);
     }
 
-    // Search links (booking platforms) — shown when not booked
-    if (hotelData.booked === false && hotelData.searchLinks) {
-      const sl = hotelData.searchLinks;
+    // Search + book platform links: keep them for every hotel that is NOT
+    // booked. A to_book / candidate with a name and an address is still to
+    // book — that is the whole point of construction alternatives.
+    const sl = !booked ? resolveSearchLinks(hotelData) : null;
+    if (sl) {
       const dates = hotelData.dates || {};
       const nightsLabel = dates.nights ? `${dates.nights} nuit${dates.nights > 1 ? 's' : ''}` : '';
       const dateLabel = dates.checkin && dates.checkout
         ? `${dates.checkin.slice(5)} → ${dates.checkout.slice(5)}`
         : '';
-      html += `<div style="margin-top:10px;padding:12px;background:rgba(255,193,7,.08);border:1px solid rgba(255,193,7,.2);border-radius:10px">`;
+      html += `<div class="hotel-search-links" style="margin-top:10px;padding:12px;background:rgba(255,193,7,.08);border:1px solid rgba(255,193,7,.2);border-radius:10px">`;
       html += `<div style="font-size:.82em;font-weight:700;color:#ffc107;margin-bottom:8px">`;
       html += `🔍 Chercher un hébergement`;
       if (dateLabel) html += ` <span style="font-weight:400;color:var(--muted)">(${esc(nightsLabel)}, ${esc(dateLabel)})</span>`;
@@ -223,6 +284,23 @@ var HotelCard = (() => {
       if (sl.expedia) html += `<a href="${escAttr(sl.expedia)}" target="_blank" class="hotel-link-btn" style="background:rgba(255,204,0,.12);border-color:rgba(255,204,0,.25);color:#ffc107">✈️ Expedia</a>`;
       if (sl.terroirSaveurs) html += `<a href="${escAttr(sl.terroirSaveurs)}" target="_blank" class="hotel-link-btn" style="background:rgba(76,175,80,.12);border-color:rgba(76,175,80,.25);color:#4caf50">🧀 Terroir & Saveurs</a>`;
       html += `</div></div>`;
+    }
+
+    const altList = Array.isArray(hotelData.alternatives) ? hotelData.alternatives.filter(a => a && a.name) : [];
+    if (!booked && altList.length) {
+      html += `<div class="hotel-alternatives" style="margin-top:10px">`;
+      html += `<div style="font-size:.82em;font-weight:700;color:var(--muted);margin-bottom:6px">Autres options</div>`;
+      altList.forEach(alt => {
+        html += render({
+          ...alt,
+          bookingStatus: alt.bookingStatus || 'to_book',
+          booked: false,
+          alternatives: [],
+          searchLinks: alt.searchLinks,
+          bookingUrl: alt.bookingUrl || alt.url,
+        }, { compact: true });
+      });
+      html += `</div>`;
     }
 
     // Links
@@ -316,5 +394,5 @@ var HotelCard = (() => {
     return String(s || '').replace(/"/g,'&quot;');
   }
 
-  return { render, fromDay, wifiConnect, renderStatusBadge };
+  return { render, fromDay, wifiConnect, renderStatusBadge, isBooked, generateSearchLinks };
 })();
