@@ -1865,6 +1865,30 @@ a:visited { color: var(--accent); }
 .qa-detail { color: var(--muted); font-size: .92em; }
 
 .phase-transition-error { margin-top: 8px; }
+.phase-error-box {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: rgba(239, 83, 80, .12);
+  border: 1px solid rgba(239, 83, 80, .45);
+  color: inherit;
+}
+.phase-error-box-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+.phase-error-box-body { flex: 1; min-width: 0; }
+.phase-error-dismiss {
+  flex: 0 0 auto;
+  width: 28px; height: 28px;
+  border: 0; border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 1.2em; line-height: 1;
+  cursor: pointer;
+}
+.phase-error-dismiss:hover { color: #fff; background: rgba(255,255,255,.08); }
 .phase-blocked-title { font-weight: 700; margin-bottom: 4px; }
 
 .admin-countries, .health-countries { color: var(--muted); margin-bottom: 6px; }

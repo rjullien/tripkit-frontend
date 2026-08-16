@@ -499,6 +499,25 @@ test.describe('Construction PhaseBar', () => {
     await expect(page.locator('#construction-phase-next')).toBeEnabled();
   });
 
+  test('409 : la boîte de blocage reste, on peut la fermer', async ({ page }) => {
+    await page.route('**/construction', route => route.fulfill(json('{"phase":2}')));
+    await page.route('**/construction/phase*', route => route.fulfill(json(BLOCKED, 409)));
+
+    await openConstruction(page);
+    await page.locator('#construction-phase-next').click();
+    const err = page.locator('#phase-transition-error');
+    await expect(err).toBeVisible();
+    await expect(err).toContainText('Day 2 is missing');
+
+    await page.locator('.bottom-nav button[data-tab="programme"]').click();
+    await page.locator('#nav-construction').click();
+    await expect(page.locator('#phase-transition-error')).toBeVisible();
+    await expect(page.locator('#phase-transition-error')).toContainText('Transition bloquée');
+
+    await page.locator('#phase-transition-error-dismiss').click();
+    await expect(page.locator('#phase-transition-error')).toHaveCount(0);
+  });
+
   test('403 : la transition forcée est réservée aux administrateurs', async ({ page }) => {
     await page.route('**/construction', route => route.fulfill(json('{"phase":2}')));
     await page.route('**/construction/phase*', route => route.fulfill(json('{"error":"admin_required"}', 403)));
