@@ -1,6 +1,10 @@
 /**
  * polarsteps-panel.js — Plus « Polarsteps » (journal du jour, texte à coller).
- * Visible only when GET /trips/:id/polarsteps/status says enabled.
+ *
+ * Visible when GET /trips/:id/polarsteps/status says enabled. If that call
+ * fails, fall back to seed `trip.polarsteps.enabled` so the Plus landmark
+ * does not vanish on a 5xx / timeout (looks like the box was deleted).
+ * Explicit `enabled: false` from the API still hides the section.
  */
 var PolarstepsPanel = (() => {
   const JOB_KEY = 'tk-polarsteps-job';
@@ -26,19 +30,44 @@ var PolarstepsPanel = (() => {
       : null;
   }
 
+  function seedPolarsteps() {
+    const tripId = currentTripId();
+    if (!tripId || typeof Store === 'undefined' || !Store.getTripData) return null;
+    const td = Store.getTripData(tripId);
+    const ps = td && td.trip && td.trip.polarsteps;
+    return (ps && typeof ps === 'object') ? ps : null;
+  }
+
+  function fallbackStatus(reason) {
+    const seed = seedPolarsteps();
+    return {
+      enabled: !!(seed && seed.enabled),
+      ready: false,
+      reason: reason || 'unreachable',
+      tripUrl: (seed && seed.tripUrl) || '',
+    };
+  }
+
   async function loadStatus() {
     const tripId = currentTripId();
     if (!tripId || typeof API === 'undefined' || !API.getPolarstepsStatus) {
-      _status = { enabled: false, ready: false, reason: 'no_trip' };
+      _status = fallbackStatus('no_trip');
       return _status;
     }
-    const res = await API.getPolarstepsStatus(tripId);
-    if (!res.ok || !res.data) {
-      _status = { enabled: false, ready: false, reason: res.error || 'unreachable' };
+    try {
+      const res = await API.getPolarstepsStatus(tripId);
+      if (!res.ok || !res.data) {
+        _status = fallbackStatus((res && res.error) || 'unreachable');
+        return _status;
+      }
+      _status = res.data;
+      const seed = seedPolarsteps();
+      if (!_status.tripUrl && seed && seed.tripUrl) _status.tripUrl = seed.tripUrl;
+      return _status;
+    } catch (e) {
+      _status = fallbackStatus((e && e.message) || 'unreachable');
       return _status;
     }
-    _status = res.data;
-    return _status;
   }
 
   function backendUp() {
