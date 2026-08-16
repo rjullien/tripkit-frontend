@@ -271,8 +271,10 @@ var ConstructionView = (() => {
     if (!tripId || !data || typeof Store === 'undefined' || !Store.getTripData || !Store.setTripData) return;
     const td = Store.getTripData(tripId);
     if (!td) return;
+    const copy = Object.assign({}, data);
+    delete copy.seedPush;
     td.trip = td.trip || {};
-    td.trip.construction = Object.assign({}, td.trip.construction, data);
+    td.trip.construction = Object.assign({}, td.trip.construction, copy);
     Store.setTripData(tripId, td);
   }
 
@@ -310,8 +312,15 @@ var ConstructionView = (() => {
       btn.textContent = 'Transition...';
       const res = await API.transitionPhase(tripId, nextPhase, false);
       if (res.ok) {
-        clearPhaseError();
-        if (res.data) rememberConstruction(tripId, res.data);
+        const payload = Object.assign({}, res.data || {});
+        const seedPush = payload.seedPush;
+        delete payload.seedPush;
+        rememberConstruction(tripId, payload);
+        if (seedPush && seedPush.ok === false) {
+          _phaseError = { tripId: tripId || _currentTripId, body: seedPushWarningBody(seedPush) };
+        } else {
+          clearPhaseError();
+        }
         const container = document.getElementById('construction-phase-bar');
         if (container) {
           container.outerHTML = renderPhaseBarLoading();
@@ -373,6 +382,14 @@ var ConstructionView = (() => {
     if (existing) existing.outerHTML = html;
     else if (bar) bar.insertAdjacentHTML('beforeend', html);
     bindPhaseErrorDismiss();
+  }
+
+  function seedPushWarningBody(seedPush) {
+    const detail = (seedPush && typeof seedPush.error === 'string' && seedPush.error)
+      ? seedPush.error
+      : 'écriture git refusée';
+    return `<div class="phase-blocked-title">Phase enregistrée, pas dans le repo seed</div>`
+      + `<p>${esc('La phase est à jour dans TripKit, mais le fichier seed n\'a pas été modifié : ' + detail)}</p>`;
   }
 
   /** Traduit les codes d'erreur du backend en phrase lisible. */
