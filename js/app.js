@@ -1033,8 +1033,12 @@ var App = (() => {
         compact: true,
       });
     });
-    if (typeof NuisanceStream !== 'undefined' && NuisanceStream.resumeIfNeeded) {
-      NuisanceStream.resumeIfNeeded();
+    const tripId = typeof Store !== 'undefined' && Store.getCurrentTripId && Store.getCurrentTripId();
+    const resultEl = document.getElementById('plus-nuisance-result');
+    const resumed = typeof NuisanceStream !== 'undefined' && NuisanceStream.resumeIfNeeded
+      && NuisanceStream.resumeIfNeeded();
+    if (!resumed && resultEl && tripId && typeof NuisanceStream !== 'undefined' && NuisanceStream.hydrate) {
+      NuisanceStream.hydrate(resultEl, { tripId, compact: true, panel: 'plus' });
     }
   }
 

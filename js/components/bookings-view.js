@@ -726,8 +726,12 @@ var BookingsView = (() => {
     container.innerHTML = html;
     bindHotelNuisanceButtons(container);
     bindHotelChoiceRails(container);
-    if (typeof NuisanceStream !== 'undefined' && NuisanceStream.resumeIfNeeded) {
-      NuisanceStream.resumeIfNeeded();
+    const tripId = tripData && tripData.trip && tripData.trip.id
+      || (typeof Store !== 'undefined' && Store.getCurrentTripId && Store.getCurrentTripId());
+    const resumed = typeof NuisanceStream !== 'undefined' && NuisanceStream.resumeIfNeeded
+      && NuisanceStream.resumeIfNeeded();
+    if (!resumed && typeof NuisanceStream !== 'undefined' && NuisanceStream.hydrateHotels && tripId) {
+      NuisanceStream.hydrateHotels(container, tripId);
     }
   }
 

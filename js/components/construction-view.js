@@ -12,6 +12,10 @@ var ConstructionView = (() => {
   // Voyageurs du dernier profil chargé, pour regrouper la checklist admin par
   // voyageur (le backend n'envoie que des nationalités).
   let _people = null;
+  // Dernière erreur de transition : reste affichée jusqu'à dismiss / succès /
+  // changement de voyage. Le setTimeout 6 s faisait disparaître les blocages QA
+  // avant qu'on puisse les lire (surtout une liste).
+  let _phaseError = null;
 
   // Les écritures seed par Léo ne sont pas branchées (501 not_implemented). Les
   // trois commandes concernées — Retenir (Découverte), Épingler dans le seed et
@@ -247,6 +251,7 @@ var ConstructionView = (() => {
       ${blockersHtml}
       <button class="btn btn-primary phase-next-btn" id="construction-phase-next"
         ${phase >= 5 ? 'disabled' : ''}>Phase suivante</button>
+      ${phaseErrorBoxHtml()}
     </div>`;
   }
 
@@ -262,6 +267,15 @@ var ConstructionView = (() => {
     return c && typeof c === 'object' ? c : null;
   }
 
+  function rememberConstruction(tripId, data) {
+    if (!tripId || !data || typeof Store === 'undefined' || !Store.getTripData || !Store.setTripData) return;
+    const td = Store.getTripData(tripId);
+    if (!td) return;
+    td.trip = td.trip || {};
+    td.trip.construction = Object.assign({}, td.trip.construction, data);
+    Store.setTripData(tripId, td);
+  }
+
   async function loadPhaseBar(tripId) {
     const el = document.getElementById('construction-phase-bar');
     if (!el) return;
@@ -271,6 +285,7 @@ var ConstructionView = (() => {
       if (local) {
         el.outerHTML = renderPhaseBarContent(local);
         bindPhaseNext(tripId, local);
+        bindPhaseErrorDismiss();
         mountConstructionLeo(leoModeForPhase(currentPhaseOf(local)));
         return;
       }
@@ -278,8 +293,10 @@ var ConstructionView = (() => {
       return;
     }
     const data = Object.assign({}, local || {}, res.data || {});
+    rememberConstruction(tripId, data);
     el.outerHTML = renderPhaseBarContent(data);
     bindPhaseNext(tripId, data);
+    bindPhaseErrorDismiss();
     mountConstructionLeo(leoModeForPhase(currentPhaseOf(data)));
   }
 
@@ -293,7 +310,8 @@ var ConstructionView = (() => {
       btn.textContent = 'Transition...';
       const res = await API.transitionPhase(tripId, nextPhase, false);
       if (res.ok) {
-        // Reload phase bar with updated data
+        clearPhaseError();
+        if (res.data) rememberConstruction(tripId, res.data);
         const container = document.getElementById('construction-phase-bar');
         if (container) {
           container.outerHTML = renderPhaseBarLoading();
@@ -302,36 +320,59 @@ var ConstructionView = (() => {
       } else {
         btn.disabled = false;
         btn.textContent = 'Phase suivante';
-        showTransitionError(btn, res);
+        showTransitionError(tripId, res);
       }
     });
+  }
+
+  function phaseErrorBoxHtml() {
+    if (!_phaseError || !_phaseError.body || _phaseError.tripId !== _currentTripId) return '';
+    return `<div class="phase-error-box phase-transition-error" id="phase-transition-error" role="alert">
+      <div class="phase-error-box-head">
+        <div class="phase-error-box-body">${_phaseError.body}</div>
+        <button type="button" class="phase-error-dismiss" id="phase-transition-error-dismiss" aria-label="Fermer">×</button>
+      </div>
+    </div>`;
+  }
+
+  function clearPhaseError() {
+    _phaseError = null;
+    const el = document.getElementById('phase-transition-error');
+    if (el) el.remove();
+  }
+
+  function bindPhaseErrorDismiss() {
+    const btn = document.getElementById('phase-transition-error-dismiss');
+    if (!btn || btn.dataset.bound === '1') return;
+    btn.dataset.bound = '1';
+    btn.addEventListener('click', () => clearPhaseError());
   }
 
   /**
    * Un 409 porte ses blocages structurés dans res.data.blockers : on les rend
    * avec les mêmes badges que la liste QA. Le JSON brut ne doit jamais atterrir
-   * dans le DOM (revue finding 12).
+   * dans le DOM (revue finding 12). La boîte reste jusqu'à fermeture, une
+   * transition réussie, ou un changement de voyage — pas un timer.
    */
-  function showTransitionError(btn, res) {
-    const previous = document.getElementById('phase-transition-error');
-    if (previous) previous.remove();
-    const errEl = document.createElement('div');
-    errEl.className = 'construction-error phase-transition-error';
-    errEl.id = 'phase-transition-error';
-
+  function showTransitionError(tripId, res) {
+    let body = '';
     const blockers = ConstructionContract.parseBlockers(res.data);
     if (res.status === 409 && blockers && blockers.length) {
-      errEl.innerHTML = `<div class="phase-blocked-title">Transition bloquée : ${blockers.length} blocage${blockers.length > 1 ? 's' : ''}</div>`
+      body = `<div class="phase-blocked-title">Transition bloquée : ${blockers.length} blocage${blockers.length > 1 ? 's' : ''}</div>`
         + violationsHtml(blockers);
     } else if (res.status === 403) {
-      errEl.textContent = 'Transition forcée réservée à un administrateur.';
+      body = esc('Transition forcée réservée à un administrateur.');
     } else {
       const raw = (res.data && typeof res.data.error === 'string') ? res.data.error : (res.error || '');
-      errEl.textContent = errorLabel(raw) || 'Erreur transition';
+      body = esc(errorLabel(raw) || 'Erreur transition');
     }
-
-    if (btn.parentElement) btn.parentElement.appendChild(errEl);
-    setTimeout(() => errEl.remove(), 6000);
+    _phaseError = { tripId: tripId || _currentTripId, body };
+    const bar = document.getElementById('construction-phase-bar');
+    const existing = document.getElementById('phase-transition-error');
+    const html = phaseErrorBoxHtml();
+    if (existing) existing.outerHTML = html;
+    else if (bar) bar.insertAdjacentHTML('beforeend', html);
+    bindPhaseErrorDismiss();
   }
 
   /** Traduit les codes d'erreur du backend en phrase lisible. */
@@ -809,6 +850,7 @@ var ConstructionView = (() => {
 
   function appendPinButton(el) {
     if (!el) return;
+    if (el.querySelector && el.querySelector('#nuisance-pin-btn')) return;
     el.insertAdjacentHTML('beforeend',
       `<div class="nuisance-pin-wrap"><button type="button" class="btn btn-accent nuisance-pin-btn deferred" id="nuisance-pin-btn"
         title="${DEFERRED_HINT}">${PIN_LABEL}</button></div>`);
@@ -1160,6 +1202,7 @@ var ConstructionView = (() => {
     abortNuisanceStream();
     if (tripId !== _currentTripId) {
       _people = null;
+      clearPhaseError();
       _currentTripId = tripId;
     }
 
@@ -1207,8 +1250,14 @@ var ConstructionView = (() => {
     loadTravelerContext(tripId);
 
     mountConstructionLeo('construction:ideation');
-    if (typeof NuisanceStream !== 'undefined' && NuisanceStream.resumeIfNeeded) {
-      NuisanceStream.resumeIfNeeded();
+    const resumed = typeof NuisanceStream !== 'undefined' && NuisanceStream.resumeIfNeeded
+      && NuisanceStream.resumeIfNeeded();
+    if (!resumed && typeof NuisanceStream !== 'undefined' && NuisanceStream.hydrate) {
+      const resultsEl = document.getElementById('action-bar-results');
+      NuisanceStream.hydrate(resultsEl, {
+        tripId,
+        onRendered: () => appendPinButton(resultsEl),
+      });
     }
   }
 
