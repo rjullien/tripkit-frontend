@@ -844,7 +844,7 @@ var API = (() => {
   function getBaseUrl() { return BASE_URL; }
 
   return {
-    setToken, getToken, clearToken,
+    setToken, getToken, clearToken, url,
     getTrips, getTrip, createTrip, getMe,
     getDays, getDay,
     getHotels,
