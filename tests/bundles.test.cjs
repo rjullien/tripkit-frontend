@@ -128,6 +128,14 @@ test('discovery-panel précède construction-view dans bundle-components', () =>
   assert.ok(at('js/components/discovery-panel.js') < at('js/components/construction-view.js'));
 });
 
+test('steps-map précède daily-view dans bundle-components', () => {
+  const components = manifest['bundle-components'];
+  assert.ok(components.includes('js/steps-map.js'), 'steps-map.js doit vivre à côté du Jour, pas dans bundle-core');
+  assert.ok(at('js/steps-map.js') < at('js/components/daily-view.js'));
+  assert.ok(at('js/components/hotel-card.js') < at('js/steps-map.js'),
+    'hotel-card.js doit précéder steps-map.js (DailyView résout l\'hôtel via HotelCard.fromDay)');
+});
+
 // ── Contrat d'échec : rien ne l'épinglait ────────────────────────────────────
 function withTempManifest(content, fn) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'tk-bundles-'));
