@@ -143,6 +143,10 @@ var API = (() => {
         console.debug('[API] non-OK:', res.status, path);
         // HTTP from our host ⇒ path exists; treat as reachable unless 0/network.
         if (res.status > 0) setReachable(true);
+        // Authelia session expired → don't confuse with a backend error.
+        if (res.status === 401 || res.status === 403) {
+          return { ok: false, status: res.status, data: null, error: 'auth_expired' };
+        }
         return { ok: false, status: res.status, data: null, error: 'http' };
       }
       setReachable(true);
@@ -410,6 +414,16 @@ var API = (() => {
         clearToken();
         return requestJSON(path, options, true);
       }
+      // Authelia session expired: after clearing the token + retry above, a
+      // second 401/403 means the cookie session itself is gone.
+      if ((res.status === 401 || res.status === 403) && _retried) {
+        return {
+          ok: false,
+          status: res.status,
+          data: { code: 'auth_expired' },
+          error: 'Session expirée — recharge la page.',
+        };
+      }
       let data = null;
       const text = await res.text();
       if (text) {
@@ -507,17 +521,22 @@ var API = (() => {
 
   /**
    * Safari iOS reports a dropped fetch/SSE as TypeError « Load failed ».
-   * Never show that raw string in the Plus chat bubbles.
+   * Translate raw browser errors into user-friendly French messages.
+   * Note: 'Connexion coupée' is no longer shown — callers should auto-retry
+   * or fall back to the store GET before reaching this point.
    */
   function netFailMessage(e, aborted) {
     if (aborted) return 'Annulé.';
     const msg = (e && e.message) || '';
     const name = e && e.name;
-    if (name === 'AbortError' || name === 'TimeoutError'
-        || /aborted|timeout|timed out|load failed|failed to fetch|networkerror/i.test(msg)) {
-      return 'Connexion coupée. Réessaie.';
+    if (name === 'TimeoutError' || /timeout|timed out/i.test(msg)) {
+      return 'Délai dépassé — réessaie.';
     }
-    return msg || 'stream interrompu';
+    if (name === 'AbortError'
+        || /aborted|load failed|failed to fetch|networkerror/i.test(msg)) {
+      return 'Connexion interrompue — réessaie.';
+    }
+    return msg || 'Erreur réseau.';
   }
 
   /**
@@ -561,6 +580,17 @@ var API = (() => {
       return;
     }
     if (!res.ok) {
+      // Authelia session expired → Traefik forwards the 401 as-is.
+      if (res.status === 401 || res.status === 403) {
+        yield {
+          event: 'error',
+          data: {
+            code: 'auth_expired',
+            error: 'Session expirée — recharge la page.',
+          },
+        };
+        return;
+      }
       let data = null;
       try { data = await res.json(); } catch (_) {}
       yield {

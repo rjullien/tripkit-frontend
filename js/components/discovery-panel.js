@@ -221,44 +221,105 @@ var DiscoveryPanel = (() => {
       const posted = await API.postDiscoverySearch(tripId, { themes, scope });
       if (!posted || !posted.ok || !posted.data || !posted.data.jobId) {
         const msg = (posted && posted.error) || 'Recherche impossible.';
-        if (status) status.textContent = msg;
+        if (posted && posted.data && posted.data.code === 'auth_expired') {
+          if (status) status.textContent = 'Session expirée — recharge la page.';
+        } else {
+          if (status) status.textContent = msg;
+        }
         return;
       }
       const jobId = posted.data.jobId;
       let result = null;
-      for await (const ev of API.leoJobStream(jobId, 0, { signal: ac.signal })) {
-        if (ev.event === 'theme' && ev.data) {
-          const label = ev.data.text || (ev.data.tool && ev.data.tool.label) || '';
-          if (status) status.textContent = label ? `${label}…` : 'Recherche…';
-          if (ev.data.tool && Array.isArray(ev.data.tool.items)) {
-            mergeThemeItems(root, ev.data.tool.themeId, ev.data.tool.items);
+      let lastSeq = 0;
+      const maxRetries = 2;
+      let retries = 0;
+
+      async function listenStream() {
+        for await (const ev of API.leoJobStream(jobId, lastSeq, { signal: ac.signal })) {
+          if (ev.data && typeof ev.data.seq === 'number') lastSeq = ev.data.seq;
+          if (ev.event === 'theme' && ev.data) {
+            const label = ev.data.text || (ev.data.tool && ev.data.tool.label) || '';
+            if (status) status.textContent = label ? `${label}…` : 'Recherche…';
+            if (ev.data.tool && Array.isArray(ev.data.tool.items)) {
+              mergeThemeItems(root, ev.data.tool.themeId, ev.data.tool.items);
+            }
           }
+          if (ev.event === 'result' && ev.data && ev.data.reply) {
+            try { result = JSON.parse(ev.data.reply); } catch (_) {}
+          }
+          if (ev.event === 'error') {
+            const code = ev.data && ev.data.code;
+            if (code === 'auth_expired') {
+              if (status) status.textContent = 'Session expirée — recharge la page.';
+              return 'fatal';
+            }
+            if (code === 'network' || code === 'timeout') {
+              return 'drop';
+            }
+            const msg = (ev.data && (ev.data.error || ev.data.detail)) || 'Recherche impossible.';
+            if (status) status.textContent = msg;
+            return 'fatal';
+          }
+          if (ev.event === 'done') return 'done';
         }
-        if (ev.event === 'result' && ev.data && ev.data.reply) {
-          try { result = JSON.parse(ev.data.reply); } catch (_) {}
-        }
-        if (ev.event === 'error') {
-          const msg = (ev.data && (ev.data.error || ev.data.detail)) || 'Recherche impossible.';
-          if (status) status.textContent = msg;
-          return;
-        }
-        if (ev.event === 'done') break;
+        // Stream ended without done/error → treat as drop
+        return 'drop';
       }
-      if (result) paintResults(root, result);
-      else {
+
+      let outcome = await listenStream();
+
+      // Auto-reconnect on drop (iPhone lock, proxy idle) — job still runs on BE
+      while (outcome === 'drop' && retries < maxRetries && !ac.signal.aborted) {
+        retries++;
+        if (status) status.textContent = 'Reconnexion…';
+        await new Promise(r => setTimeout(r, 800));
+        if (ac.signal.aborted) break;
+        outcome = await listenStream();
+      }
+
+      // If still dropped after retries, try the store GET (results may be ready)
+      if (outcome === 'drop') {
         const cachedOpts = (mode === 'corridor' && leg)
           ? { fromLoc: leg.fromId, toLoc: leg.toId, dateISO }
           : { dayNum };
         const cached = await API.getDiscoveryResults(tripId, cachedOpts);
-        if (cached && cached.ok && cached.data) paintResults(root, cached.data);
+        if (cached && cached.ok && cached.data && cached.data.items && cached.data.items.length) {
+          paintResults(root, cached.data);
+          if (status) status.hidden = true;
+        } else {
+          if (status) status.textContent = 'Connexion interrompue — relance la recherche.';
+        }
+        return;
       }
-      if (status) status.hidden = true;
+
+      if (outcome === 'done' || result) {
+        if (result) paintResults(root, result);
+        else {
+          const cachedOpts = (mode === 'corridor' && leg)
+            ? { fromLoc: leg.fromId, toLoc: leg.toId, dateISO }
+            : { dayNum };
+          const cached = await API.getDiscoveryResults(tripId, cachedOpts);
+          if (cached && cached.ok && cached.data) paintResults(root, cached.data);
+        }
+        if (status) status.hidden = true;
+      }
     } catch (e) {
+      if (ac.signal.aborted) return;
+      // Last resort: try store GET before showing error
+      const cachedOpts = (mode === 'corridor' && leg)
+        ? { fromLoc: leg.fromId, toLoc: leg.toId, dateISO }
+        : { dayNum };
+      try {
+        const cached = await API.getDiscoveryResults(tripId, cachedOpts);
+        if (cached && cached.ok && cached.data && cached.data.items && cached.data.items.length) {
+          paintResults(root, cached.data);
+          if (status) status.hidden = true;
+          return;
+        }
+      } catch (_) {}
       if (status) {
         status.hidden = false;
-        status.textContent = (typeof API !== 'undefined' && API.netFailMessage)
-          ? API.netFailMessage(e, ac.signal.aborted)
-          : ((e && e.message) || 'Recherche impossible.');
+        status.textContent = 'Connexion interrompue — relance la recherche.';
       }
     } finally {
       if (btn) btn.disabled = false;

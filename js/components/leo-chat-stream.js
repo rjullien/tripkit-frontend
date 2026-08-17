@@ -330,6 +330,9 @@ var LeoChatStream = (() => {
             if (code === 'job_not_found') {
               return { outcome: 'expired' };
             }
+            if (code === 'auth_expired') {
+              return { outcome: 'error', message: data.error || 'Session expirée — recharge la page.' };
+            }
             if (_wantCancel || (code === 'cancelled' && !_pausing)) {
               return { outcome: 'cancelled' };
             }
