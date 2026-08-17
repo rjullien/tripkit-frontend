@@ -386,18 +386,35 @@ var DiscoveryPanel = (() => {
     btn.disabled = true;
     btn.textContent = 'Enregistrement…';
 
-    const res = await API.retainDiscoveryItem(tripId, {
-      id: item.id || '',
-      name: item.name || '',
-      themeId: item.themeId || '',
-      lat: item.lat || 0,
-      lon: item.lon || 0,
-      distKm: item.distKm || 0,
-      url: item.url || '',
-      source: item.source || '',
-    });
+    let res;
+    try {
+      res = await API.retainDiscoveryItem(tripId, {
+        id: item.id || '',
+        name: item.name || '',
+        themeId: item.themeId || '',
+        lat: item.lat || 0,
+        lon: item.lon || 0,
+        distKm: item.distKm || 0,
+        url: item.url || '',
+        source: item.source || '',
+      });
+    } catch (e) {
+      retainFailed(btn, 'Erreur réseau');
+      return;
+    }
 
-    if (res && (res.status === 501 || (res.data && res.data.error === 'not_implemented'))) {
+    if (!res) {
+      retainFailed(btn, 'Pas de réponse');
+      return;
+    }
+
+    // Auth expired → tell user clearly
+    if (res.error === 'auth_expired' || (res.data && res.data.code === 'auth_expired')) {
+      retainFailed(btn, 'Session expirée — recharge');
+      return;
+    }
+
+    if (res.status === 501 || (res.data && res.data.error === 'not_implemented')) {
       btn.textContent = 'Pas encore disponible';
       btn.className = 'btn btn-sm discovery-retain-btn unavailable';
       btn.title = (res.data && typeof res.data.detail === 'string' && res.data.detail)
@@ -406,8 +423,9 @@ var DiscoveryPanel = (() => {
       return;
     }
 
-    if (!res || !res.ok || !(res.data && (res.data.activity || res.data.ok))) {
-      retainFailed(btn, 'Erreur');
+    if (!res.ok || !(res.data && (res.data.activity || res.data.ok))) {
+      const detail = (res.data && res.data.error) || res.error || `HTTP ${res.status || '?'}`;
+      retainFailed(btn, detail.length > 30 ? 'Erreur serveur' : detail);
       return;
     }
 
