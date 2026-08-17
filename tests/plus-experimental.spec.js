@@ -221,7 +221,7 @@ test.describe('bundle-components concaténé', () => {
       'ListComponent', 'RouteView',
       'CultureView', 'TripSelector', 'PublishPanel', 'PolarstepsPanel',
       'App', 'API', 'Store', 'SeedMerge', 'DayHelpers', 'TzHelpers', 'PeopleHelpers',
-      'DayResolver', 'TripGroups', 'ConstructionContract',
+      'DayResolver', 'TripGroups', 'ConstructionContract', 'StepsMap',
     ].filter(name => typeof window[name] === 'undefined'));
 
     expect(missing).toEqual([]);

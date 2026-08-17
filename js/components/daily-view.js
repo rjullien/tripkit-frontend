@@ -163,19 +163,34 @@ var DailyView = (() => {
         dayDate: day._isoDate || '',
       });
 
-      // ── Steps Map link (Google Maps with all waypoints in order) ────────
+      // ── Steps Map link (Google Maps: hotel → stops → hotel) ────────────
       if (typeof StepsMap !== 'undefined') {
-        const stepsResult = StepsMap.buildStepsUrl(day.timeline);
+        const hotels = tripData.hotels || {};
+        const eveningPlace = hotelPlaceForDay(day, hotels);
+        const morningPlace = idx > 0 ? hotelPlaceForDay(days[idx - 1], hotels) : null;
+        const stepsResult = StepsMap.buildStepsUrl(day.timeline, {
+          startPlace: morningPlace,
+          endPlace: eveningPlace
+        });
         if (stepsResult) {
           html += `<div class="card" style="padding:10px 14px;margin-top:8px">`;
-          html += `<a href="${escAttr(stepsResult.url)}" target="_blank" class="map-btn map-btn-primary" style="width:100%;text-align:center;display:block">`;
-          html += `🗺️ Étapes du jour (${stepsResult.count} points)`;
-          html += `</a>`;
-          if (stepsResult.truncated) {
-            html += `<div style="font-size:.72em;color:var(--muted);margin-top:4px;text-align:center">⚠️ Limité aux 10 premiers arrêts</div>`;
-          } else {
-            html += `<div style="font-size:.72em;color:var(--muted);margin-top:4px;text-align:center">Ouvre Google Maps avec les arrêts dans l'ordre</div>`;
+          const nLinks = stepsResult.links.length;
+          stepsResult.links.forEach((link, i) => {
+            const extra = i > 0 ? ';margin-top:8px' : '';
+            const label = nLinks > 1
+              ? `🗺️ Étapes du jour ${i + 1}/${nLinks} (${link.count} points)`
+              : `🗺️ Étapes du jour (${link.count} points)`;
+            html += `<a href="${escAttr(link.url)}" target="_blank" rel="noopener" class="map-btn map-btn-primary" style="width:100%;text-align:center;display:block${extra}">`;
+            html += label;
+            html += `</a>`;
+          });
+          let hint = 'Ouvre Google Maps avec les arrêts dans l\'ordre';
+          if (nLinks === 2) {
+            hint = 'Coupé en 2 : l\'arrivée du 1er lien = le départ du 2e';
+          } else if (nLinks > 2) {
+            hint = 'Coupé en ' + nLinks + ' : l\'arrivée d\'un lien = le départ du suivant';
           }
+          html += `<div style="font-size:.72em;color:var(--muted);margin-top:4px;text-align:center">${hint}</div>`;
           html += `</div>`;
         }
       }
@@ -521,6 +536,21 @@ var DailyView = (() => {
 
   function appleMapsUrl(address) {
     return 'maps://maps.apple.com/?daddr=' + encodeURIComponent(address) + '&dirflg=d';
+  }
+
+  /**
+   * Morning / evening hotel → Maps waypoint (addr, else name, else lat/lon).
+   * Uses HotelCard.fromDay so normalized hotelId and legacy inline fields both work.
+   */
+  function hotelPlaceForDay(day, hotels) {
+    if (!day || typeof StepsMap === 'undefined' || !StepsMap.placeFromHotel) return null;
+    let hotel = null;
+    if (typeof HotelCard !== 'undefined' && HotelCard.fromDay) {
+      hotel = HotelCard.fromDay(day, hotels);
+    } else if (day.hotelId && hotels && hotels[day.hotelId]) {
+      hotel = hotels[day.hotelId];
+    }
+    return StepsMap.placeFromHotel(hotel);
   }
 
   // ── Helpers ────────────────────────────────────────────────────────────────
