@@ -14,6 +14,7 @@ test.describe('Route weather ISO dates', () => {
     expect(src).toContain('day._isoDate');
     expect(src).toContain('DayHelpers.isoDate');
     expect(src).not.toMatch(/new Date\(startDate \+ 'T00:00:00'\)/);
+    expect(src).toContain('loc.tmax[di] == null');
   });
 
   test('route cards get wx from mocked Open-Meteo for in-window days', async ({ page }) => {

@@ -94,6 +94,26 @@ var Weather = (() => {
   }
 
   /**
+   * Open-Meteo "errors" are not always HTTP 4xx:
+   * - 400 `{error:true, reason:"... out of allowed range ..."}`
+   * - 200 `{error:true, reason}` — treat the flag, ignore status
+   * - 200 with daily.time set but weathercode/temps all `null` (last
+   *   allowed day: the model accepts the date, then sends empty slots —
+   *   that painted Inconnu / 0° / UV 0 on the Jour banner).
+   * Returns a user message, or null if the daily slot is usable.
+   */
+  function forecastFailure(resp, data) {
+    if (data && data.error) {
+      return errorMessage(new Error(data.reason || 'API error'), data);
+    }
+    if (resp && !resp.ok) {
+      return errorMessage(new Error((data && data.reason) || 'API error'), data);
+    }
+    if (!dailySlotUsable(data && data.daily, 0)) return MSG_TOO_FAR;
+    return null;
+  }
+
+  /**
    * User-facing message for a failed weather fetch.
    * Too-far / API range ≠ offline.
    */
@@ -141,17 +161,12 @@ var Weather = (() => {
       let data = null;
       try { data = await resp.json(); } catch (_) { data = null; }
 
-      if (!resp.ok) {
-        paintUnavailable(container, errorMessage(new Error((data && data.reason) || 'API error'), data));
+      const fail = forecastFailure(resp, data);
+      if (fail) {
+        paintUnavailable(container, fail);
         return;
       }
-
-      const daily = data && data.daily;
-
-      if (!dailySlotUsable(daily, 0)) {
-        paintUnavailable(container, MSG_TOO_FAR);
-        return;
-      }
+      const daily = data.daily;
 
       const code = daily.weathercode[0];
       const icon = WMO_ICONS[code] || '🌤️';
@@ -216,8 +231,9 @@ var Weather = (() => {
         const resp = await fetch(url);
         let body = null;
         try { body = await resp.json(); } catch (_) { body = null; }
-        if (!resp.ok) {
-          document.getElementById('wmContent').innerHTML = `<em>${errorMessage(new Error((body && body.reason) || 'API error'), body)}</em>`;
+        const fail = forecastFailure(resp, body);
+        if (fail) {
+          document.getElementById('wmContent').innerHTML = `<em>${fail}</em>`;
           return;
         }
         data = body;
@@ -354,5 +370,5 @@ var Weather = (() => {
     return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   }
 
-  return { renderInline, openModal, isBeyondForecast, dailySlotUsable, errorMessage, MSG_TOO_FAR, MSG_OFFLINE };
+  return { renderInline, openModal, isBeyondForecast, dailySlotUsable, forecastFailure, errorMessage, MSG_TOO_FAR, MSG_OFFLINE };
 })();

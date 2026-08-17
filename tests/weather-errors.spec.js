@@ -15,6 +15,8 @@ test.describe('Weather error messages', () => {
     expect(weatherSrc).toContain('isBeyondForecast');
     expect(weatherSrc).toContain('out of allowed range');
     expect(weatherSrc).toContain('dailySlotUsable');
+    expect(weatherSrc).toContain('forecastFailure');
+    expect(weatherSrc).toContain('data.error');
     // today+16 is already out (Open-Meteo = today + 15 inclusive)
     expect(weatherSrc).toMatch(/daysFromToday\(isoDate\)\s*>=\s*FORECAST_MAX_DAYS/);
     // Catch must not always claim offline
@@ -168,5 +170,42 @@ test.describe('Weather error messages', () => {
     await expect(box).not.toContainText('Inconnu');
     await expect(box).not.toContainText('0°');
     await expect(box).not.toContainText('Tap pour détails');
+  });
+
+  test('Open-Meteo 200 with error:true reason is shown, not Inconnu 0°', async ({ page }) => {
+    await page.route('**/api.open-meteo.com/**', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          error: true,
+          reason: "Parameter 'start_date' is out of allowed range from 2026-05-16 to 2026-09-01",
+        }),
+      });
+    });
+
+    await page.goto('/');
+    await page.waitForSelector('.bottom-nav', { timeout: 8000 });
+    await page.evaluate(() => {
+      const tripId = Store.getCurrentTripId();
+      const td = Store.getTripData(tripId);
+      if (td && td.trip) {
+        const soon = new Date();
+        soon.setHours(12, 0, 0, 0);
+        soon.setDate(soon.getDate() + 5);
+        const y = soon.getFullYear();
+        const m = String(soon.getMonth() + 1).padStart(2, '0');
+        const d = String(soon.getDate()).padStart(2, '0');
+        td.trip.startDate = `${y}-${m}-${d}`;
+        Store.setTripData(tripId, td);
+      }
+      if (App && App.goToDay) App.goToDay(1);
+    });
+    await page.waitForTimeout(1500);
+
+    const box = page.locator('#weatherBox');
+    await expect(box).toContainText('prévisions 16j max');
+    await expect(box).not.toContainText('Inconnu');
+    await expect(box).not.toContainText('0°');
   });
 });

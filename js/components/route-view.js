@@ -318,8 +318,9 @@ var RouteView = (() => {
       if (!iso) { el.innerHTML = ''; return; }
 
       const di = loc.time.indexOf(iso);
-      if (di === -1) {
-        // Beyond Open-Meteo window (~16j) — expected for late Québec / Baléares
+      // Missing day OR last-window 200 with null temps (Open-Meteo accepts
+      // the date then sends empty slots — do not paint 0°/0°).
+      if (di === -1 || loc.tmax[di] == null || loc.tmin[di] == null) {
         el.innerHTML = `<div style="text-align:center;min-width:48px;color:var(--muted);font-size:.62em;line-height:1.2" title="Prévisions 16j max">16j+</div>`;
         return;
       }
