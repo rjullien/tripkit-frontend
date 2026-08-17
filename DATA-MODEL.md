@@ -205,6 +205,9 @@ displayed_date(day_num) = startDate + (day_num - 1)
   link?:          string,    // Direct URL button
   accent?:        boolean,   // Visual emphasis (auto-detected from ✈️/🚗/DÉPART)
   green?:         boolean,   // Green dot marker (auto-detected from ⭐/✅)
+  place?:         string,    // Google-friendly name/address for "Étapes du jour" Maps link
+  lat?:           number,    // Optional coords — used instead of `place` when both present
+  lon?:           number,
 }
 ```
 
@@ -224,6 +227,13 @@ shuttle info, etc. in two places.
 rich expansion (rating, alternatives, address). The `d` text is the **editorial
 context** ("Déjeuner en centre-ville"). These serve different purposes:
 ref = structured data, text = display narrative.
+
+**Maps "Étapes du jour":** optional `place` / `lat`/`lon` on timeline entries
+feed the Google Maps Directions button under the programme. The frontend always
+bookends the day with morning hotel (previous day's `hotelId`) and evening hotel
+(`day.hotelId`). More than 10 waypoints → split into overlapping links (last of
+link N = first of link N+1). Entries without geo are skipped. Does **not**
+replace `day.mapUrl` (driving route).
 
 ### Departure
 ```typescript

@@ -72,6 +72,11 @@ var Timeline = (() => {
         descHtml += ` <a href="${link}" class="btn btn-muted" style="font-size:.75em;padding:3px 8px;margin-left:4px" target="_blank">\u2192</a>`;
       }
 
+      const mapsHref = mapsHrefFor(ev);
+      if (mapsHref) {
+        descHtml += ` <a href="${escapeAttr(mapsHref)}" class="tl-maps" target="_blank" rel="noopener" title="Ouvrir dans Google Maps">\ud83d\udccd</a>`;
+      }
+
       return `<div class="timeline-item ${dotClass}">
         ${timeBlock}
         <span class="tl-desc">${descHtml}</span>
@@ -145,6 +150,20 @@ var Timeline = (() => {
       const safeHref = href.replace(/"/g, '&quot;');
       return `<a href="${safeHref}" target="_blank">${escapeHtml(label)}</a>`;
     }).replace(/<(?!\/a>)[^>]+>/g, '');
+  }
+
+  function mapsHrefFor(ev) {
+    if (typeof StepsMap !== 'undefined' && StepsMap.mapsUrlFor) {
+      return StepsMap.mapsUrlFor(ev);
+    }
+    if (!ev) return null;
+    if (typeof ev.lat === 'number' && typeof ev.lon === 'number') {
+      return 'https://www.google.com/maps/search/' + encodeURIComponent(ev.lat + ',' + ev.lon);
+    }
+    if (ev.place && typeof ev.place === 'string' && ev.place.trim()) {
+      return 'https://www.google.com/maps/search/' + encodeURIComponent(ev.place.trim());
+    }
+    return null;
   }
 
   return { render, showCulture };

@@ -51,10 +51,10 @@ var SEED_TEST_TRIP = {
       locationId: "city-center",
       timeline: [
         { t: "09:00", d: "☕ Breakfast at hotel" },
-        { t: "10:00", d: "🏛️ Museum visit" },
-        { t: "13:00", d: "🍽️ Lunch" },
-        { t: "15:00", d: "🎨 Art gallery" },
-        { t: "18:00", d: "🥂 Sunset drinks", green: true }
+        { t: "10:00", d: "🏛️ Museum visit", place: "City Museum, Destination" },
+        { t: "13:00", d: "🍽️ Lunch", place: "Old Town Square, Destination" },
+        { t: "15:00", d: "🎨 Art gallery", place: "Art Gallery, Destination" },
+        { t: "18:00", d: "🥂 Sunset drinks", green: true, place: "Riverfront, Destination" }
       ],
       highlights: ["🎨 Gallery is free on Tuesdays"]
     },
