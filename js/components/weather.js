@@ -38,6 +38,19 @@ var Weather = (() => {
     return null;
   }
 
+  function toISODateLocal(d) {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return y + '-' + m + '-' + day;
+  }
+
+  function todayISO() {
+    const t = new Date();
+    t.setHours(12, 0, 0, 0);
+    return toISODateLocal(t);
+  }
+
   /**
    * Get ISO date string for a given day number.
    * Prefer DayHelpers._isoDate when present (UTC-safe).
@@ -51,10 +64,9 @@ var Weather = (() => {
     if (start) {
       const d = new Date(start);
       d.setDate(d.getDate() + dayNum - 1);
-      return d.toISOString().split('T')[0];
+      return toISODateLocal(d);
     }
-    // Last resort: today (weather for "today" is always available)
-    return new Date().toISOString().split('T')[0];
+    return todayISO();
   }
 
   /** Days from local today to isoDate (positive = future). */
@@ -65,6 +77,16 @@ var Weather = (() => {
     const d = new Date(String(isoDate).slice(0, 10) + 'T12:00:00');
     if (isNaN(d.getTime())) return 0;
     return Math.round((d.getTime() - today.getTime()) / 86400000);
+  }
+
+  /**
+   * Forecast APIs only cover today onward. A date in the past (TZ / UTC
+   * mismatch, or an earlier trip day) must keep the current day — not fail.
+   */
+  function clampForecastDate(isoDate) {
+    if (!isoDate) return todayISO();
+    if (daysFromToday(isoDate) < 0) return todayISO();
+    return String(isoDate).slice(0, 10);
   }
 
   function isBeyondForecast(isoDate) {
@@ -139,14 +161,17 @@ var Weather = (() => {
       return;
     }
 
-    const dateStr = dayDate(day.day, day);
-    const cacheKey = `${day.geo.lat},${day.geo.lon},${dateStr}`;
+    const rawDate = dayDate(day.day, day);
+    const cacheKey = `${day.geo.lat},${day.geo.lon},${rawDate}`;
 
     // Beyond Open-Meteo window — don't pretend we're offline, don't paint 0°
-    if (isBeyondForecast(dateStr)) {
+    if (isBeyondForecast(rawDate)) {
       paintUnavailable(container, MSG_TOO_FAR);
       return;
     }
+
+    // Past dates (incl. "today" shifted to yesterday by UTC) → keep today
+    const dateStr = clampForecastDate(rawDate);
 
     // Show loading
     container.innerHTML = '<div style="text-align:center;color:var(--muted);font-size:.85em;padding:8px">🌤️ Chargement météo…</div>';
@@ -165,7 +190,7 @@ var Weather = (() => {
       })();
       const tz = day.geo.tz || 'UTC';
       const url = (typeof API !== 'undefined' && API.isReachable())
-        ? API.url(`/weather/forecast?lat=${day.geo.lat}&lon=${day.geo.lon}&country=${encodeURIComponent(country)}&days=1&date=${dateStr}&tz=${encodeURIComponent(tz)}`)
+        ? API.url(`/weather/forecast?lat=${day.geo.lat}&lon=${day.geo.lon}&country=${encodeURIComponent(country)}&days=16&date=${dateStr}&tz=${encodeURIComponent(tz)}`)
         : `https://api.open-meteo.com/v1/forecast?latitude=${day.geo.lat}&longitude=${day.geo.lon}&daily=weathercode,temperature_2m_max,temperature_2m_min,precipitation_probability_max,windspeed_10m_max,uv_index_max&timezone=${encodeURIComponent(tz)}&start_date=${dateStr}&end_date=${dateStr}`;
 
       const headers = {};
@@ -233,7 +258,8 @@ var Weather = (() => {
     if (!day || !day.geo) return;
     if (!navigator.onLine) return;
 
-    const dateStr = dayDate(day.day, day);
+    const rawDate = dayDate(day.day, day);
+    const dateStr = clampForecastDate(rawDate);
     const tz = day.geo.tz || 'UTC';
 
     // Create overlay
@@ -247,7 +273,7 @@ var Weather = (() => {
     </div>`;
     document.body.appendChild(overlay);
 
-    if (isBeyondForecast(dateStr)) {
+    if (isBeyondForecast(rawDate)) {
       document.getElementById('wmContent').innerHTML = `<em>${MSG_TOO_FAR}</em>`;
       return;
     }
@@ -256,9 +282,9 @@ var Weather = (() => {
     let data = detailCache[cacheKey];
     if (!data) {
       try {
-        const start = getTripStart() || new Date();
-        const end = new Date(start); end.setDate(start.getDate() + day.day - 1 + 2);
-        const endStr = end.toISOString().split('T')[0];
+        const end = new Date(dateStr + 'T12:00:00');
+        end.setDate(end.getDate() + 2);
+        const endStr = toISODateLocal(end);
         const url = `https://api.open-meteo.com/v1/forecast?latitude=${day.geo.lat}&longitude=${day.geo.lon}&hourly=temperature_2m,weathercode,precipitation_probability,precipitation,apparent_temperature&daily=weathercode,temperature_2m_max,temperature_2m_min,precipitation_probability_max,windspeed_10m_max,uv_index_max,sunrise,sunset&current_weather=true&timezone=${encodeURIComponent(tz)}&start_date=${dateStr}&end_date=${endStr}`;
         const resp = await fetch(url);
         let body = null;
@@ -402,5 +428,5 @@ var Weather = (() => {
     return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   }
 
-  return { renderInline, openModal, isBeyondForecast, dailySlotUsable, forecastFailure, errorMessage, MSG_TOO_FAR, MSG_OFFLINE };
+  return { renderInline, openModal, isBeyondForecast, dailySlotUsable, forecastFailure, errorMessage, clampForecastDate, daysFromToday, MSG_TOO_FAR, MSG_OFFLINE };
 })();
