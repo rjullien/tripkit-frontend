@@ -229,9 +229,10 @@ var HotelCard = (() => {
 
     // WiFi Connect
     if (wifi && wifi.ssid && !compact) {
+      var _wifiPass = wifi.pass || wifi.password || '';
       var ssid = esc(wifi.ssid);
-      var pass = esc(wifi.pass || '');
-      var rawPass = String(wifi.pass || '').replace(/'/g, "\\'");
+      var pass = esc(_wifiPass);
+      var rawPass = String(_wifiPass).replace(/'/g, "\\'");
       var rawSsid = String(wifi.ssid).replace(/'/g, "\\'");
       html += '<div style="margin-top:8px;padding:12px;background:rgba(78,205,196,.08);border:1px solid rgba(78,205,196,.25);border-radius:10px">';
       html += '<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">';
@@ -242,7 +243,7 @@ var HotelCard = (() => {
       html += '<div style="margin-top:8px;font-size:.75em;color:var(--muted)">mdp : <code style="color:var(--text);background:rgba(255,255,255,.1);padding:2px 6px;border-radius:4px;user-select:all">' + pass + '</code>';
       html += ' <button onclick="navigator.clipboard.writeText(\'' + rawPass + '\');this.textContent=\'\u2705\';setTimeout(()=>this.textContent=\'\ud83d\udccb\',1500)" style="background:none;border:none;font-size:1em;cursor:pointer;padding:0">\ud83d\udccb</button></div>';
       // QR code
-      var _wifiQR = 'WIFI:T:WPA;S:' + wifi.ssid + ';P:' + (wifi.pass || '') + ';;';
+      var _wifiQR = 'WIFI:T:WPA;S:' + wifi.ssid + ';P:' + (_wifiPass || '') + ';;';
       var _qrId = 'wifi-qr-' + wifi.ssid.replace(/\W/g, '') + '-' + Math.random().toString(36).slice(2, 8);
       html += '<div id="' + _qrId + '" style="margin-top:10px;text-align:center"></div>';
       html += '<div style="margin-top:6px;font-size:.68em;color:var(--muted)">\ud83d\udcf1 Scannez le QR ou copiez le mdp \u2192 R\u00e9glages \u2192 WiFi</div>';
