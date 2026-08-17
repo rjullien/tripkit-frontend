@@ -18,6 +18,40 @@ test.describe('Route weather ISO dates', () => {
   });
 
   test('route cards get wx from mocked Open-Meteo for in-window days', async ({ page }) => {
+    // Mock backend health (makes API.isReachable() → true)
+    await page.route('**/health', async (route) => {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: '{"status":"ok"}' });
+    });
+
+    // Mock backend weather endpoint (route-view calls /weather/forecast now)
+    await page.route('**/weather/forecast**', async (route) => {
+      // Generate a 16-day forecast response
+      const url = new URL(route.request().url());
+      const days = [];
+      const today = new Date();
+      for (let i = 0; i < 16; i++) {
+        const d = new Date(today);
+        d.setUTCDate(d.getUTCDate() + i);
+        days.push({
+          date: d.toISOString().slice(0, 10),
+          tempMin: 12,
+          tempMax: 22,
+          weatherCode: 1,
+          conditions: 'Peu nuageux',
+          precipProbability: 10,
+          windMaxKmh: 15,
+          uvMax: 4,
+          provider: 'open-meteo',
+        });
+      }
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ lat: 45.5, lon: -73.5, timezone: 'America/Toronto', days }),
+      });
+    });
+
+    // Also mock Open-Meteo in case fallback triggers
     await page.route('**/api.open-meteo.com/**', async (route) => {
       const url = new URL(route.request().url());
       const start = url.searchParams.get('start_date');
@@ -46,7 +80,6 @@ test.describe('Route weather ISO dates', () => {
           weathercode: codes,
         },
       };
-      // Multi-coord batch → array; single → object. Always array-safe.
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -71,7 +104,14 @@ test.describe('Route weather ISO dates', () => {
         });
         Store.setTripData(tripId, td);
       }
+      // Mark API as reachable so route-view calls the backend
+      if (typeof API !== 'undefined') {
+        // Trigger a probe that will hit our mocked /health and succeed
+        API.probe && API.probe();
+      }
     });
+    // Wait for probe to resolve (sets _reachable = true)
+    await page.waitForTimeout(500);
     await page.locator('.bottom-nav button[data-tab="route"]').click();
     await page.waitForSelector('.route-card', { timeout: 5000 });
     await page.waitForTimeout(1200);
