@@ -14,22 +14,6 @@ var RouteView = (() => {
     return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   }
 
-  function isUSA(lat, lon) { return lat >= 24 && lat <= 50 && lon >= -125 && lon <= -66; }
-
-  function nwsToEmoji(short) {
-    const s = (short || '').toLowerCase();
-    if (s.includes('thunder')) return '⚡';
-    if (s.includes('snow')) return '❄️';
-    if (s.includes('rain') || s.includes('shower')) return '🌧️';
-    if (s.includes('drizzle')) return '🌦️';
-    if (s.includes('fog')) return '🌫️';
-    if (s.includes('cloud') || s.includes('overcast')) return '☁️';
-    if (s.includes('partly')) return '⛅';
-    if (s.includes('mostly sunny') || s.includes('mostly clear')) return '🌤️';
-    if (s.includes('sunny') || s.includes('clear')) return '☀️';
-    return '🌤️';
-  }
-
   /**
    * Render the route overview into a container.
    */
@@ -169,9 +153,8 @@ var RouteView = (() => {
   }
 
   /**
-   * Batch-fetch weather for all unique coords.
-   * Step 1: Open-Meteo (all coords, up to 16 days)
-   * Step 2: NWS overlay for USA coords (7 days, more accurate)
+   * Batch-fetch weather for all unique coords via backend (centralized routing).
+   * Backend handles US→NWS, CA→MSC, default→Open-Meteo automatically.
    */
   async function fetchRouteWeather(tripData, days) {
     const trip = tripData.trip || {};
@@ -179,7 +162,7 @@ var RouteView = (() => {
     if (!startDate) return;
 
     // Check cache (3h TTL) — reused offline when still fresh
-    const stored = localStorage.getItem('wxRouteCache-v1');
+    const stored = localStorage.getItem('wxRouteCache-v2');
     if (stored) {
       try {
         const parsed = JSON.parse(stored);
@@ -191,8 +174,9 @@ var RouteView = (() => {
       } catch(e) {}
     }
 
-    // Offline: no Open-Meteo / NWS (itinerary stays usable)
+    // Offline or no backend: skip (itinerary stays usable)
     if (!navigator.onLine) return;
+    if (typeof API === 'undefined' || !API.isReachable()) return;
 
     // Collect unique coords
     const seen = new Set();
@@ -207,92 +191,37 @@ var RouteView = (() => {
     if (!coords.length) return;
 
     wxCache = {};
+    const country = trip.country || '';
 
-    // Step 1: Open-Meteo batch
-    try {
-      const lats = coords.map(c => c.lat).join(',');
-      const lons = coords.map(c => c.lon).join(',');
-      const today = new Date().toISOString().slice(0, 10);
-      const maxFc = new Date(Date.now() + 15 * 86400000).toISOString().slice(0, 10);
-      const tripEnd = new Date(new Date(startDate).getTime() + (days.length + 1) * 86400000).toISOString().slice(0, 10);
-      const endDate = tripEnd < maxFc ? tripEnd : maxFc;
-
-      const url = `https://api.open-meteo.com/v1/forecast?latitude=${lats}&longitude=${lons}&daily=temperature_2m_min,temperature_2m_max,precipitation_probability_max,weathercode&timezone=auto&start_date=${today}&end_date=${endDate}`;
-      const resp = await fetch(url);
-      if (resp.ok) {
-        const json = await resp.json();
-        const results = Array.isArray(json) ? json : [json];
-        results.forEach((r, i) => {
-          if (r.daily && coords[i]) {
-            wxCache[coords[i].key] = {
-              time: r.daily.time,
-              tmin: r.daily.temperature_2m_min,
-              tmax: r.daily.temperature_2m_max,
-              rain: r.daily.precipitation_probability_max || [],
-              icon: (r.daily.weathercode || []).map(c => WMO_ICONS[c] || '🌤️'),
-              source: r.daily.time.map(() => 'open-meteo')
-            };
-          }
+    // Fetch all coords in parallel via backend
+    const promises = coords.map(async (c) => {
+      try {
+        const url = API.url(`/weather/forecast?lat=${c.lat}&lon=${c.lon}&country=${encodeURIComponent(country)}&days=16`);
+        const resp = await fetch(url, {
+          headers: { 'Authorization': 'Bearer ' + (API.getToken ? API.getToken() : '') },
+          signal: AbortSignal.timeout(12000)
         });
-      }
-    } catch(e) { /* silent */ }
+        if (!resp.ok) return;
+        const fc = await resp.json();
+        if (!fc.days || !fc.days.length) return;
 
+        wxCache[c.key] = {
+          time: fc.days.map(d => d.date),
+          tmin: fc.days.map(d => d.tempMin),
+          tmax: fc.days.map(d => d.tempMax),
+          rain: fc.days.map(d => d.precipProbability || 0),
+          icon: fc.days.map(d => WMO_ICONS[d.weatherCode] || '🌤️'),
+          source: fc.days.map(d => d.provider || 'open-meteo')
+        };
+      } catch(e) { /* silent */ }
+    });
+
+    await Promise.allSettled(promises);
     renderWeatherInline(days, startDate);
-
-    // Step 2: NWS overlay for USA coords
-    const usaCoords = coords.filter(c => isUSA(c.lat, c.lon));
-    if (usaCoords.length) {
-      const nwsPromises = usaCoords.map(async (c) => {
-        try {
-          const ptResp = await fetch(`https://api.weather.gov/points/${c.lat},${c.lon}`, { headers: { 'User-Agent': 'TripKit/2.6' } });
-          if (!ptResp.ok) return;
-          const ptJson = await ptResp.json();
-          const fcUrl = ptJson.properties && ptJson.properties.forecast;
-          if (!fcUrl) return;
-          const fcResp = await fetch(fcUrl, { headers: { 'User-Agent': 'TripKit/2.6' } });
-          if (!fcResp.ok) return;
-          const fcJson = await fcResp.json();
-          const periods = fcJson.properties && fcJson.properties.periods;
-          if (!periods) return;
-
-          const dailyMap = {};
-          periods.forEach(p => {
-            const iso = p.startTime.slice(0, 10);
-            if (!dailyMap[iso]) dailyMap[iso] = {};
-            const tempC = p.temperatureUnit === 'F' ? Math.round((p.temperature - 32) * 5/9) : p.temperature;
-            const icon = nwsToEmoji(p.shortForecast);
-            const rain = (p.probabilityOfPrecipitation && p.probabilityOfPrecipitation.value) || 0;
-            if (p.isDaytime) {
-              dailyMap[iso].hi = tempC;
-              dailyMap[iso].icon = icon;
-              dailyMap[iso].rain = Math.max(dailyMap[iso].rain || 0, rain);
-            } else {
-              dailyMap[iso].lo = tempC;
-              dailyMap[iso].rain = Math.max(dailyMap[iso].rain || 0, rain);
-            }
-          });
-
-          const loc = wxCache[c.key];
-          if (!loc) return;
-          Object.entries(dailyMap).forEach(([iso, nws]) => {
-            const di = loc.time.indexOf(iso);
-            if (di === -1) return;
-            if (nws.hi != null) loc.tmax[di] = nws.hi;
-            if (nws.lo != null) loc.tmin[di] = nws.lo;
-            if (nws.icon) loc.icon[di] = nws.icon;
-            if (nws.rain != null) loc.rain[di] = nws.rain;
-            loc.source[di] = 'nws';
-          });
-        } catch(e) { /* silent */ }
-      });
-
-      await Promise.allSettled(nwsPromises);
-      renderWeatherInline(days, startDate);
-    }
 
     // Save cache
     try {
-      localStorage.setItem('wxRouteCache-v1', JSON.stringify({ ts: Date.now(), data: wxCache }));
+      localStorage.setItem('wxRouteCache-v2', JSON.stringify({ ts: Date.now(), data: wxCache }));
     } catch(e) {}
   }
 
@@ -330,7 +259,8 @@ var RouteView = (() => {
       const tmin = Math.round(loc.tmin[di]);
       const rain = loc.rain[di] || 0;
       const src = loc.source[di] || 'open-meteo';
-      const srcBadge = src === 'nws' ? '<span style="font-size:.55em;color:var(--green)" title="NWS">★</span>' : '';
+      const srcBadge = src === 'nws' ? '<span style="font-size:.55em;color:var(--green)" title="NWS">★</span>'
+        : src === 'msc' ? '<span style="font-size:.55em;color:var(--green)" title="MSC 🇨🇦">★</span>' : '';
 
       el.innerHTML = `<div style="text-align:center;min-width:48px">
         <div style="font-size:1.2em">${icon}</div>
