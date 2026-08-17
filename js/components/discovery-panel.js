@@ -238,7 +238,10 @@ var DiscoveryPanel = (() => {
           try { result = JSON.parse(ev.data.reply); } catch (_) {}
         }
         if (ev.event === 'error') {
-          const msg = (ev.data && (ev.data.error || ev.data.detail)) || 'Recherche impossible.';
+          const code = ev.data && ev.data.code;
+          const msg = code === 'auth_expired'
+            ? 'Session expirée — recharge la page.'
+            : (ev.data && (ev.data.error || ev.data.detail)) || 'Recherche impossible.';
           if (status) status.textContent = msg;
           return;
         }

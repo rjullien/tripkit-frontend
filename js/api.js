@@ -143,6 +143,10 @@ var API = (() => {
         console.debug('[API] non-OK:', res.status, path);
         // HTTP from our host ⇒ path exists; treat as reachable unless 0/network.
         if (res.status > 0) setReachable(true);
+        // Authelia session expired → don't confuse with a backend error.
+        if (res.status === 401 || res.status === 403) {
+          return { ok: false, status: res.status, data: null, error: 'auth_expired' };
+        }
         return { ok: false, status: res.status, data: null, error: 'http' };
       }
       setReachable(true);
@@ -410,6 +414,16 @@ var API = (() => {
         clearToken();
         return requestJSON(path, options, true);
       }
+      // Authelia session expired: after clearing the token + retry above, a
+      // second 401/403 means the cookie session itself is gone.
+      if ((res.status === 401 || res.status === 403) && _retried) {
+        return {
+          ok: false,
+          status: res.status,
+          data: { code: 'auth_expired' },
+          error: 'Session expirée — recharge la page.',
+        };
+      }
       let data = null;
       const text = await res.text();
       if (text) {
@@ -561,6 +575,17 @@ var API = (() => {
       return;
     }
     if (!res.ok) {
+      // Authelia session expired → Traefik forwards the 401 as-is.
+      if (res.status === 401 || res.status === 403) {
+        yield {
+          event: 'error',
+          data: {
+            code: 'auth_expired',
+            error: 'Session expirée — recharge la page.',
+          },
+        };
+        return;
+      }
       let data = null;
       try { data = await res.json(); } catch (_) {}
       yield {
