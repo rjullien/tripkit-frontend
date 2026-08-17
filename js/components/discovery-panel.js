@@ -109,7 +109,7 @@ var DiscoveryPanel = (() => {
 
     container._disc = {
       tripId, dayNum, dateISO, leg, mode: corridorOnly ? 'corridor' : 'around',
-      aroundTitle, sub,
+      aroundTitle, sub, tripData,
     };
 
     const toggle = container.querySelector('#discovery-toggle');
@@ -346,6 +346,9 @@ var DiscoveryPanel = (() => {
         : 'Rien trouvé autour pour ces thèmes.'}</p>`;
       return;
     }
+    // Cross-reference with retained activities to show "Retenu ✓"
+    const td = (root._disc && root._disc.tripData) || {};
+    const activities = (td.trip && td.trip.activities) || (td.activities) || {};
     wrap.innerHTML = items.map((it, idx) => {
       const editorial = it.source === 'editorial';
       const km = (!editorial && typeof it.distKm === 'number' && it.distKm > 0)
@@ -359,7 +362,10 @@ var DiscoveryPanel = (() => {
         : '';
       const meta = [when, detour || km, link].filter(Boolean).join(' · ');
       const note = it.note ? `<div class="discovery-item-note">${esc(it.note)}</div>` : '';
-      const retainBtn = `<button type="button" class="btn btn-sm discovery-retain-btn" data-idx="${idx}">${RETAIN_LABEL}</button>`;
+      const alreadyRetained = !!(it.id && activities[it.id]);
+      const btnLabel = alreadyRetained ? 'Retenu ✓' : RETAIN_LABEL;
+      const btnClass = alreadyRetained ? 'btn btn-sm discovery-retain-btn done' : 'btn btn-sm discovery-retain-btn';
+      const retainBtn = `<button type="button" class="${btnClass}" data-idx="${idx}"${alreadyRetained ? ' disabled' : ''}>${btnLabel}</button>`;
       return `<div class="discovery-item">
         <div class="discovery-item-row">
           <div class="discovery-item-name">${esc(it.name || '')}</div>
@@ -431,6 +437,15 @@ var DiscoveryPanel = (() => {
 
     btn.textContent = 'Retenu ✓';
     btn.className = 'btn btn-sm discovery-retain-btn done';
+    btn.disabled = true;
+    // Update local tripData so re-renders keep the retained state
+    const st = btn.closest('[class*="discovery"]');
+    const disc = st && st._disc ? st._disc : (btn.getRootNode && btn.getRootNode()._disc);
+    if (disc && disc.tripData) {
+      const td = disc.tripData;
+      const acts = td.trip ? (td.trip.activities || (td.trip.activities = {})) : (td.activities || (td.activities = {}));
+      if (item.id) acts[item.id] = res.data.activity || item;
+    }
     const seedPush = res.data.seedPush;
     if (seedPush && seedPush.ok === false) {
       const detail = (typeof seedPush.error === 'string' && seedPush.error)
