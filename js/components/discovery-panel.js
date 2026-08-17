@@ -446,8 +446,10 @@ var DiscoveryPanel = (() => {
     btn.className = 'btn btn-sm discovery-retain-btn done';
     btn.disabled = true;
     // Update local tripData + Store so re-renders and navigations keep the retained state
-    const disc = btn.closest && btn.closest('.discovery-section');
-    const discState = disc && disc._disc ? disc._disc : (btn.getRootNode && btn.getRootNode()._disc);
+    const discWrap = btn.closest && btn.closest('.discovery-wrap');
+    const discState = (discWrap && discWrap.parentElement && discWrap.parentElement._disc)
+      || (discWrap && discWrap._disc)
+      || null;
     if (discState && discState.tripData) {
       const td = discState.tripData;
       const acts = td.activities || (td.activities = {});
@@ -455,6 +457,16 @@ var DiscoveryPanel = (() => {
       // Persist to localStorage so the state survives navigation
       if (typeof Store !== 'undefined' && Store.setTripData && tripId) {
         Store.setTripData(tripId, td);
+      }
+    } else {
+      // Fallback: persist directly via Store even if we can't find the disc state
+      if (typeof Store !== 'undefined' && Store.getTripData && Store.setTripData && tripId) {
+        const td = Store.getTripData(tripId);
+        if (td) {
+          const acts = td.activities || (td.activities = {});
+          if (item.id) acts[item.id] = (res.data && res.data.activity) || item;
+          Store.setTripData(tripId, td);
+        }
       }
     }
     const seedPush = res.data && res.data.seedPush;
