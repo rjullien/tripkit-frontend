@@ -521,17 +521,22 @@ var API = (() => {
 
   /**
    * Safari iOS reports a dropped fetch/SSE as TypeError « Load failed ».
-   * Never show that raw string in the Plus chat bubbles.
+   * Translate raw browser errors into user-friendly French messages.
+   * Note: 'Connexion coupée' is no longer shown — callers should auto-retry
+   * or fall back to the store GET before reaching this point.
    */
   function netFailMessage(e, aborted) {
     if (aborted) return 'Annulé.';
     const msg = (e && e.message) || '';
     const name = e && e.name;
-    if (name === 'AbortError' || name === 'TimeoutError'
-        || /aborted|timeout|timed out|load failed|failed to fetch|networkerror/i.test(msg)) {
-      return 'Connexion coupée. Réessaie.';
+    if (name === 'TimeoutError' || /timeout|timed out/i.test(msg)) {
+      return 'Délai dépassé — réessaie.';
     }
-    return msg || 'stream interrompu';
+    if (name === 'AbortError'
+        || /aborted|load failed|failed to fetch|networkerror/i.test(msg)) {
+      return 'Connexion interrompue — réessaie.';
+    }
+    return msg || 'Erreur réseau.';
   }
 
   /**
