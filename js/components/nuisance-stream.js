@@ -532,6 +532,8 @@ var NuisanceStream = (() => {
 
   /**
    * Une GET pour tout le voyage, puis peinture de chaque carte hôtel.
+   * Shows a compact nuisance verdict summary with an Accept button for
+   * elevated verdicts (user acknowledges risk → QA gate stops blocking).
    */
   async function hydrateHotels(root, tripId) {
     if (!root || !tripId || typeof API === 'undefined' || !API.getNuisanceCheck) return;
@@ -547,14 +549,55 @@ var NuisanceStream = (() => {
         if (!id) return;
         const one = filterLocation(parsed, id);
         if (!one.locations.length) return;
-        paint(el, resultsHtml(one, true));
+        // Show compact verdict + accept button for ELEVE
+        const loc = one.locations[0];
+        const verdict = loc.verdict || one.verdict || '';
+        const emoji = loc.verdictEmoji || ConstructionContract.nuisanceEmoji(verdict) || '';
+        const accepted = loc.accepted === true;
+        const mainIssue = (Array.isArray(loc.categories) && loc.categories.length)
+          ? loc.categories.filter(c => c.level === 'ELEVE' || c.level === 'MODERE')
+              .map(c => `${c.emoji || ''} ${c.category || c.name || ''} ${c.distance ? Math.round(c.distance) + 'm' : ''}`).join(' · ')
+          : '';
+        let html = `<div class="hotel-nuisance-summary" style="font-size:.82em;margin:4px 0;padding:4px 8px;border-radius:4px;background:var(--surface-alt,#f5f5f5)">`;
+        html += `<span>${emoji} ${esc(verdictLabel(verdict))}${accepted ? ' ✓ accepté' : ''}</span>`;
+        if (mainIssue) html += `<div style="color:var(--muted);font-size:.9em">${esc(mainIssue)}</div>`;
+        if (verdict === 'ELEVE' && !accepted) {
+          html += `<button class="btn btn-xs nuisance-accept-btn" data-trip-id="${esc(tripId)}" data-loc-id="${esc(id)}" style="margin-top:4px">✓ Accepter le risque</button>`;
+        }
+        html += `</div>`;
+        paint(el, html);
       });
+      // Bind accept buttons
+      bindAcceptButtons(root);
     } catch (_) {}
+  }
+
+  function bindAcceptButtons(root) {
+    if (!root) return;
+    root.querySelectorAll('.nuisance-accept-btn').forEach(btn => {
+      if (btn.dataset.bound === '1') return;
+      btn.dataset.bound = '1';
+      btn.addEventListener('click', async () => {
+        const tripId = btn.dataset.tripId;
+        const locId = btn.dataset.locId;
+        if (!tripId || !locId) return;
+        btn.disabled = true;
+        btn.textContent = '...';
+        const res = await API.acceptNuisanceCheck(tripId, locId);
+        if (res && res.ok) {
+          btn.textContent = '✓ Accepté';
+          btn.classList.add('accepted');
+        } else {
+          btn.textContent = 'Erreur';
+          setTimeout(() => { btn.textContent = '✓ Accepter le risque'; btn.disabled = false; }, 2000);
+        }
+      });
+    });
   }
 
   return {
     render, subscribe, start, resumeIfNeeded, stopFollow, clearJob,
-    hydrate, hydrateHotels,
+    hydrate, hydrateHotels, bindAcceptButtons,
     verdictLabel, filterLocation, paintPartialOrError,
   };
 })();

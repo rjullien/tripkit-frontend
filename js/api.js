@@ -811,6 +811,22 @@ var API = (() => {
     });
   }
 
+  async function refreshNuisanceCheck(tripId) {
+    return requestJSON(`/trips/${encodeURIComponent(tripId)}/nuisance-check`, {
+      method: 'POST',
+      body: JSON.stringify({ refresh: true }),
+      timeoutMs: 15000,
+    });
+  }
+
+  async function acceptNuisanceCheck(tripId, locationId) {
+    return requestJSON(`/trips/${encodeURIComponent(tripId)}/nuisance-check/${encodeURIComponent(locationId)}/accept`, {
+      method: 'POST',
+      body: '{}',
+      timeoutMs: 10000,
+    });
+  }
+
   async function getNuisanceCheck(tripId) {
     return requestJSON(`/trips/${encodeURIComponent(tripId)}/nuisance-check`);
   }
@@ -887,7 +903,7 @@ var API = (() => {
     getDiscoveryThemes, getDiscoveryResults, postDiscoverySearch,
     retainDiscoveryItem, pinNuisanceToSeed,
     getTravelProfile, getConstruction, transitionPhase, createProfileRequest,
-    runQA, getQA, runAdminCheck, runHealthCheck, runNuisanceCheck, getNuisanceCheck,
+    runQA, getQA, runAdminCheck, runHealthCheck, runNuisanceCheck, refreshNuisanceCheck, acceptNuisanceCheck, getNuisanceCheck,
     assetUrl, getBaseUrl, warmTripAssets,
     probe, isReachable, getReachability, onReachabilityChange,
   };

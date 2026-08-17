@@ -1883,6 +1883,20 @@ a:visited { color: var(--accent); }
 .qa-day { color: var(--muted); }
 .qa-msg { margin-top: 2px; }
 .qa-detail { color: var(--muted); font-size: .92em; }
+.qa-action { margin-top: 4px; }
+.qa-action-link { color: var(--accent); text-decoration: underline; font-size: .9em; cursor: pointer; }
+.qa-action-link:hover { color: var(--accent-hover, #90caf9); }
+
+.action-bar-sub-actions { display: flex; gap: 8px; margin: 8px 0 4px; flex-wrap: wrap; }
+.action-sub-btn { font-size: .78em; padding: 3px 10px; opacity: .85; }
+.action-sub-btn:hover { opacity: 1; }
+.action-bar-btn.active { background: var(--accent); color: #fff; font-weight: 600; }
+.action-result-muted { color: var(--muted); font-style: italic; }
+
+/* Hotel nuisance summary in Résa cards */
+.hotel-nuisance-summary { transition: background .2s; }
+.nuisance-accept-btn { font-size: .78em; }
+.nuisance-accept-btn.accepted { color: var(--green); cursor: default; }
 
 .phase-transition-error { margin-top: 8px; }
 .phase-error-box {

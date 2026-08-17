@@ -740,6 +740,8 @@ var ConstructionView = (() => {
 
   // ── ActionBar (checks: QA, Nuisances, Admin, Santé) ──────────────────────
 
+  let _activeView = null; // 'qa' | 'nuisances' | 'admin' | 'sante'
+
   function renderActionBar() {
     return `<div class="construction-action-bar" id="construction-action-bar">
       <h3>Vérifications</h3>
@@ -749,8 +751,37 @@ var ConstructionView = (() => {
         <button class="btn btn-sm action-bar-btn" id="action-admin" data-action="admin">Admin</button>
         <button class="btn btn-sm action-bar-btn" id="action-sante" data-action="sante">Santé</button>
       </div>
+      <div id="action-bar-sub-actions" class="action-bar-sub-actions" style="display:none"></div>
       <div id="action-bar-results"></div>
     </div>`;
+  }
+
+  function setActiveButton(action) {
+    _activeView = action;
+    document.querySelectorAll('.action-bar-btn').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.action === action);
+    });
+  }
+
+  function showSubActions(html) {
+    const el = document.getElementById('action-bar-sub-actions');
+    if (!el) return;
+    if (html) {
+      el.innerHTML = html;
+      el.style.display = '';
+    } else {
+      el.innerHTML = '';
+      el.style.display = 'none';
+    }
+  }
+
+  function renderQASubActions() {
+    return `<button class="btn btn-xs action-sub-btn" id="sub-qa-run">🔄 Relancer</button>`;
+  }
+
+  function renderNuisanceSubActions() {
+    return `<button class="btn btn-xs action-sub-btn" id="sub-nui-run">🔄 Relancer</button>
+            <button class="btn btn-xs action-sub-btn" id="sub-nui-refresh">🔁 Rafraîchir manques</button>`;
   }
 
   function bindActionBar(tripId) {
@@ -759,10 +790,100 @@ var ConstructionView = (() => {
     const adminBtn = document.getElementById('action-admin');
     const santeBtn = document.getElementById('action-sante');
 
-    if (qaBtn) qaBtn.addEventListener('click', () => handleQA(tripId));
-    if (nuiBtn) nuiBtn.addEventListener('click', () => handleNuisances(tripId));
+    if (qaBtn) qaBtn.addEventListener('click', () => viewQA(tripId));
+    if (nuiBtn) nuiBtn.addEventListener('click', () => viewNuisances(tripId));
     if (adminBtn) adminBtn.addEventListener('click', () => handleAdmin(tripId));
     if (santeBtn) santeBtn.addEventListener('click', () => handleSante(tripId));
+  }
+
+  // ── View QA (GET only, no POST) ──
+
+  async function viewQA(tripId) {
+    setActiveButton('qa');
+    showSubActions(renderQASubActions());
+    bindQASubActions(tripId);
+
+    // GET stored QA
+    setButtonLoading('action-qa', true);
+    const res = await API.getQA(tripId);
+    setButtonLoading('action-qa', false);
+
+    if (!res || !res.ok || !res.data) {
+      showResults(`<div class="action-result-muted">Aucun résultat QA. Cliquez « Relancer » pour lancer l'analyse.</div>`);
+      return;
+    }
+    const parsed = ConstructionContract.parseQA(res.data);
+    if (!parsed.ok) {
+      showResults(`<div class="action-result-muted">Aucun résultat QA en cache.</div>`);
+      return;
+    }
+    paintQA(parsed);
+  }
+
+  function bindQASubActions(tripId) {
+    const runBtn = document.getElementById('sub-qa-run');
+    if (runBtn) runBtn.addEventListener('click', () => handleQA(tripId));
+  }
+
+  // ── View Nuisances (GET only, no POST) ──
+
+  async function viewNuisances(tripId) {
+    setActiveButton('nuisances');
+    showSubActions(renderNuisanceSubActions());
+    bindNuisanceSubActions(tripId);
+
+    // GET stored nuisance results
+    const el = document.getElementById('action-bar-results');
+    if (typeof NuisanceStream !== 'undefined' && NuisanceStream.hydrate) {
+      const parsed = await NuisanceStream.hydrate(el, {
+        tripId,
+        onRendered: () => appendPinButton(el),
+      });
+      const hasSomething = !!(parsed && parsed.locations && parsed.locations.length);
+      if (!hasSomething) {
+        showResults(`<div class="action-result-muted">Aucun résultat nuisances. Cliquez « Relancer » pour lancer l'analyse.</div>`);
+      }
+    } else {
+      showResults(`<div class="action-result-muted">Aucun résultat nuisances.</div>`);
+    }
+  }
+
+  function bindNuisanceSubActions(tripId) {
+    const runBtn = document.getElementById('sub-nui-run');
+    const refreshBtn = document.getElementById('sub-nui-refresh');
+    if (runBtn) runBtn.addEventListener('click', () => handleNuisances(tripId));
+    if (refreshBtn) refreshBtn.addEventListener('click', () => handleNuisanceRefresh(tripId));
+  }
+
+  async function handleNuisanceRefresh(tripId) {
+    const btnId = 'sub-nui-refresh';
+    setButtonLoading(btnId, true);
+    const res = await API.refreshNuisanceCheck(tripId);
+    setButtonLoading(btnId, false);
+
+    if (!res.ok) {
+      showResults(`<div class="construction-error">Erreur rafraîchissement : ${esc(res.error || 'HTTP ' + res.status)}</div>`);
+      return;
+    }
+
+    // If nothing to refresh (200 with message instead of 202 with jobId)
+    if (res.data && !res.data.jobId) {
+      showResults(`<div class="action-result-ok">${esc(res.data.message || 'Tous les résultats sont à jour.')}</div>`);
+      return;
+    }
+
+    // Job started — subscribe to SSE
+    abortNuisanceStream();
+    const ac = new AbortController();
+    _nuisanceAbort = ac;
+
+    const el = document.getElementById('action-bar-results');
+    await NuisanceStream.start(el, {
+      tripId,
+      data: res.data,
+      signal: ac.signal,
+      onRendered: () => appendPinButton(el),
+    });
   }
 
   function setButtonLoading(btnId, loading) {
@@ -798,7 +919,16 @@ var ConstructionView = (() => {
       html += `<span class="qa-code">${esc(item && item.code)}</span>`;
       if (item && item.dayNum != null) html += ` <span class="qa-day">J${esc(item.dayNum)}</span>`;
       html += `<div class="qa-msg">${esc((item && (item.message || item.msg)) || '')}</div>`;
-      if (item && item.detail) html += `<div class="qa-detail">${esc(item.detail)}</div>`;
+      if (item && item.detail) {
+        html += `<div class="qa-detail">${esc(item.detail)}</div>`;
+      }
+      // Actionable link for nuisance violations: direct user to Résa tab
+      if (item && (item.code === 'nuisance_unresolved' || item.code === 'nuisance_indeterminate')) {
+        const action = item.code === 'nuisance_unresolved'
+          ? `<a href="#" class="qa-action-link" data-action="goto-resa">→ Aller dans l'onglet Résa</a>`
+          : `<a href="#" class="qa-action-link" data-action="refresh-nuisance">→ Rafraîchir l'analyse</a>`;
+        html += `<div class="qa-action">${action}</div>`;
+      }
       html += `</div>`;
     });
     return html;
@@ -820,6 +950,24 @@ var ConstructionView = (() => {
     html += violationsHtml(parsed.violations);
     html += '</div>';
     showResults(html);
+    bindQAActionLinks();
+  }
+
+  function bindQAActionLinks() {
+    const el = document.getElementById('action-bar-results');
+    if (!el) return;
+    el.querySelectorAll('.qa-action-link').forEach(link => {
+      link.addEventListener('click', (e) => {
+        e.preventDefault();
+        const action = link.dataset.action;
+        if (action === 'goto-resa' && typeof App !== 'undefined' && App.switchTab) {
+          App.switchTab('hotels');
+        } else if (action === 'refresh-nuisance') {
+          const tripId = _currentTripId;
+          if (tripId) handleNuisanceRefresh(tripId);
+        }
+      });
+    });
   }
 
   async function handleQA(tripId) {
@@ -1313,7 +1461,8 @@ var ConstructionView = (() => {
       && NuisanceStream.resumeIfNeeded();
     const resultsEl = document.getElementById('action-bar-results');
     (async () => {
-      if (resumed) return;
+      if (resumed) { setActiveButton('nuisances'); showSubActions(renderNuisanceSubActions()); bindNuisanceSubActions(tripId); return; }
+      // On tab open: try nuisances first (most actionable), then QA.
       let nuisancePainted = false;
       if (typeof NuisanceStream !== 'undefined' && NuisanceStream.hydrate) {
         const parsed = await NuisanceStream.hydrate(resultsEl, {
@@ -1322,9 +1471,19 @@ var ConstructionView = (() => {
         });
         nuisancePainted = !!(parsed && parsed.locations && parsed.locations.length);
       }
-      if (nuisancePainted) return;
-      if (resultsEl && resultsEl.innerHTML && resultsEl.innerHTML.trim()) return;
-      await hydrateQA(tripId);
+      if (nuisancePainted) {
+        setActiveButton('nuisances');
+        showSubActions(renderNuisanceSubActions());
+        bindNuisanceSubActions(tripId);
+        return;
+      }
+      // Fallback to QA
+      const qaShown = await hydrateQA(tripId);
+      if (qaShown) {
+        setActiveButton('qa');
+        showSubActions(renderQASubActions());
+        bindQASubActions(tripId);
+      }
     })();
   }
 
