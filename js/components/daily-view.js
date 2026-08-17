@@ -162,6 +162,23 @@ var DailyView = (() => {
         homeTz,
         dayDate: day._isoDate || '',
       });
+
+      // ── Steps Map link (Google Maps with all waypoints in order) ────────
+      if (typeof StepsMap !== 'undefined') {
+        const stepsResult = StepsMap.buildStepsUrl(day.timeline);
+        if (stepsResult) {
+          html += `<div class="card" style="padding:10px 14px;margin-top:8px">`;
+          html += `<a href="${escAttr(stepsResult.url)}" target="_blank" class="map-btn map-btn-primary" style="width:100%;text-align:center;display:block">`;
+          html += `🗺️ Étapes du jour (${stepsResult.count} points)`;
+          html += `</a>`;
+          if (stepsResult.truncated) {
+            html += `<div style="font-size:.72em;color:var(--muted);margin-top:4px;text-align:center">⚠️ Limité aux 10 premiers arrêts</div>`;
+          } else {
+            html += `<div style="font-size:.72em;color:var(--muted);margin-top:4px;text-align:center">Ouvre Google Maps avec les arrêts dans l'ordre</div>`;
+          }
+          html += `</div>`;
+        }
+      }
     }
 
     // ── Activities for this day ────────────────────────────────────────────

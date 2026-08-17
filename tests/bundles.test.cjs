@@ -3,7 +3,7 @@
  *
  * Ce que rien ne verrouillait avant : le build sort-il vraiment en 1 quand une
  * source manque (sinon un bundle amputé partirait en prod sans bruit), et les
- * bundles générés contiennent-ils bien les 34 sources ? Le manifeste seul était
+ * bundles générés contiennent-ils bien les 35 sources ? Le manifeste seul était
  * vérifié, donc une source silencieusement sautée passait.
  *
  * L'ordre de chargement, déplacé de index.html vers bundles.json, est également
@@ -63,9 +63,9 @@ test('chaque source du manifeste est présente dans son bundle, avec son contenu
   }
 });
 
-test('les 34 sources sont couvertes, sans doublon entre bundles', () => {
-  assert.strictEqual(allSources.length, 34, 'le manifeste ne déclare plus 34 sources');
-  assert.strictEqual(new Set(allSources).size, 34, 'une source apparaît dans deux bundles');
+test('les 35 sources sont couvertes, sans doublon entre bundles', () => {
+  assert.strictEqual(allSources.length, 35, 'le manifeste ne déclare plus 35 sources');
+  assert.strictEqual(new Set(allSources).size, 35, 'une source apparaît dans deux bundles');
 });
 
 test('le prologue du bundle neutralise le "use strict" de qrcode-svg.min.js', () => {
