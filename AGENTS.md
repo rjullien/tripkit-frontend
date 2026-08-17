@@ -1,5 +1,13 @@
 # AGENTS.md — tripkit-frontend
 
+## Services centralisés (backend)
+
+**Référence : [`../tripkit/SERVICES.md`](https://github.com/rjullien/tripkit/blob/main/SERVICES.md)**
+
+Le frontend ne doit **jamais** appeler directement un service externe (météo,
+géocodage, Overpass, LLM). Tout passe par les endpoints backend qui encapsulent
+les services centralisés. Voir le doc ci-dessus pour la liste complète.
+
 ## LLM / Safari
 
 Toute action UI qui appelle un LLM (Léo, Discovery, Polarsteps, Construction)
