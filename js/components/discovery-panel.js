@@ -445,13 +445,17 @@ var DiscoveryPanel = (() => {
     btn.textContent = 'Retenu ✓';
     btn.className = 'btn btn-sm discovery-retain-btn done';
     btn.disabled = true;
-    // Update local tripData so re-renders keep the retained state
+    // Update local tripData + Store so re-renders and navigations keep the retained state
     const disc = btn.closest && btn.closest('.discovery-section');
     const discState = disc && disc._disc ? disc._disc : (btn.getRootNode && btn.getRootNode()._disc);
     if (discState && discState.tripData) {
       const td = discState.tripData;
-      const acts = td.trip ? (td.trip.activities || (td.trip.activities = {})) : (td.activities || (td.activities = {}));
+      const acts = td.activities || (td.activities = {});
       if (item.id) acts[item.id] = (res.data && res.data.activity) || item;
+      // Persist to localStorage so the state survives navigation
+      if (typeof Store !== 'undefined' && Store.setTripData && tripId) {
+        Store.setTripData(tripId, td);
+      }
     }
     const seedPush = res.data && res.data.seedPush;
     if (seedPush && seedPush.ok === false) {
