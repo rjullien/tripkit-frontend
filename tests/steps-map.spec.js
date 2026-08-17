@@ -18,6 +18,21 @@ test.describe('Étapes du jour', () => {
     expect(parts).toContain('City Museum, Destination');
     expect(parts).toContain('Riverfront, Destination');
     expect(parts.length).toBeGreaterThanOrEqual(4);
+    const html = await page.locator('#programme-content').innerHTML();
+    expect(html.indexOf('Étapes du jour')).toBeGreaterThan(-1);
+    expect(html.indexOf('Étapes du jour')).toBeLessThan(html.indexOf('Programme'));
+  });
+
+  test('jour sans mapUrl : Étapes du jour visible en tête + pin par activité', async ({ page }) => {
+    await page.goto('/');
+    await page.waitForSelector('.day-nav', { timeout: 8000 });
+    await page.evaluate(() => { if (App && App.goToDay) App.goToDay(2); });
+    const btn = page.locator('#programme-content .map-actions a.map-btn-primary', { hasText: 'Étapes du jour' });
+    await expect(btn).toHaveCount(1, { timeout: 5000 });
+    const pins = page.locator('#programme-content .timeline a.tl-maps');
+    await expect(pins).toHaveCount(4);
+    const href = await pins.first().getAttribute('href');
+    expect(href).toMatch(/^https:\/\/www\.google\.com\/maps\/search\//);
   });
 
   test('plus de 10 waypoints → 2 liens, départ du 2e = arrivée du 1er', async ({ page }) => {

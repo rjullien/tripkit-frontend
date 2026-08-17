@@ -655,6 +655,13 @@ a:visited { color: var(--accent); }
   flex: 1;
 }
 
+.tl-maps {
+  font-size: 0.95em;
+  text-decoration: none;
+  margin-left: 2px;
+  vertical-align: middle;
+}
+
 /* ── Booking / Résa cards ── */
 .booking-section-title {
   font-size: 0.78em;

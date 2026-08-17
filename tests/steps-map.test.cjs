@@ -155,6 +155,16 @@ test('placeFromHotel : addr > name, lat/lon en priorité', () => {
   assert.strictEqual(StepsMap.placeFromHotel({ name: 'Sans adresse' }), 'Sans adresse');
 });
 
+test('mapsUrlFor : pin search URL depuis lat/lon ou place', () => {
+  assert.strictEqual(StepsMap.mapsUrlFor(null), null);
+  assert.strictEqual(StepsMap.mapsUrlFor({ d: 'sans geo' }), null);
+  const byCoord = StepsMap.mapsUrlFor({ lat: 46.8122, lon: -71.2052, place: 'ignored' });
+  assert.ok(byCoord.startsWith('https://www.google.com/maps/search/'));
+  assert.ok(byCoord.includes(encodeURIComponent('46.8122,-71.2052')));
+  const byPlace = StepsMap.mapsUrlFor({ place: 'Château Frontenac, Québec' });
+  assert.ok(byPlace.includes(encodeURIComponent('Château Frontenac, Québec')));
+});
+
 test('MAX_WAYPOINTS = 10', () => {
   assert.strictEqual(StepsMap.MAX_WAYPOINTS, 10);
 });

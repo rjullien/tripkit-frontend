@@ -91,6 +91,22 @@ var StepsMap = (() => {
   }
 
   /**
+   * Single-place Google Maps search URL (pin on one activité).
+   * @param {Object} ev — timeline entry with place and/or lat/lon
+   * @returns {string|null}
+   */
+  function mapsUrlFor(ev) {
+    if (!ev) return null;
+    if (typeof ev.lat === 'number' && typeof ev.lon === 'number') {
+      return 'https://www.google.com/maps/search/' + encodeURIComponent(ev.lat + ',' + ev.lon);
+    }
+    if (ev.place && typeof ev.place === 'string' && ev.place.trim()) {
+      return 'https://www.google.com/maps/search/' + encodeURIComponent(ev.place.trim());
+    }
+    return null;
+  }
+
+  /**
    * Split waypoints into ≤10-point chunks with a 1-waypoint overlap:
    * last of chunk i === first of chunk i+1.
    */
@@ -143,6 +159,7 @@ var StepsMap = (() => {
     buildStepsUrl,
     extractWaypoints,
     placeFromHotel,
+    mapsUrlFor,
     MAX_WAYPOINTS
   };
 })();

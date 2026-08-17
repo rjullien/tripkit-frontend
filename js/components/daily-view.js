@@ -119,28 +119,47 @@ var DailyView = (() => {
       html += `</div>`;
     }
 
-    // ── Google Maps + CarPlay + Apple Maps links ───────────────────────────
-    if (day.mapUrl) {
+    // ── Google Maps (trajet) + Étapes du jour (activités) ────────────────
+    // City-stay days have no mapUrl — still show Étapes so the Maps links
+    // are at the top of the jour, not buried under Programme.
+    let stepsResult = null;
+    if (typeof StepsMap !== 'undefined' && StepsMap.buildStepsUrl) {
+      const hotels = tripData.hotels || {};
+      const eveningPlace = hotelPlaceForDay(day, hotels);
+      const morningPlace = idx > 0 ? hotelPlaceForDay(days[idx - 1], hotels) : null;
+      stepsResult = StepsMap.buildStepsUrl(day.timeline || [], {
+        startPlace: morningPlace,
+        endPlace: eveningPlace
+      });
+    }
+
+    if (day.mapUrl || stepsResult) {
       const dest = day.to || day.label || '';
       const dayPad = String(displayNum).padStart(2, '0');
       const tripId = window.Store ? Store.getCurrentTripId() : "";
       html += `<div class="card" style="padding:0;overflow:hidden">`;
-      // Only show route image for trips with real map assets (check routeImage flag)
-      if (day.routeImage !== false) {
+      if (day.mapUrl && day.routeImage !== false) {
         html += `<a href="${escAttr(day.mapUrl)}" target="_blank" style="display:block">`;
         const ncq = localStorage.getItem('tripkit_nocache') === '1' ? '?nocache=1' : '';
         html += `<img src="/api/trips/${tripId}/assets/day-${dayPad}-route.jpg${ncq}" alt="Trajet ${esc(day.from)} \u2192 ${esc(day.to)}" style="width:100%;border-radius:var(--radius) var(--radius) 0 0;display:block;min-height:60px" onerror="this.onerror=null;this.parentElement.style.display='none'" loading="lazy">`;
         html += `</a>`;
       }
-      if (day.from && day.to && day.from !== day.to) {
+      if (day.mapUrl && day.from && day.to && day.from !== day.to) {
         html += `<div style="padding:8px 12px 4px;font-weight:600;font-size:.9em">${esc(day.from)} \u2192 ${esc(day.to)}</div>`;
         html += `<div style="padding:0 12px 8px;color:var(--muted);font-size:.78em">🚗 ${esc(day.dist)} \u2022 ${esc(day.dur)}</div>`;
       }
       html += `<div class="map-actions" style="margin:0;padding:8px 12px 12px">`;
-      html += `<a href="${escAttr(day.mapUrl)}" class="map-btn map-btn-primary" target="_blank">🗺️ Google Maps</a>`;
-      html += `<a href="${escAttr(carplayUrl(day.mapUrl, dest))}" class="map-btn map-btn-secondary" target="_blank">🚗 CarPlay</a>`;
-      html += `<a href="${escAttr(appleMapsUrl(dest))}" class="map-btn map-btn-secondary">🍎 Apple Maps</a>`;
-      html += `</div></div>`;
+      if (day.mapUrl) {
+        html += `<a href="${escAttr(day.mapUrl)}" class="map-btn map-btn-primary" target="_blank">🗺️ Google Maps</a>`;
+        html += `<a href="${escAttr(carplayUrl(day.mapUrl, dest))}" class="map-btn map-btn-secondary" target="_blank">🚗 CarPlay</a>`;
+        html += `<a href="${escAttr(appleMapsUrl(dest))}" class="map-btn map-btn-secondary">🍎 Apple Maps</a>`;
+      }
+      html += renderStepsMapButtons(stepsResult);
+      html += `</div>`;
+      if (stepsResult) {
+        html += `<div style="font-size:.72em;color:var(--muted);padding:0 12px 10px;text-align:center">${stepsMapHint(stepsResult)}</div>`;
+      }
+      html += `</div>`;
     }
 
     // ── Weather box (online only — offline = Jour sans météo) ──────────────
@@ -162,38 +181,6 @@ var DailyView = (() => {
         homeTz,
         dayDate: day._isoDate || '',
       });
-
-      // ── Steps Map link (Google Maps: hotel → stops → hotel) ────────────
-      if (typeof StepsMap !== 'undefined') {
-        const hotels = tripData.hotels || {};
-        const eveningPlace = hotelPlaceForDay(day, hotels);
-        const morningPlace = idx > 0 ? hotelPlaceForDay(days[idx - 1], hotels) : null;
-        const stepsResult = StepsMap.buildStepsUrl(day.timeline, {
-          startPlace: morningPlace,
-          endPlace: eveningPlace
-        });
-        if (stepsResult) {
-          html += `<div class="card" style="padding:10px 14px;margin-top:8px">`;
-          const nLinks = stepsResult.links.length;
-          stepsResult.links.forEach((link, i) => {
-            const extra = i > 0 ? ';margin-top:8px' : '';
-            const label = nLinks > 1
-              ? `🗺️ Étapes du jour ${i + 1}/${nLinks} (${link.count} points)`
-              : `🗺️ Étapes du jour (${link.count} points)`;
-            html += `<a href="${escAttr(link.url)}" target="_blank" rel="noopener" class="map-btn map-btn-primary" style="width:100%;text-align:center;display:block${extra}">`;
-            html += label;
-            html += `</a>`;
-          });
-          let hint = 'Ouvre Google Maps avec les arrêts dans l\'ordre';
-          if (nLinks === 2) {
-            hint = 'Coupé en 2 : l\'arrivée du 1er lien = le départ du 2e';
-          } else if (nLinks > 2) {
-            hint = 'Coupé en ' + nLinks + ' : l\'arrivée d\'un lien = le départ du suivant';
-          }
-          html += `<div style="font-size:.72em;color:var(--muted);margin-top:4px;text-align:center">${hint}</div>`;
-          html += `</div>`;
-        }
-      }
     }
 
     // ── Activities for this day ────────────────────────────────────────────
@@ -536,6 +523,31 @@ var DailyView = (() => {
 
   function appleMapsUrl(address) {
     return 'maps://maps.apple.com/?daddr=' + encodeURIComponent(address) + '&dirflg=d';
+  }
+
+  function renderStepsMapButtons(stepsResult) {
+    if (!stepsResult) return '';
+    let html = '';
+    const nLinks = stepsResult.links.length;
+    const stacked = nLinks > 1;
+    stepsResult.links.forEach((link, i) => {
+      const extra = stacked && i > 0 ? ';margin-top:8px' : '';
+      const width = stacked ? ';width:100%;text-align:center;display:block' : '';
+      const label = nLinks > 1
+        ? `🗺️ Étapes du jour ${i + 1}/${nLinks} (${link.count} points)`
+        : `🗺️ Étapes du jour (${link.count} points)`;
+      html += `<a href="${escAttr(link.url)}" target="_blank" rel="noopener" class="map-btn map-btn-primary" style="${width}${extra}">`;
+      html += label;
+      html += `</a>`;
+    });
+    return html;
+  }
+
+  function stepsMapHint(stepsResult) {
+    const nLinks = stepsResult.links.length;
+    if (nLinks === 2) return 'Coupé en 2 : l\'arrivée du 1er lien = le départ du 2e';
+    if (nLinks > 2) return 'Coupé en ' + nLinks + ' : l\'arrivée d\'un lien = le départ du suivant';
+    return 'Ouvre Google Maps avec les arrêts dans l\'ordre';
   }
 
   /**
