@@ -13,6 +13,7 @@
     "js/api.js",
     "js/seed-merge.js",
     "js/day-helpers.js",
+    "js/steps-map.js",
     "js/tz-helpers.js",
     "js/people-helpers.js",
     "js/day-resolver.js",
