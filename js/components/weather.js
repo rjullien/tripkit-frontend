@@ -8,7 +8,11 @@ var Weather = (() => {
   const WMO_ICONS = {0:'☀️',1:'🌤️',2:'⛅',3:'☁️',45:'🌫️',48:'🌫️',51:'🌦️',53:'🌧️',55:'🌧️',61:'🌦️',63:'🌧️',65:'🌧️',71:'❄️',73:'❄️',75:'❄️',80:'🌦️',81:'🌧️',82:'⛈️',95:'⚡',96:'⚡',99:'⚡'};
   const WMO_DESC = {0:'Ciel dégagé',1:'Peu nuageux',2:'Partiellement nuageux',3:'Couvert',45:'Brouillard',48:'Brouillard givrant',51:'Bruine légère',53:'Bruine',55:'Bruine forte',61:'Pluie légère',63:'Pluie',65:'Forte pluie',71:'Neige légère',73:'Neige',75:'Forte neige',80:'Averses légères',81:'Averses',82:'Averses violentes',95:'Orage',96:'Orage grêle',99:'Orage grêle forte'};
 
-  /** Open-Meteo forecast window (~16 days from today). */
+  /**
+   * Open-Meteo covers today + 15 days = 16 calendar days inclusive.
+   * Same cap as route-view (`Date.now() + 15 * 86400000`).
+   * Day 16 (today+16) is out of range — do not fetch, do not paint 0°/Inconnu.
+   */
   const FORECAST_MAX_DAYS = 16;
   const MSG_TOO_FAR = 'Météo pas encore dispo (prévisions 16j max)';
   const MSG_OFFLINE = 'Météo indisponible hors ligne';
@@ -64,7 +68,25 @@ var Weather = (() => {
   }
 
   function isBeyondForecast(isoDate) {
-    return daysFromToday(isoDate) > FORECAST_MAX_DAYS;
+    return daysFromToday(isoDate) >= FORECAST_MAX_DAYS;
+  }
+
+  /** True when Open-Meteo returned a real daily slot, not nulls painted as 0°. */
+  function dailySlotUsable(daily, i) {
+    if (!daily || !Array.isArray(daily.time) || daily.time[i] == null) return false;
+    const code = daily.weathercode && daily.weathercode[i];
+    const tMin = daily.temperature_2m_min && daily.temperature_2m_min[i];
+    const tMax = daily.temperature_2m_max && daily.temperature_2m_max[i];
+    if (code == null || Number.isNaN(Number(code))) return false;
+    if (tMin == null || tMax == null) return false;
+    if (Number.isNaN(Number(tMin)) || Number.isNaN(Number(tMax))) return false;
+    return true;
+  }
+
+  function paintUnavailable(container, msg) {
+    container.innerHTML = mutedMsg(msg);
+    container.style.cursor = 'default';
+    container.onclick = null;
   }
 
   function isOutOfRangeReason(reason) {
@@ -100,11 +122,9 @@ var Weather = (() => {
     const dateStr = dayDate(day.day, day);
     const cacheKey = `${day.geo.lat},${day.geo.lon},${dateStr}`;
 
-    // Beyond Open-Meteo window — don't pretend we're offline
+    // Beyond Open-Meteo window — don't pretend we're offline, don't paint 0°
     if (isBeyondForecast(dateStr)) {
-      container.innerHTML = mutedMsg(MSG_TOO_FAR);
-      container.style.cursor = 'default';
-      container.onclick = null;
+      paintUnavailable(container, MSG_TOO_FAR);
       return;
     }
 
@@ -122,18 +142,14 @@ var Weather = (() => {
       try { data = await resp.json(); } catch (_) { data = null; }
 
       if (!resp.ok) {
-        container.innerHTML = mutedMsg(errorMessage(new Error((data && data.reason) || 'API error'), data));
-        container.style.cursor = 'default';
-        container.onclick = null;
+        paintUnavailable(container, errorMessage(new Error((data && data.reason) || 'API error'), data));
         return;
       }
 
       const daily = data && data.daily;
 
-      if (!daily || !daily.time || daily.time.length === 0) {
-        container.innerHTML = mutedMsg(MSG_TOO_FAR);
-        container.style.cursor = 'default';
-        container.onclick = null;
+      if (!dailySlotUsable(daily, 0)) {
+        paintUnavailable(container, MSG_TOO_FAR);
         return;
       }
 
@@ -159,9 +175,7 @@ var Weather = (() => {
       cache[cacheKey] = html;
       container.innerHTML = html;
     } catch (e) {
-      container.innerHTML = mutedMsg(errorMessage(e));
-      container.style.cursor = 'default';
-      container.onclick = null;
+      paintUnavailable(container, errorMessage(e));
     }
   }
 
@@ -216,7 +230,7 @@ var Weather = (() => {
 
     const daily = data.daily;
     const hourly = data.hourly;
-    if (!daily || !daily.time || daily.time.length === 0) {
+    if (!dailySlotUsable(daily, 0)) {
       document.getElementById('wmContent').innerHTML = `<em>${MSG_TOO_FAR}</em>`;
       return;
     }
@@ -340,5 +354,5 @@ var Weather = (() => {
     return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   }
 
-  return { renderInline, openModal, isBeyondForecast, errorMessage, MSG_TOO_FAR, MSG_OFFLINE };
+  return { renderInline, openModal, isBeyondForecast, dailySlotUsable, errorMessage, MSG_TOO_FAR, MSG_OFFLINE };
 })();
