@@ -387,7 +387,10 @@ var DiscoveryPanel = (() => {
 
   async function handleRetain(btn, item) {
     const tripId = getTripIdForDiscovery();
-    if (!tripId) return;
+    if (!tripId) {
+      console.warn('[Discovery] handleRetain: no tripId from Store');
+      return;
+    }
 
     btn.disabled = true;
     btn.textContent = 'Enregistrement…';
@@ -405,9 +408,12 @@ var DiscoveryPanel = (() => {
         source: item.source || '',
       });
     } catch (e) {
+      console.warn('[Discovery] retain threw:', e);
       retainFailed(btn, 'Erreur réseau');
       return;
     }
+
+    console.debug('[Discovery] retain response:', res);
 
     if (!res) {
       retainFailed(btn, 'Pas de réponse');
@@ -429,24 +435,25 @@ var DiscoveryPanel = (() => {
       return;
     }
 
-    if (!res.ok || !(res.data && (res.data.activity || res.data.ok))) {
+    if (!res.ok) {
       const detail = (res.data && res.data.error) || res.error || `HTTP ${res.status || '?'}`;
       retainFailed(btn, detail.length > 30 ? 'Erreur serveur' : detail);
       return;
     }
 
+    // Success — mark as retained
     btn.textContent = 'Retenu ✓';
     btn.className = 'btn btn-sm discovery-retain-btn done';
     btn.disabled = true;
     // Update local tripData so re-renders keep the retained state
-    const st = btn.closest('[class*="discovery"]');
-    const disc = st && st._disc ? st._disc : (btn.getRootNode && btn.getRootNode()._disc);
-    if (disc && disc.tripData) {
-      const td = disc.tripData;
+    const disc = btn.closest && btn.closest('.discovery-section');
+    const discState = disc && disc._disc ? disc._disc : (btn.getRootNode && btn.getRootNode()._disc);
+    if (discState && discState.tripData) {
+      const td = discState.tripData;
       const acts = td.trip ? (td.trip.activities || (td.trip.activities = {})) : (td.activities || (td.activities = {}));
-      if (item.id) acts[item.id] = res.data.activity || item;
+      if (item.id) acts[item.id] = (res.data && res.data.activity) || item;
     }
-    const seedPush = res.data.seedPush;
+    const seedPush = res.data && res.data.seedPush;
     if (seedPush && seedPush.ok === false) {
       const detail = (typeof seedPush.error === 'string' && seedPush.error)
         ? seedPush.error
