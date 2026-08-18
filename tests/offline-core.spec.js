@@ -73,7 +73,7 @@ test.describe('SW precache list', () => {
     expect(names).toEqual(['bundle-core', 'bundle-components', 'bundle-edge']);
 
     const sources = names.flatMap(n => manifest[n]);
-    expect(sources.length).toBe(34);
+    expect(sources.length).toBe(35);
     for (const rel of sources) {
       expect(existsSync(new URL('../' + rel, import.meta.url)), `missing ${rel}`).toBe(true);
     }
