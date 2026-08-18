@@ -105,6 +105,58 @@ const { travelers: RESOLVED_TRAVELERS, people: TRIP_PEOPLE } = resolveTravelersA
 );
 console.log(`👥 people: ${Object.keys(TRIP_PEOPLE).length} fiche(s) for this trip`);
 
+// Align with backend BuildCanonical. PUT /trips/:id replaces the whole trip.data
+// blob — omitting a key wipes it. JSON.stringify also drops `undefined`.
+const TRIP_RUNTIME_KEYS = [
+  'dailyBrief', 'whatsappGroup', 'briefSendTime', 'homeTz',
+  'polarsteps', 'construction',
+];
+
+function keepRuntimeFlags(next, existingData) {
+  const prev = existingData && typeof existingData === 'object' ? existingData : {};
+  const out = { ...next };
+  for (const k of TRIP_RUNTIME_KEYS) {
+    if (out[k] === undefined || out[k] === null || out[k] === '') {
+      if (prev[k] !== undefined && prev[k] !== null && prev[k] !== '') {
+        out[k] = prev[k];
+      }
+    }
+  }
+  for (const k of Object.keys(out)) {
+    if (out[k] === undefined) delete out[k];
+  }
+  return out;
+}
+
+function buildTripData(existingData) {
+  return keepRuntimeFlags({
+    travelers: RESOLVED_TRAVELERS,
+    people: TRIP_PEOPLE,
+    phases: SEED.trip.phases,
+    restaurants: SEED.restaurants || {},
+    culture: SEED.culture || [],
+    hotels: SEED.hotels || {},
+    locations: SEED.locations || {},
+    flights: SEED.flights || null,
+    carRental: SEED.carRental || null,
+    ferry: SEED.ferry || null,
+    ferries: SEED.ferries || null,
+    events: SEED.events || null,
+    activities: SEED.activities || {},
+    mapImage: SEED.trip.mapImage || null,
+    mapHtml: SEED.trip.mapHtml || null,
+    meteoHtml: SEED.trip.meteoHtml || null,
+    routeUrl: SEED.trip.routeUrl || null,
+    users: SEED.trip.users || {},
+    homeTz: SEED.trip.homeTz || 'Europe/Paris',
+    dailyBrief: SEED.trip.dailyBrief,
+    whatsappGroup: SEED.trip.whatsappGroup,
+    briefSendTime: SEED.trip.briefSendTime,
+    polarsteps: SEED.trip.polarsteps,
+    construction: SEED.trip.construction,
+  }, existingData);
+}
+
 // Support both Bearer token and Basic auth (user:pass)
 const authHeader = token
   ? (token.includes(':') 
@@ -131,35 +183,16 @@ async function api(method, path, body) {
 }
 
 async function main() {
-  // 1. Create or update trip
   const tripId = SEED.trip.id;
-  const tripData = {
-    travelers: RESOLVED_TRAVELERS,
-    people: TRIP_PEOPLE,
-    phases: SEED.trip.phases,
-    restaurants: SEED.restaurants || {},
-    culture: SEED.culture || [],
-    hotels: SEED.hotels || {},
-    locations: SEED.locations || {},
-    flights: SEED.flights || null,
-    carRental: SEED.carRental || null,
-    ferry: SEED.ferry || null,
-    ferries: SEED.ferries || null,
-    events: SEED.events || null,
-    mapImage: SEED.trip.mapImage || null,
-    mapHtml: SEED.trip.mapHtml || null,
-    meteoHtml: SEED.trip.meteoHtml || null,
-    routeUrl: SEED.trip.routeUrl || null,
-    users: SEED.trip.users || {},
-    homeTz: SEED.trip.homeTz || 'Europe/Paris',
-    dailyBrief: SEED.trip.dailyBrief,
-    whatsappGroup: SEED.trip.whatsappGroup,
-    briefSendTime: SEED.trip.briefSendTime,
-  };
-
+  let existing = null;
   try {
-    await api('GET', `/trips/${tripId}`);
-    // Trip exists — update
+    existing = await api('GET', `/trips/${tripId}`);
+  } catch (e) {
+    existing = null;
+  }
+  const tripData = buildTripData(existing && existing.data);
+
+  if (existing) {
     await api('PUT', `/trips/${tripId}`, {
       name: SEED.trip.name,
       emoji: SEED.trip.emoji,
@@ -168,8 +201,7 @@ async function main() {
       data: tripData,
     });
     console.log(`✅ Trip updated: ${tripId}`);
-  } catch (e) {
-    // Create new
+  } else {
     await api('POST', '/trips', {
       id: tripId,
       name: SEED.trip.name,

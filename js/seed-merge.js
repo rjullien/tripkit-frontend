@@ -35,6 +35,9 @@ var SeedMerge = (() => {
     'polarsteps',  // { enabled, tripUrl? } — Plus Polarsteps box
     'construction', // { phase, dates? } — onglet Construction à jour au chargement
     'travelProfile', // overlay Publish (travel-profile.js)
+    'dailyBrief',    // WhatsApp auto-send (backend worker)
+    'briefSendTime', // "HH:MM" wall-clock in the day's TZ
+    'whatsappGroup', // GoWA group JID (private seed)
   ];
 
   /** Top-level tripData collections carried in trip.data (see seed-import.cjs). */
