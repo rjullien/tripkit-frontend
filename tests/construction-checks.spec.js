@@ -77,10 +77,12 @@ test.describe('Construction ActionBar', () => {
 
   test('QA : une enveloppe inconnue affiche une erreur, pas « aucun problème »', async ({ page }) => {
     // L'ancienne clé lue par le frontend : elle ne doit plus rassurer personne.
+    // #action-qa = GET cache ; POST (analyse) = « Relancer ».
     await page.route('**/construction/qa', route => route.fulfill(json('{"results":[]}')));
     await openConstruction(page);
 
     await page.locator('#action-qa').click();
+    await page.locator('#sub-qa-run').click();
     await expect(page.locator('#action-bar-results .unrecognized-payload')).toBeVisible();
     await expect(page.locator('#action-bar-results')).toContainText('Réponse inattendue du serveur');
     await expect(page.locator('#action-bar-results')).not.toContainText('Aucun problème détecté');
@@ -435,7 +437,9 @@ test.describe('Construction ActionBar', () => {
     });
 
     await openConstruction(page);
-    await page.locator('#action-nuisances').click();
+    // Auto-hydrate GET pose le cache ; le flux SSE part sur « Relancer » (POST).
+    await expect(page.locator('#sub-nui-run')).toBeVisible();
+    await page.locator('#sub-nui-run').click();
     await expect(page.locator('#action-bar-results .nuisance-progress')).toBeVisible();
     const afterStart = finalFetches;
 
@@ -465,7 +469,8 @@ test.describe('Construction ActionBar', () => {
     });
 
     await openConstruction(page);
-    await page.locator('#action-nuisances').click();
+    await expect(page.locator('#sub-nui-run')).toBeVisible();
+    await page.locator('#sub-nui-run').click();
     await expect(page.locator('#action-bar-results .nuisance-progress')).toBeVisible();
     const afterStart = finalFetches;
 

@@ -47,6 +47,9 @@ function quebecSeed() {
         homeTz: 'Europe/Paris',
         polarsteps: { enabled: true, tripUrl: 'https://www.polarsteps.com/test/quebec/' },
         construction: { phase: 5, dates: { startDate: '2026-08-14', days: 19 } },
+        dailyBrief: true,
+        briefSendTime: '07:00',
+        whatsappGroup: '120363000000000001@g.us',
         travelProfile: { family: 'jullien', travelStyle: { pace: 'modéré' } },
         people: { alice: { id: 'alice', name: 'Alice', documents: [] } },
         users: { alice: { city: 'Paris' } },
@@ -93,10 +96,16 @@ test('every field read by route-view.js is declared in TRIP_META_FIELDS', () => 
   assert.ok(SeedMerge.TRIP_META_FIELDS.includes('polarsteps'), 'polarsteps missing from TRIP_META_FIELDS');
   assert.ok(SeedMerge.TRIP_META_FIELDS.includes('construction'), 'construction missing from TRIP_META_FIELDS');
   assert.ok(SeedMerge.TRIP_META_FIELDS.includes('travelProfile'), 'travelProfile missing from TRIP_META_FIELDS');
+  assert.ok(SeedMerge.TRIP_META_FIELDS.includes('dailyBrief'), 'dailyBrief missing from TRIP_META_FIELDS');
+  assert.ok(SeedMerge.TRIP_META_FIELDS.includes('briefSendTime'), 'briefSendTime missing from TRIP_META_FIELDS');
+  assert.ok(SeedMerge.TRIP_META_FIELDS.includes('whatsappGroup'), 'whatsappGroup missing from TRIP_META_FIELDS');
   assert.strictEqual(SeedMerge.merge(quebecSeed(), {}).trip.homeTz, 'Europe/Paris', 'homeTz dropped');
   assert.strictEqual(SeedMerge.merge(quebecSeed(), {}).trip.polarsteps.enabled, true, 'polarsteps dropped');
   assert.strictEqual(SeedMerge.merge(quebecSeed(), {}).trip.construction.phase, 5, 'construction dropped');
   assert.strictEqual(SeedMerge.merge(quebecSeed(), {}).trip.travelProfile.family, 'jullien', 'travelProfile dropped');
+  assert.strictEqual(SeedMerge.merge(quebecSeed(), {}).trip.dailyBrief, true, 'dailyBrief dropped');
+  assert.strictEqual(SeedMerge.merge(quebecSeed(), {}).trip.briefSendTime, '07:00', 'briefSendTime dropped');
+  assert.strictEqual(SeedMerge.merge(quebecSeed(), {}).trip.whatsappGroup, '120363000000000001@g.us', 'whatsappGroup dropped');
 });
 
 test('neither call site re-inlines its own trip meta field list', () => {
@@ -177,6 +186,12 @@ test('TRIP_DATA_COLLECTIONS lists every booking collection BookingsView needs', 
     assert.ok(importSrc.includes(`${f}: SEED.${f}`), `seed-import.cjs does not inject ${f}`);
   });
   assert.ok(importSrc.includes('people:'), 'seed-import.cjs does not inject people');
+  assert.ok(importSrc.includes('dailyBrief: SEED.trip.dailyBrief'), 'seed-import.cjs does not inject dailyBrief');
+  assert.ok(importSrc.includes('whatsappGroup: SEED.trip.whatsappGroup'), 'seed-import.cjs does not inject whatsappGroup');
+  assert.ok(importSrc.includes('briefSendTime: SEED.trip.briefSendTime'), 'seed-import.cjs does not inject briefSendTime');
+  assert.ok(importSrc.includes('polarsteps: SEED.trip.polarsteps'), 'seed-import.cjs does not inject polarsteps');
+  assert.ok(importSrc.includes('construction: SEED.trip.construction'), 'seed-import.cjs does not inject construction');
+  assert.ok(importSrc.includes('keepRuntimeFlags'), 'seed-import.cjs must keep live flags when the seed omits them');
 });
 
 test('incremental refresh keeps previously known meta when trip.data omits it', () => {

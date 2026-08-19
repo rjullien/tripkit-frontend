@@ -74,8 +74,14 @@ async function api(method, path, body) {
 }
 
 async function main() {
-  // 1. Create or update trip
   const tripId = SEED.trip.id;
+  let existing = null;
+  try {
+    existing = await api('GET', `/trips/${tripId}`);
+  } catch (e) {
+    existing = null;
+  }
+  const prev = (existing && existing.data) || {};
   const tripData = {
     travelers: SEED.trip.travelers,
     phases: SEED.trip.phases,
@@ -83,11 +89,32 @@ async function main() {
     culture: SEED.culture || [],
     hotels: SEED.hotels || {},
     locations: SEED.locations || {},
+    flights: SEED.flights || null,
+    carRental: SEED.carRental || null,
+    ferry: SEED.ferry || null,
+    ferries: SEED.ferries || null,
+    events: SEED.events || null,
+    activities: SEED.activities || {},
+    mapImage: SEED.trip.mapImage || null,
+    mapHtml: SEED.trip.mapHtml || null,
+    meteoHtml: SEED.trip.meteoHtml || null,
+    routeUrl: SEED.trip.routeUrl || null,
+    users: SEED.trip.users || {},
+    homeTz: SEED.trip.homeTz || 'Europe/Paris',
+    dailyBrief: SEED.trip.dailyBrief,
+    whatsappGroup: SEED.trip.whatsappGroup,
+    briefSendTime: SEED.trip.briefSendTime,
+    polarsteps: SEED.trip.polarsteps,
+    construction: SEED.trip.construction,
   };
+  for (const k of ['dailyBrief', 'whatsappGroup', 'briefSendTime', 'homeTz', 'polarsteps', 'construction']) {
+    if (tripData[k] === undefined || tripData[k] === null || tripData[k] === '') {
+      if (prev[k] !== undefined && prev[k] !== null && prev[k] !== '') tripData[k] = prev[k];
+    }
+    if (tripData[k] === undefined) delete tripData[k];
+  }
 
-  try {
-    await api('GET', `/trips/${tripId}`);
-    // Trip exists — update
+  if (existing) {
     await api('PUT', `/trips/${tripId}`, {
       name: SEED.trip.name,
       emoji: SEED.trip.emoji,
@@ -96,8 +123,7 @@ async function main() {
       data: tripData,
     });
     console.log(`✅ Trip updated: ${tripId}`);
-  } catch (e) {
-    // Create new
+  } else {
     await api('POST', '/trips', {
       id: tripId,
       name: SEED.trip.name,
