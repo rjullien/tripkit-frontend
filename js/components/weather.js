@@ -19,6 +19,9 @@ var Weather = (() => {
   const MSG_ERROR = 'Météo indisponible';
   const MSG_PAST = 'Météo indisponible (jour passé)';
 
+  /** Track auth reload to avoid infinite loop — one attempt per page load. */
+  let _authReloadDone = false;
+
   const cache = {};
   const detailCache = {};
 
@@ -209,7 +212,12 @@ var Weather = (() => {
 
       // Detect auth redirect (Authelia 302 followed by fetch → HTML login page)
       if (resp.redirected && resp.url && resp.url.includes('auth.')) {
-        paintUnavailable(container, 'Météo erreur : session expirée (recharger la page)');
+        if (!_authReloadDone) {
+          _authReloadDone = true;
+          window.location.reload();
+          return;
+        }
+        paintUnavailable(container, 'Session expirée — <a href="javascript:location.reload()" style="color:var(--accent)">recharger</a>');
         return;
       }
 
@@ -218,7 +226,12 @@ var Weather = (() => {
 
       // If resp is OK but data is null (HTML body, not JSON) → likely auth issue
       if (resp.ok && data === null) {
-        paintUnavailable(container, 'Météo erreur : réponse non-JSON (session expirée ?)');
+        if (!_authReloadDone) {
+          _authReloadDone = true;
+          window.location.reload();
+          return;
+        }
+        paintUnavailable(container, 'Session expirée — <a href="javascript:location.reload()" style="color:var(--accent)">recharger</a>');
         return;
       }
 
