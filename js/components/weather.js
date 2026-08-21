@@ -209,7 +209,7 @@ var Weather = (() => {
       }
 
       // Normalize response: backend returns {days: [{...}]}, Open-Meteo returns {daily: {...}}
-      let code, tMax, tMin, rain, wind, uv;
+      let code, tMax, tMin, rain, wind, uv, provider;
       if (data && data.days && data.days.length) {
         const d = data.days[0];
         code = d.weatherCode;
@@ -218,6 +218,7 @@ var Weather = (() => {
         rain = d.precipProbability || 0;
         wind = Math.round(d.windMaxKmh || 0);
         uv = d.uvMax ? Math.round(d.uvMax) : null;
+        provider = d.provider || '';
       } else if (data && data.daily && dailySlotUsable(data.daily, 0)) {
         const daily = data.daily;
         code = daily.weathercode[0];
@@ -226,6 +227,7 @@ var Weather = (() => {
         rain = daily.precipitation_probability_max ? daily.precipitation_probability_max[0] : 0;
         wind = Math.round((daily.windspeed_10m_max && daily.windspeed_10m_max[0]) || 0);
         uv = daily.uv_index_max ? Math.round(daily.uv_index_max[0]) : null;
+        provider = 'open-meteo';
       } else {
         paintUnavailable(container, MSG_TOO_FAR);
         return;
@@ -242,7 +244,8 @@ var Weather = (() => {
       html += `<span>💨 ${wind} km/h</span>`;
       if (uv !== null) html += `<span>${uv >= 8 ? '🔴' : uv >= 6 ? '🟠' : uv >= 3 ? '🟡' : '🟢'} UV ${uv}</span>`;
       html += `</div>`;
-      html += `<div style="margin-top:6px;font-size:.72em;color:var(--muted)">📍 ${esc(day.to || day.from)} · Tap pour détails</div>`;
+      const provLabel = provider === 'msc' ? 'Météo Canada' : provider === 'nws' ? 'NWS' : 'Open-Meteo';
+      html += `<div style="margin-top:6px;font-size:.72em;color:var(--muted)">📍 ${esc(day.to || day.from)} · ${provLabel} · Tap pour détails</div>`;
 
       cache[cacheKey] = html;
       container.innerHTML = html;
