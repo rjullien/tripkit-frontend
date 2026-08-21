@@ -25,6 +25,7 @@ var SeedMerge = (() => {
   const TRIP_META_FIELDS = [
     'travelers',
     'phases',
+    'country',     // ISO 2-letter country code (routing: MSC/NWS/Open-Meteo)
     'mapImage',    // static route image (backend asset or URL)
     'mapHtml',     // interactive map iframe (backend asset filename)
     'meteoHtml',   // météo iframe (backend asset filename)
