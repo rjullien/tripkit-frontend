@@ -238,6 +238,9 @@ async function bootDuringActivateWindow() {
     await sw.install();
     const res = await sw.request('/js/dist/bundle-edge.js' + CACHE_BUSTER);
     assert.strictEqual(res.status, 200);
+    // stale-while-revalidate: cache is populated asynchronously in the background.
+    // Wait a microtask tick for the background put() to resolve.
+    await new Promise(r => setTimeout(r, 0));
     const store = [...sw.caches.values()][0];
     assert.ok(store.has(ORIGIN + '/js/dist/bundle-edge.js' + CACHE_BUSTER),
       'la réponse réseau n\'a pas été mise en cache');
@@ -276,14 +279,14 @@ async function bootDuringActivateWindow() {
     // cacheFirst ne doit PAS ignorer la query : sinon le buster « Mode dev (pas de
     // cache images) » resservirait l'image en cache.
     const src = fs.readFileSync('sw.js', 'utf8');
-    const body = src.slice(src.indexOf('function cacheFirst'), src.indexOf('function networkFirstShell'));
+    const body = src.slice(src.indexOf('function cacheFirst'), src.indexOf('function staleWhileRevalidate'));
     assert.ok(!body.includes('ignoreSearch'), 'cacheFirst ne doit pas ignorer la query string');
     assert.ok(!body.includes('matchShell'), 'cacheFirst doit rester en correspondance exacte');
   });
 
   await test('les deux chemins hors ligne du handler passent par matchShell', async () => {
     const src = fs.readFileSync('sw.js', 'utf8');
-    assert.ok(src.includes('matchShell(request)'), 'networkFirstShell n\'utilise pas matchShell');
+    assert.ok(src.includes('matchShell(request)'), 'staleWhileRevalidate n\'utilise pas matchShell');
     assert.ok(src.includes('matchShell(event.request)'), 'la branche hors ligne n\'utilise pas matchShell');
     // Le repli de navigation aussi : `caches.match('/index.html')` irait chercher
     // dans tous les caches de l'origine.

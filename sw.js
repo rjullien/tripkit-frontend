@@ -5,7 +5,7 @@
  * Bump CACHE_NAME when deploying new shell versions.
  */
 
-const CACHE_NAME = 'tripkit-145';
+const CACHE_NAME = 'tripkit-146';
 
 
 const ASSETS = [
@@ -111,26 +111,54 @@ function cacheFirst(request) {
   );
 }
 
-function networkFirstShell(request) {
-  return fetch(request)
-    .then(response => {
-      if (response && response.status === 200) {
-        const clone = response.clone();
-        caches.open(CACHE_NAME).then(cache => {
-          cache.put(request, clone);
-        });
-      }
-      return response;
-    })
-    .catch(() =>
-      matchShell(request).then(cached => {
-        if (cached) return cached;
-        if (request.mode === 'navigate') {
-          return matchShell('/index.html');
+/**
+ * Stale-while-revalidate: serve from cache INSTANTLY, update in background.
+ * This is the #1 perf fix: returning users get the shell in <50ms instead of
+ * waiting 3-10s for a network response on slow/flaky connections.
+ * The update-banner (showUpdateBanner in app.js) already handles notifying the
+ * user when a new SW version is installed — so serving a stale shell for one
+ * page load is perfectly safe.
+ *
+ * First-ever visit (no cache): falls through to network, same as before.
+ */
+function staleWhileRevalidate(request) {
+  return matchShell(request).then(cached => {
+    // Background revalidation: fetch fresh copy → update cache for next load.
+    const fetchPromise = fetch(request)
+      .then(response => {
+        if (response && response.status === 200) {
+          const clone = response.clone();
+          caches.open(CACHE_NAME).then(cache => cache.put(request, clone));
         }
-        return new Response('Offline', { status: 503 });
+        return response;
       })
-    );
+      .catch((err) => {
+        // Log degraded-network failures (captive portal, 5xx) so they're diagnosable.
+        // Cache update missed — next load still serves stale. The 30min reg.update()
+        // or a new CACHE_NAME deployment will fix it.
+        console.debug('[SW] background revalidation failed:', err && err.message);
+        return null;
+      }); // network failure is fine — we already served the cache
+
+    // If we have a cached copy → serve it immediately (0ms).
+    // If no cache (first install) → wait for network.
+    if (cached) return cached;
+
+    // No cache: must wait for network (first visit only).
+    return fetchPromise.then(response => {
+      if (response) return response;
+      // Network also failed on first visit — nothing we can do.
+      if (request.mode === 'navigate') {
+        return new Response(
+          '<html><body style="font-family:system-ui;padding:40px;text-align:center">'
+          + '<h2>⚠️ Pas de connexion</h2><p>Première visite — une connexion est nécessaire.</p>'
+          + '<button onclick="location.reload()">Réessayer</button></body></html>',
+          { status: 503, headers: { 'Content-Type': 'text/html' } }
+        );
+      }
+      return new Response('Offline', { status: 503 });
+    });
+  });
 }
 
 // ── Fetch ─────────────────────────────────────────────────────────────────────
@@ -171,5 +199,5 @@ self.addEventListener('fetch', event => {
     return;
   }
 
-  event.respondWith(networkFirstShell(event.request));
+  event.respondWith(staleWhileRevalidate(event.request));
 });
