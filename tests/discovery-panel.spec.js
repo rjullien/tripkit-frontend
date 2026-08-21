@@ -23,8 +23,8 @@ test.describe('Discovery panel', () => {
   test('collapsed on a live day, expands to themes, search lists results', async ({ page }) => {
     await page.route(`**/api/trips/${TRIP_ID}/seed`, (route) => {
       const seed = JSON.parse(JSON.stringify(SEED));
-      seed.trip.startDate = '2026-08-10';
-      seed.trip.endDate = '2026-08-20';
+      seed.trip.startDate = '2026-08-20';
+      seed.trip.endDate = '2026-09-10';
       return route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -101,8 +101,8 @@ test.describe('Discovery panel', () => {
   test('festivals search lists date, note and Lien without 0 km', async ({ page }) => {
     await page.route(`**/api/trips/${TRIP_ID}/seed`, (route) => {
       const seed = JSON.parse(JSON.stringify(SEED));
-      seed.trip.startDate = '2026-08-10';
-      seed.trip.endDate = '2026-08-20';
+      seed.trip.startDate = '2026-08-20';
+      seed.trip.endDate = '2026-09-10';
       return route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -181,8 +181,8 @@ test.describe('Discovery panel', () => {
   test('« Retenir » sur un 200 peint « Retenu ✓ »', async ({ page }) => {
     await page.route(`**/api/trips/${TRIP_ID}/seed`, (route) => {
       const seed = JSON.parse(JSON.stringify(SEED));
-      seed.trip.startDate = '2026-08-10';
-      seed.trip.endDate = '2026-08-20';
+      seed.trip.startDate = '2026-08-20';
+      seed.trip.endDate = '2026-09-10';
       return route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -269,8 +269,8 @@ test.describe('Discovery panel', () => {
     let searchBody = null;
     await page.route(`**/api/trips/${TRIP_ID}/seed`, (route) => {
       const seed = JSON.parse(JSON.stringify(SEED));
-      seed.trip.startDate = '2026-08-10';
-      seed.trip.endDate = '2026-08-20';
+      seed.trip.startDate = '2026-08-20';
+      seed.trip.endDate = '2026-09-10';
       seed.locations.home = { lat: 48.9, lon: 2.25, name: 'Home' };
       seed.days[3].locationId = 'home';
       seed.days[3].to = 'Home';
