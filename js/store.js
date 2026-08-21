@@ -27,8 +27,10 @@ var Store = (() => {
   function set(key, value) {
     try {
       localStorage.setItem(key, JSON.stringify(value));
+      return true;
     } catch (e) {
       console.warn('[Store] localStorage write failed:', e);
+      return false;
     }
   }
 
@@ -365,7 +367,7 @@ var Store = (() => {
   }
 
   function setTripData(tripId, data) {
-    set(`tk-trip-${tripId}`, data);
+    return set(`tk-trip-${tripId}`, data);
   }
 
   function clearTripData(tripId) {
