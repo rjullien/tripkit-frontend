@@ -272,8 +272,10 @@ test.describe('Discovery panel', () => {
       seed.trip.startDate = '2026-08-20';
       seed.trip.endDate = '2026-09-10';
       seed.locations.home = { lat: 48.9, lon: 2.25, name: 'Home' };
-      seed.days[3].locationId = 'home';
-      seed.days[3].to = 'Home';
+      // Day 2 = startDate + (2-1) = 21 Aug = today → app lands on this day
+      // Make it a travel day (from≠to with different locationIds) for corridor mode
+      seed.days[2].locationId = 'home';
+      seed.days[2].to = 'Home';
       return route.fulfill({
         status: 200,
         contentType: 'application/json',
