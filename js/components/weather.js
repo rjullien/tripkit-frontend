@@ -256,7 +256,7 @@ var Weather = (() => {
     html += `<span>💨 ${wind} km/h</span>`;
     if (uv !== null) html += `<span>${uv >= 8 ? '🔴' : uv >= 6 ? '🟠' : uv >= 3 ? '🟡' : '🟢'} UV ${uv}</span>`;
     html += `</div>`;
-    const provLabel = provider === 'msc' ? 'Météo Canada' : provider === 'nws' ? 'NWS' : 'Open-Meteo';
+    const provLabel = provider === 'msc' ? 'Météo Canada' : provider === 'nws' ? 'NWS' : provider === 'msc+open-meteo' ? 'Météo Canada + Open-Meteo' : provider === 'nws+open-meteo' ? 'NWS + Open-Meteo' : 'Open-Meteo';
     html += `<div style="margin-top:6px;font-size:.72em;color:var(--muted)">📍 ${esc(day.to || day.from)} · ${provLabel} · Tap pour détails</div>`;
 
     cache[cacheKey] = html;
