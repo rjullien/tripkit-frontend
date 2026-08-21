@@ -236,7 +236,8 @@ var App = (() => {
     if (!verRes.ok || !verRes.data) {
       console.debug('[App] Version check failed for', tripId, verRes.status || verRes.error);
       // Keep current trip usable offline / when backend is flaky
-      if (hasLocal) await syncConstructionData(tripId);
+      // Fire-and-forget: construction data is NOT needed for first render
+      if (hasLocal) syncConstructionData(tripId);
       return hasLocal ? 'unchanged' : false;
     }
     const ver = verRes.data;
@@ -246,14 +247,15 @@ var App = (() => {
     // A leftover *-data-version without tk-trip-* must NOT skip (boot would stall).
     if (hasLocal && cachedVersion && String(cachedVersion) === String(ver.version)) {
       console.debug('[App] Data up to date (v' + ver.version + ') — skip refresh');
-      await syncConstructionData(tripId);
+      // Fire-and-forget: don't block the boot for construction sync
+      syncConstructionData(tripId);
       return 'unchanged';
     }
 
     console.log('[App] Fetching seed:', tripId, 'version', cachedVersion, '→', ver.version);
     const seed = await API.fetchSeed(tripId);
     if (!seed) {
-      if (hasLocal) await syncConstructionData(tripId);
+      if (hasLocal) syncConstructionData(tripId);
       return hasLocal ? 'unchanged' : false;
     }
 
@@ -265,7 +267,9 @@ var App = (() => {
     Store.set(tripId + '-data-version', ver.version);
     console.log('[App] Backend data refreshed:', tripId, tripData.days?.length, 'days, version:', ver.version);
     if (typeof API.warmTripAssets === 'function') API.warmTripAssets(tripId, tripData);
-    await syncConstructionData(tripId);
+    // Fire-and-forget: construction data syncs in background, re-renders
+    // construction tab only if user is currently on it (handled inside).
+    syncConstructionData(tripId);
     return 'updated';
   }
 
@@ -302,25 +306,68 @@ var App = (() => {
    */
   async function refreshFromBackend(opts) {
     if (!navigator.onLine) return;
-    // Prefer a real probe when the device claims to be online
-    if (!(opts && opts.probed) && typeof API !== 'undefined' && API.probe) {
-      const up = await API.probe();
-      if (!up) {
-        // Stay on cache — do not rediscover / wipe
-        if (typeof API.flushOutbox === 'function') API.flushOutbox();
-        return;
+
+    // ── Fast path: parallelize probe + trip list ────────────────────────────
+    // Before: probe → getTrips → getTrips(again) → version → seed → construction
+    //   = 6 sequential awaits (~8s with normal latencies, 46s worst case)
+    // After: [probe + getTrips] → version → seed, construction fire-and-forget
+    //   = 3 sequential steps (~3s, 20s worst case capped by BOOT_DEADLINE)
+    let probeOk;
+    let tripsResult;
+
+    if (opts && opts.probed) {
+      probeOk = true;
+      tripsResult = await _cachedGetTrips();
+    } else if (typeof API !== 'undefined' && API.probe) {
+      // Fire probe and getTrips in PARALLEL — both independent.
+      const [probeRes, tripsRes] = await Promise.all([
+        API.probe(),
+        _cachedGetTrips()
+      ]);
+      probeOk = probeRes;
+      tripsResult = tripsRes;
+    } else {
+      probeOk = true;
+      tripsResult = null;
+    }
+
+    if (!probeOk) {
+      // Stay on cache — flush outbox only
+      if (typeof API.flushOutbox === 'function') API.flushOutbox();
+      return;
+    }
+
+    // ── Reconcile trip registry from the SAME getTrips result ────────────────
+    const tripsBefore = (Store.getAllTripIds() || []).join('|');
+    let registryChanged = false;
+    if (tripsResult && typeof Store.reconcileTripsFromServer === 'function') {
+      const backendTrips = Array.isArray(tripsResult)
+        ? tripsResult
+        : (tripsResult && Array.isArray(tripsResult.results) ? tripsResult.results : null);
+      if (backendTrips) {
+        const ids = backendTrips.map(t => t && t.id).filter(Boolean);
+        const result = Store.reconcileTripsFromServer(ids);
+        if (result.removed.length) {
+          console.debug('[App] Dropped trips gone from backend:', result.removed.join(', '));
+        }
+        registryChanged = (Store.getAllTripIds() || []).join('|') !== tripsBefore;
       }
     }
 
-    // Drop deleted / ACL-lost trips from local registry (BE success only).
-    // L'empreinte avant/après capture aussi bien un retrait qu'un ajout : le
-    // résultat de reconcileTripsFromServer ne liste que les retraits.
-    const tripsBefore = (Store.getAllTripIds() || []).join('|');
-    const registry = await reconcileTripRegistry();
-    const registryChanged = !!registry &&
-      (Store.getAllTripIds() || []).join('|') !== tripsBefore;
-
-    let tripId = await resolveTripId();
+    // ── Resolve trip ID from the SAME result (no 2nd network call) ──────────
+    let tripId = Store.getCurrentTripId();
+    if (!tripId) {
+      if (typeof TRIPKIT_CONFIG !== 'undefined' && TRIPKIT_CONFIG.defaultTripId &&
+          TRIPKIT_CONFIG.defaultTripId !== '${DEFAULT_TRIP_ID}') {
+        tripId = TRIPKIT_CONFIG.defaultTripId;
+      } else if (tripsResult && tripsResult.length) {
+        tripId = tripsResult[0].id;
+      } else {
+        // Offline fallback
+        const localIds = Store.getAllTripIds();
+        if (localIds && localIds.length) tripId = localIds[0];
+      }
+    }
     if (!tripId) return;
 
     try {
@@ -328,14 +375,13 @@ var App = (() => {
       let ok = await loadTripSeed(tripId);
 
       // Rediscover ONLY on definitive 403/404 and when we have NO local cache.
-      // Never clear tk-current-trip because /health or /version timed out.
       if (!ok && !hasLocal && Store.getCurrentTripId() === tripId) {
         const st = await API.checkVersionStatus(tripId);
         if (st.status === 403 || st.status === 404) {
           console.debug('[App] Current trip gone (', st.status, ') — rediscovering');
           localStorage.removeItem('tk-current-trip');
           localStorage.removeItem(tripId + '-data-version');
-          const trips = await API.getTrips();
+          const trips = tripsResult || await _cachedGetTrips();
           const next = trips && trips.length
             ? (trips.find(t => t.id !== tripId) || trips[0])
             : null;
@@ -346,16 +392,6 @@ var App = (() => {
         }
       }
 
-      // Re-render ONLY when the seed really changed, or when this refresh is what
-      // brought the first usable data (cold boot / rediscovered trip).
-      // Repainting on an unchanged version was the « refresh parasite » of the
-      // Plus tab: every app switch / screen unlock rebuilt #plus-content, which
-      // restarted PublishPanel.loadSources(), LeoChatStream.loadStatus(),
-      // PlusChatStream.loadStatus() and lost the scroll position.
-      // …ou quand le registre des voyages a bougé côté backend (voyage ajouté ou
-      // retiré) : la version du seed courant n'en dit rien, et sans ce cas le
-      // sélecteur de voyages de l'onglet Plus resterait périmé jusqu'à ce que
-      // l'utilisateur quitte l'onglet et y revienne.
       const firstPaint = !hasLocal && !!Store.getTripData(tripId);
       if (ok === 'updated' || firstPaint || registryChanged) renderCurrentTab();
     } catch (e) {
@@ -364,10 +400,26 @@ var App = (() => {
 
     if (typeof API !== 'undefined' && tripId) {
       API.backgroundSyncTrip(tripId);
-      // Even when seed was already up-to-date, warm images for offline Jour/Route
       const td = Store.getTripData(tripId);
       if (td && typeof API.warmTripAssets === 'function') API.warmTripAssets(tripId, td);
     }
+  }
+
+  // ── Deduplicated getTrips (avoids calling the same endpoint twice) ────────
+  let _getTripsCache = null;
+  let _getTripsCacheAt = 0;
+  const _TRIPS_CACHE_TTL = 5000; // 5s — boot only, not long-lived
+
+  async function _cachedGetTrips() {
+    if (_getTripsCache && Date.now() - _getTripsCacheAt < _TRIPS_CACHE_TTL) {
+      return _getTripsCache;
+    }
+    const result = await API.getTrips();
+    if (result) {
+      _getTripsCache = result;
+      _getTripsCacheAt = Date.now();
+    }
+    return result;
   }
 
   // Deux garde-fous cumulés contre les reprises en rafale (l'utilisateur qui
