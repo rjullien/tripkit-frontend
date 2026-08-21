@@ -214,10 +214,13 @@ var Weather = (() => {
       if (resp.redirected && resp.url && resp.url.includes('auth.')) {
         if (!_authReloadDone) {
           _authReloadDone = true;
-          window.location.reload();
+          // Navigate to current page — Authelia will intercept at reverse-proxy level
+          // and redirect to login. After login, user returns here with a fresh session.
+          // Use window.location.href (not reload) to ensure it goes through the network.
+          window.location.href = window.location.href;
           return;
         }
-        paintUnavailable(container, 'Session expirée — <a href="javascript:location.reload()" style="color:var(--accent)">recharger</a>');
+        paintUnavailable(container, 'Session expirée — <a href="' + window.location.href + '" style="color:var(--accent)">se reconnecter</a>');
         return;
       }
 
@@ -228,10 +231,10 @@ var Weather = (() => {
       if (resp.ok && data === null) {
         if (!_authReloadDone) {
           _authReloadDone = true;
-          window.location.reload();
+          window.location.href = window.location.href;
           return;
         }
-        paintUnavailable(container, 'Session expirée — <a href="javascript:location.reload()" style="color:var(--accent)">recharger</a>');
+        paintUnavailable(container, 'Session expirée — <a href="' + window.location.href + '" style="color:var(--accent)">se reconnecter</a>');
         return;
       }
 
