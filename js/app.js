@@ -205,20 +205,6 @@ var App = (() => {
   // Offline after first visit: works from cache. Never-visited + offline: empty state shown.
 
   // ── Backend refresh (version-gated, data decoupled from code) ─────────────
-  async function resolveTripId() {
-    let tripId = Store.getCurrentTripId();
-    if (tripId) return tripId;
-    if (typeof TRIPKIT_CONFIG !== 'undefined' && TRIPKIT_CONFIG.defaultTripId &&
-        TRIPKIT_CONFIG.defaultTripId !== '${DEFAULT_TRIP_ID}') {
-      return TRIPKIT_CONFIG.defaultTripId;
-    }
-    const trips = await API.getTrips();
-    if (trips && trips.length) return trips[0].id;
-    // Offline / backend down: keep browsing a locally cached trip
-    const localIds = Store.getAllTripIds();
-    if (localIds && localIds.length) return localIds[0];
-    return null;
-  }
 
   /**
    * Fetch seed for tripId.
@@ -274,32 +260,6 @@ var App = (() => {
   }
 
   /**
-   * Sync tk-trips with GET /trips. Only when the response is a real array
-   * (including empty). null / network error → leave local cache alone.
-   */
-  async function reconcileTripRegistry() {
-    if (typeof API === 'undefined' || typeof Store.reconcileTripsFromServer !== 'function') {
-      return null;
-    }
-    try {
-      const resp = await API.getTrips();
-      const backendTrips = Array.isArray(resp)
-        ? resp
-        : (resp && Array.isArray(resp.results) ? resp.results : null);
-      if (!backendTrips) return null;
-      const ids = backendTrips.map(t => t && t.id).filter(Boolean);
-      const result = Store.reconcileTripsFromServer(ids);
-      if (result.removed.length) {
-        console.debug('[App] Dropped trips gone from backend:', result.removed.join(', '));
-      }
-      return result;
-    } catch (e) {
-      console.debug('[App] Trip registry sync skipped:', e.message);
-      return null;
-    }
-  }
-
-  /**
    * @param {{probed?: boolean}} [opts] probed: le caller vient de sonder /health
    *   avec succès (kick()), inutile de le refaire — cela économise une requête
    *   /health par retour dans l'app.
@@ -341,16 +301,20 @@ var App = (() => {
     const tripsBefore = (Store.getAllTripIds() || []).join('|');
     let registryChanged = false;
     if (tripsResult && typeof Store.reconcileTripsFromServer === 'function') {
-      const backendTrips = Array.isArray(tripsResult)
-        ? tripsResult
-        : (tripsResult && Array.isArray(tripsResult.results) ? tripsResult.results : null);
-      if (backendTrips) {
-        const ids = backendTrips.map(t => t && t.id).filter(Boolean);
-        const result = Store.reconcileTripsFromServer(ids);
-        if (result.removed.length) {
-          console.debug('[App] Dropped trips gone from backend:', result.removed.join(', '));
+      try {
+        const backendTrips = Array.isArray(tripsResult)
+          ? tripsResult
+          : (tripsResult && Array.isArray(tripsResult.results) ? tripsResult.results : null);
+        if (backendTrips) {
+          const ids = backendTrips.map(t => t && t.id).filter(Boolean);
+          const result = Store.reconcileTripsFromServer(ids);
+          if (result.removed.length) {
+            console.debug('[App] Dropped trips gone from backend:', result.removed.join(', '));
+          }
+          registryChanged = (Store.getAllTripIds() || []).join('|') !== tripsBefore;
         }
-        registryChanged = (Store.getAllTripIds() || []).join('|') !== tripsBefore;
+      } catch (e) {
+        console.debug('[App] Trip registry sync skipped:', e.message);
       }
     }
 

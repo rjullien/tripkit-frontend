@@ -132,7 +132,13 @@ function staleWhileRevalidate(request) {
         }
         return response;
       })
-      .catch(() => null); // network failure is fine — we already served the cache
+      .catch((err) => {
+        // Log degraded-network failures (captive portal, 5xx) so they're diagnosable.
+        // Cache update missed — next load still serves stale. The 30min reg.update()
+        // or a new CACHE_NAME deployment will fix it.
+        console.debug('[SW] background revalidation failed:', err && err.message);
+        return null;
+      }); // network failure is fine — we already served the cache
 
     // If we have a cached copy → serve it immediately (0ms).
     // If no cache (first install) → wait for network.
