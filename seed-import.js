@@ -85,6 +85,7 @@ async function main() {
   const tripData = {
     travelers: SEED.trip.travelers,
     phases: SEED.trip.phases,
+    country: SEED.trip.country || null,
     restaurants: SEED.restaurants || {},
     culture: SEED.culture || [],
     hotels: SEED.hotels || {},

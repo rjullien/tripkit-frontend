@@ -133,6 +133,7 @@ function buildTripData(existingData) {
     travelers: RESOLVED_TRAVELERS,
     people: TRIP_PEOPLE,
     phases: SEED.trip.phases,
+    country: SEED.trip.country || null,
     restaurants: SEED.restaurants || {},
     culture: SEED.culture || [],
     hotels: SEED.hotels || {},
