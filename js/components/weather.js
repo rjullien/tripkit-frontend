@@ -127,7 +127,9 @@ var Weather = (() => {
    */
   function forecastFailure(resp, data) {
     if (data && data.error) {
-      return errorMessage(new Error(data.reason || 'API error'), data);
+      // Backend returns {error: "message"} (string) ; Open-Meteo returns {error: true, reason: "..."}
+      const msg = (typeof data.error === 'string') ? data.error : (data.reason || 'API error');
+      return errorMessage(new Error(msg), data);
     }
     if (resp && !resp.ok) {
       const reason = (data && data.reason) || (data && data.error_message) || ('HTTP ' + resp.status);
@@ -143,7 +145,7 @@ var Weather = (() => {
    */
   function errorMessage(err, apiBody) {
     if (!navigator.onLine) return MSG_OFFLINE;
-    const reason = (apiBody && apiBody.reason) || (err && err.message) || '';
+    const reason = (apiBody && (apiBody.reason || (typeof apiBody.error === 'string' && apiBody.error))) || (err && err.message) || '';
     if (isOutOfRangeReason(reason) || (err && err.code === 'TOO_FAR')) return MSG_TOO_FAR;
     // Show the actual error so we can diagnose
     if (reason) return 'Météo erreur : ' + String(reason).slice(0, 80);
