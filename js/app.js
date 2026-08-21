@@ -216,8 +216,22 @@ var App = (() => {
    *   'updated' may trigger a re-render (cf. refreshFromBackend).
    * Network failure never invalidates a good local cache.
    */
+
+  /** Staleness threshold: force a full seed re-fetch after this duration even if
+   *  the backend reports the same version. Covers edge cases where the version
+   *  check succeeds but localStorage was corrupted or partially written. */
+  const DATA_STALE_THRESHOLD_MS = 6 * 60 * 60 * 1000; // 6 hours
+
+  /** Returns true when tripData has the minimum structure needed for rendering. */
+  function tripDataIsUsable(tripData) {
+    return !!(tripData && tripData.trip && tripData.days && tripData.days.length > 0);
+  }
+
   async function loadTripSeed(tripId) {
-    const hasLocal = !!Store.getTripData(tripId);
+    const localData = Store.getTripData(tripId);
+    const hasLocal = !!localData;
+    const localUsable = hasLocal && tripDataIsUsable(localData);
+
     const verRes = await API.checkVersionStatus(tripId);
     if (!verRes.ok || !verRes.data) {
       console.debug('[App] Version check failed for', tripId, verRes.status || verRes.error);
@@ -229,13 +243,26 @@ var App = (() => {
     const ver = verRes.data;
 
     const cachedVersion = Store.get(tripId + '-data-version');
-    // Skip network seed only when we already have local data AND same version.
+    const lastRefreshAt = Store.get(tripId + '-last-refresh-at') || 0;
+    const isStale = (Date.now() - lastRefreshAt) > DATA_STALE_THRESHOLD_MS;
+
+    // Skip network seed only when:
+    // 1. We have USABLE local data (not corrupted/truncated)
+    // 2. Version matches
+    // 3. Data is not stale (refreshed within threshold)
     // A leftover *-data-version without tk-trip-* must NOT skip (boot would stall).
-    if (hasLocal && cachedVersion && String(cachedVersion) === String(ver.version)) {
+    if (localUsable && cachedVersion && String(cachedVersion) === String(ver.version) && !isStale) {
       console.debug('[App] Data up to date (v' + ver.version + ') — skip refresh');
       // Fire-and-forget: don't block the boot for construction sync
       syncConstructionData(tripId);
       return 'unchanged';
+    }
+
+    if (isStale && hasLocal && cachedVersion && String(cachedVersion) === String(ver.version)) {
+      console.debug('[App] Data version matches but stale (' + Math.round((Date.now() - lastRefreshAt) / 3600000) + 'h) — forcing refresh');
+    }
+    if (hasLocal && !localUsable) {
+      console.debug('[App] Local data corrupted/incomplete — forcing refresh');
     }
 
     console.log('[App] Fetching seed:', tripId, 'version', cachedVersion, '→', ver.version);
@@ -249,8 +276,17 @@ var App = (() => {
     Store.registerTrip(tripId);
     Store.setCurrentTripId(tripId);
     Store.markSeedLoaded(tripId);
-    Store.setTripData(tripId, tripData);
-    Store.set(tripId + '-data-version', ver.version);
+
+    // Only bump version marker if the write actually succeeds — prevents the
+    // "localStorage full → version bumped → data forever stale" bug.
+    const writeOk = Store.setTripData(tripId, tripData);
+    if (writeOk) {
+      Store.set(tripId + '-data-version', ver.version);
+      Store.set(tripId + '-last-refresh-at', Date.now());
+    } else {
+      console.warn('[App] setTripData failed (quota?) — version NOT bumped, will retry next boot');
+    }
+
     console.log('[App] Backend data refreshed:', tripId, tripData.days?.length, 'days, version:', ver.version);
     if (typeof API.warmTripAssets === 'function') API.warmTripAssets(tripId, tripData);
     // Fire-and-forget: construction data syncs in background, re-renders
