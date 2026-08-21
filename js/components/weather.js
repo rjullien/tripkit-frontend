@@ -204,8 +204,21 @@ var Weather = (() => {
         headers['Authorization'] = 'Bearer ' + API.getToken();
       }
       const resp = await fetch(url, { headers, signal: AbortSignal.timeout(10000) });
+
+      // Detect auth redirect (Authelia 302 followed by fetch → HTML login page)
+      if (resp.redirected && resp.url && resp.url.includes('auth.')) {
+        paintUnavailable(container, 'Météo erreur : session expirée (recharger la page)');
+        return;
+      }
+
       let data = null;
       try { data = await resp.json(); } catch (_) { data = null; }
+
+      // If resp is OK but data is null (HTML body, not JSON) → likely auth issue
+      if (resp.ok && data === null) {
+        paintUnavailable(container, 'Météo erreur : réponse non-JSON (session expirée ?)');
+        return;
+      }
 
       // Check for failure (works with both backend and Open-Meteo responses)
       const fail = forecastFailure(resp, data);
