@@ -17,6 +17,7 @@ var Weather = (() => {
   const MSG_TOO_FAR = 'Météo pas encore dispo (prévisions 16j max)';
   const MSG_OFFLINE = 'Météo indisponible hors ligne';
   const MSG_ERROR = 'Météo indisponible';
+  const MSG_PAST = 'Météo indisponible (jour passé)';
 
   const cache = {};
   const detailCache = {};
@@ -129,7 +130,8 @@ var Weather = (() => {
       return errorMessage(new Error(data.reason || 'API error'), data);
     }
     if (resp && !resp.ok) {
-      return errorMessage(new Error((data && data.reason) || 'API error'), data);
+      const reason = (data && data.reason) || (data && data.error_message) || ('HTTP ' + resp.status);
+      return errorMessage(new Error(reason), data);
     }
     if (!dailySlotUsable(data && data.daily, 0)) return MSG_TOO_FAR;
     return null;
@@ -137,13 +139,17 @@ var Weather = (() => {
 
   /**
    * User-facing message for a failed weather fetch.
-   * Too-far / API range ≠ offline.
+   * Too-far / API range ≠ offline. Shows real error for debugging.
    */
   function errorMessage(err, apiBody) {
     if (!navigator.onLine) return MSG_OFFLINE;
     const reason = (apiBody && apiBody.reason) || (err && err.message) || '';
     if (isOutOfRangeReason(reason) || (err && err.code === 'TOO_FAR')) return MSG_TOO_FAR;
-    return MSG_ERROR;
+    // Show the actual error so we can diagnose
+    if (reason) return 'Météo erreur : ' + String(reason).slice(0, 80);
+    if (err && err.name === 'TimeoutError') return 'Météo erreur : timeout (10s)';
+    if (err && err.name === 'AbortError') return 'Météo erreur : requête annulée';
+    return MSG_ERROR + (err ? ' (' + (err.status || err.name || 'unknown') + ')' : '');
   }
 
   /**
@@ -250,7 +256,11 @@ var Weather = (() => {
       cache[cacheKey] = html;
       container.innerHTML = html;
     } catch (e) {
-      paintUnavailable(container, errorMessage(e));
+      const msg = (e && e.name === 'TimeoutError') ? 'Météo erreur : timeout (10s)'
+        : (e && e.name === 'AbortError') ? 'Météo erreur : requête annulée'
+        : (e && e.message) ? 'Météo erreur : ' + String(e.message).slice(0, 80)
+        : errorMessage(e);
+      paintUnavailable(container, msg);
     }
   }
 
