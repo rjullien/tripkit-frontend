@@ -51,6 +51,24 @@ var API = (() => {
   function isReachable() { return _reachable === true; }
   function getReachability() { return _reachable; }
 
+  /** Auto-reconnect: navigate to trigger Authelia login. One attempt per page load. */
+  let _authRedirectDone = false;
+
+  /**
+   * Handle expired Authelia session: auto-redirect to current page (triggers
+   * Authelia 302 at reverse-proxy level → login → return). Called from any
+   * component that detects auth_expired. One redirect per page load to avoid loops.
+   * @returns {boolean} true if redirect was triggered, false if already attempted
+   */
+  function handleAuthExpired() {
+    if (_authRedirectDone) return false;
+    _authRedirectDone = true;
+    // Navigate to current page — SW networkFirstShell fetches from network,
+    // Authelia intercepts with 302 → login page → return after auth.
+    window.location.href = window.location.href;
+    return true;
+  }
+
   function setReachable(ok) {
     const next = !!ok;
     if (_reachable === next) return;
@@ -831,6 +849,63 @@ var API = (() => {
     return requestJSON(`/trips/${encodeURIComponent(tripId)}/nuisance-check`);
   }
 
+  // ── Weather ───────────────────────────────────────────────────────────────
+
+  /**
+   * Fetch weather forecast for a single date.
+   * Uses the backend (routes to correct provider per country), falls back to
+   * Open-Meteo direct if backend is unreachable or auth expired.
+   *
+   * @param {{ lat: number, lon: number, date: string, tz?: string, country?: string }} params
+   * @returns {{ ok: boolean, data: object|null, error?: string, provider?: string, authExpired?: boolean }}
+   */
+  async function getWeather(params) {
+    const { lat, lon, date, tz, country } = params;
+    const tzEnc = encodeURIComponent(tz || 'UTC');
+
+    // Try backend first (if reachable)
+    if (isReachable() || getReachability() === null) {
+      const res = await requestJSON(
+        `/weather/forecast?lat=${lat}&lon=${lon}&country=${encodeURIComponent(country || '')}&days=16&date=${date}&tz=${tzEnc}`,
+        { timeoutMs: 10000 }
+      );
+      if (res.ok && res.data && res.data.days && res.data.days.length) {
+        return { ok: true, data: res.data, provider: res.data.days[0].provider || 'backend' };
+      }
+      // Auth expired → signal caller
+      if (res.error === 'auth_expired' || (res.data && res.data.code === 'auth_expired')) {
+        return { ok: false, data: null, error: res.error, authExpired: true };
+      }
+      // Backend responded OK but no days → date not in forecast window (don't fallback)
+      if (res.ok && res.data && !res.data.days) {
+        return { ok: false, data: null, error: null };
+      }
+      // Backend error but not auth → fall through to Open-Meteo
+      if (res.error && res.error !== 'offline' && res.error !== 'network') {
+        // Return the error — don't silently swallow backend failures
+        return { ok: false, data: null, error: res.error };
+      }
+    }
+
+    // Fallback: direct Open-Meteo (no auth needed, works offline-backend)
+    try {
+      const omUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}`
+        + `&daily=weathercode,temperature_2m_max,temperature_2m_min,precipitation_probability_max,windspeed_10m_max,uv_index_max`
+        + `&timezone=${tzEnc}&start_date=${date}&end_date=${date}`;
+      const resp = await fetch(omUrl, { signal: AbortSignal.timeout(10000) });
+      const data = await resp.json();
+      if (data && data.error) {
+        return { ok: false, data, error: data.reason || 'Open-Meteo error' };
+      }
+      if (!resp.ok) {
+        return { ok: false, data, error: `Open-Meteo HTTP ${resp.status}` };
+      }
+      return { ok: true, data, provider: 'open-meteo' };
+    } catch (e) {
+      return { ok: false, data: null, error: (e && e.message) || 'Open-Meteo fetch failed' };
+    }
+  }
+
   async function pinNuisanceToSeed(tripId) {
     return requestJSON(`/trips/${encodeURIComponent(tripId)}/nuisance-check/pin`, {
       method: 'POST',
@@ -904,6 +979,7 @@ var API = (() => {
     retainDiscoveryItem, pinNuisanceToSeed,
     getTravelProfile, getConstruction, transitionPhase, createProfileRequest,
     runQA, getQA, runAdminCheck, runHealthCheck, runNuisanceCheck, refreshNuisanceCheck, acceptNuisanceCheck, getNuisanceCheck,
+    getWeather, handleAuthExpired,
     assetUrl, getBaseUrl, warmTripAssets,
     probe, isReachable, getReachability, onReachabilityChange,
   };

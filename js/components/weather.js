@@ -17,10 +17,6 @@ var Weather = (() => {
   const MSG_TOO_FAR = 'Météo pas encore dispo (prévisions 16j max)';
   const MSG_OFFLINE = 'Météo indisponible hors ligne';
   const MSG_ERROR = 'Météo indisponible';
-  const MSG_PAST = 'Météo indisponible (jour passé)';
-
-  /** Track auth reload to avoid infinite loop — one attempt per page load. */
-  let _authReloadDone = false;
 
   const cache = {};
   const detailCache = {};
@@ -191,108 +187,80 @@ var Weather = (() => {
 
     if (cache[cacheKey]) { container.innerHTML = cache[cacheKey]; return; }
 
-    try {
-      // Use backend centralized weather service (routes to correct provider per country)
-      const country = (function() {
-        const tripId = Store.getCurrentTripId();
-        if (!tripId) return '';
-        const td = Store.getTripData(tripId);
-        return (td && td.trip && td.trip.country) || '';
-      })();
-      const tz = day.geo.tz || 'UTC';
-      const url = (typeof API !== 'undefined' && API.isReachable())
-        ? API.url(`/weather/forecast?lat=${day.geo.lat}&lon=${day.geo.lon}&country=${encodeURIComponent(country)}&days=16&date=${dateStr}&tz=${encodeURIComponent(tz)}`)
-        : `https://api.open-meteo.com/v1/forecast?latitude=${day.geo.lat}&longitude=${day.geo.lon}&daily=weathercode,temperature_2m_max,temperature_2m_min,precipitation_probability_max,windspeed_10m_max,uv_index_max&timezone=${encodeURIComponent(tz)}&start_date=${dateStr}&end_date=${dateStr}`;
+    // Resolve country from trip data
+    const country = (function() {
+      const tripId = typeof Store !== 'undefined' && Store.getCurrentTripId();
+      if (!tripId) return '';
+      const td = Store.getTripData(tripId);
+      return (td && td.trip && td.trip.country) || '';
+    })();
+    const tz = day.geo.tz || 'UTC';
 
-      const headers = {};
-      if (url.includes('/weather/forecast') && typeof API !== 'undefined' && API.getToken) {
-        headers['Authorization'] = 'Bearer ' + API.getToken();
-      }
-      const resp = await fetch(url, { headers, signal: AbortSignal.timeout(10000) });
+    // Use centralized API.getWeather (backend + Open-Meteo fallback)
+    const res = await API.getWeather({ lat: day.geo.lat, lon: day.geo.lon, date: dateStr, tz, country });
 
-      // Detect auth redirect (Authelia 302 followed by fetch → HTML login page)
-      if (resp.redirected && resp.url && resp.url.includes('auth.')) {
-        if (!_authReloadDone) {
-          _authReloadDone = true;
-          // Navigate to current page — Authelia will intercept at reverse-proxy level
-          // and redirect to login. After login, user returns here with a fresh session.
-          // Use window.location.href (not reload) to ensure it goes through the network.
-          window.location.href = window.location.href;
-          return;
-        }
+    // Auth expired → auto-reconnect via centralized handler
+    if (res.authExpired) {
+      if (!API.handleAuthExpired()) {
         paintUnavailable(container, 'Session expirée — <a href="' + window.location.href + '" style="color:var(--accent)">se reconnecter</a>');
-        return;
       }
-
-      let data = null;
-      try { data = await resp.json(); } catch (_) { data = null; }
-
-      // If resp is OK but data is null (HTML body, not JSON) → likely auth issue
-      if (resp.ok && data === null) {
-        if (!_authReloadDone) {
-          _authReloadDone = true;
-          window.location.href = window.location.href;
-          return;
-        }
-        paintUnavailable(container, 'Session expirée — <a href="' + window.location.href + '" style="color:var(--accent)">se reconnecter</a>');
-        return;
-      }
-
-      // Check for failure (works with both backend and Open-Meteo responses)
-      const fail = forecastFailure(resp, data);
-      if (fail && !(data && data.days && data.days.length)) {
-        paintUnavailable(container, fail);
-        return;
-      }
-
-      // Normalize response: backend returns {days: [{...}]}, Open-Meteo returns {daily: {...}}
-      let code, tMax, tMin, rain, wind, uv, provider;
-      if (data && data.days && data.days.length) {
-        const d = data.days[0];
-        code = d.weatherCode;
-        tMax = Math.round(d.tempMax);
-        tMin = Math.round(d.tempMin);
-        rain = d.precipProbability || 0;
-        wind = Math.round(d.windMaxKmh || 0);
-        uv = d.uvMax ? Math.round(d.uvMax) : null;
-        provider = d.provider || '';
-      } else if (data && data.daily && dailySlotUsable(data.daily, 0)) {
-        const daily = data.daily;
-        code = daily.weathercode[0];
-        tMax = Math.round(daily.temperature_2m_max[0]);
-        tMin = Math.round(daily.temperature_2m_min[0]);
-        rain = daily.precipitation_probability_max ? daily.precipitation_probability_max[0] : 0;
-        wind = Math.round((daily.windspeed_10m_max && daily.windspeed_10m_max[0]) || 0);
-        uv = daily.uv_index_max ? Math.round(daily.uv_index_max[0]) : null;
-        provider = 'open-meteo';
-      } else {
-        paintUnavailable(container, MSG_TOO_FAR);
-        return;
-      }
-
-      const icon = WMO_ICONS[code] || '🌤️';
-      const desc = WMO_DESC[code] || 'Inconnu';
-
-      let html = `<div style="font-size:2em;margin:8px 0">${icon}</div>`;
-      html += `<div style="font-size:1.1em;font-weight:600;color:var(--text)">${esc(desc)}</div>`;
-      html += `<div style="margin:8px 0;font-size:1.2em">🌡️ <strong>${tMin}°</strong> → <strong>${tMax}°C</strong></div>`;
-      html += `<div style="display:flex;justify-content:center;gap:16px;flex-wrap:wrap">`;
-      if (rain > 0) html += `<span>🌧️ ${rain}%</span>`;
-      html += `<span>💨 ${wind} km/h</span>`;
-      if (uv !== null) html += `<span>${uv >= 8 ? '🔴' : uv >= 6 ? '🟠' : uv >= 3 ? '🟡' : '🟢'} UV ${uv}</span>`;
-      html += `</div>`;
-      const provLabel = provider === 'msc' ? 'Météo Canada' : provider === 'nws' ? 'NWS' : 'Open-Meteo';
-      html += `<div style="margin-top:6px;font-size:.72em;color:var(--muted)">📍 ${esc(day.to || day.from)} · ${provLabel} · Tap pour détails</div>`;
-
-      cache[cacheKey] = html;
-      container.innerHTML = html;
-    } catch (e) {
-      const msg = (e && e.name === 'TimeoutError') ? 'Météo erreur : timeout (10s)'
-        : (e && e.name === 'AbortError') ? 'Météo erreur : requête annulée'
-        : (e && e.message) ? 'Météo erreur : ' + String(e.message).slice(0, 80)
-        : errorMessage(e);
-      paintUnavailable(container, msg);
+      return;
     }
+
+    // Error (not auth)
+    if (!res.ok) {
+      // "out of allowed range" = same as too far in the future
+      // No error message + no data = backend had nothing for this date
+      const msg = (!res.error && !res.data) ? MSG_TOO_FAR
+        : isOutOfRangeReason(res.error) ? MSG_TOO_FAR
+        : res.error ? ('Météo erreur : ' + String(res.error).slice(0, 80))
+        : MSG_ERROR;
+      paintUnavailable(container, msg);
+      return;
+    }
+
+    // Normalize response: backend returns {days: [{...}]}, Open-Meteo returns {daily: {...}}
+    const data = res.data;
+    let code, tMax, tMin, rain, wind, uv, provider;
+    if (data && data.days && data.days.length) {
+      const d = data.days[0];
+      code = d.weatherCode;
+      tMax = Math.round(d.tempMax);
+      tMin = Math.round(d.tempMin);
+      rain = d.precipProbability || 0;
+      wind = Math.round(d.windMaxKmh || 0);
+      uv = d.uvMax ? Math.round(d.uvMax) : null;
+      provider = d.provider || res.provider || '';
+    } else if (data && data.daily && dailySlotUsable(data.daily, 0)) {
+      const daily = data.daily;
+      code = daily.weathercode[0];
+      tMax = Math.round(daily.temperature_2m_max[0]);
+      tMin = Math.round(daily.temperature_2m_min[0]);
+      rain = daily.precipitation_probability_max ? daily.precipitation_probability_max[0] : 0;
+      wind = Math.round((daily.windspeed_10m_max && daily.windspeed_10m_max[0]) || 0);
+      uv = daily.uv_index_max ? Math.round(daily.uv_index_max[0]) : null;
+      provider = res.provider || 'open-meteo';
+    } else {
+      paintUnavailable(container, MSG_TOO_FAR);
+      return;
+    }
+
+    const icon = WMO_ICONS[code] || '🌤️';
+    const desc = WMO_DESC[code] || 'Inconnu';
+
+    let html = `<div style="font-size:2em;margin:8px 0">${icon}</div>`;
+    html += `<div style="font-size:1.1em;font-weight:600;color:var(--text)">${esc(desc)}</div>`;
+    html += `<div style="margin:8px 0;font-size:1.2em">🌡️ <strong>${tMin}°</strong> → <strong>${tMax}°C</strong></div>`;
+    html += `<div style="display:flex;justify-content:center;gap:16px;flex-wrap:wrap">`;
+    if (rain > 0) html += `<span>🌧️ ${rain}%</span>`;
+    html += `<span>💨 ${wind} km/h</span>`;
+    if (uv !== null) html += `<span>${uv >= 8 ? '🔴' : uv >= 6 ? '🟠' : uv >= 3 ? '🟡' : '🟢'} UV ${uv}</span>`;
+    html += `</div>`;
+    const provLabel = provider === 'msc' ? 'Météo Canada' : provider === 'nws' ? 'NWS' : 'Open-Meteo';
+    html += `<div style="margin-top:6px;font-size:.72em;color:var(--muted)">📍 ${esc(day.to || day.from)} · ${provLabel} · Tap pour détails</div>`;
+
+    cache[cacheKey] = html;
+    container.innerHTML = html;
   }
 
   /**
