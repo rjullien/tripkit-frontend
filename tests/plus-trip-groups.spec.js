@@ -3,6 +3,8 @@
  */
 import { test, expect } from './fixtures.js';
 
+const LIVE_TRIP_NOW = new Date('2026-08-21T10:00:00'); // fixtures' trip window — keeps these tests independent of the CI date
+
 test.describe('Plus trip groups', () => {
   test('past trip is under a collapsed Voyages passés title', async ({ page }) => {
     await page.goto('/');
@@ -103,8 +105,7 @@ test.describe('Plus trip groups', () => {
   });
 
   test('Nicole: Québec stays in Voyage actif', async ({ page }) => {
-    // Les dates du seed rendent ce voyage « en cours » au 21 août 2026 : on y fige l'horloge.
-    await page.clock.setFixedTime(new Date('2026-08-21T12:00:00'));
+    await page.clock.setFixedTime(LIVE_TRIP_NOW);
     await page.route('**/api/me', (route) =>
       route.fulfill({
         status: 200,
@@ -164,8 +165,7 @@ test.describe('Plus trip groups', () => {
   });
 
   test('GET /trips list payload is enough to bucket (no local seed)', async ({ page }) => {
-    // Les dates du seed rendent ce voyage « en cours » au 21 août 2026 : on y fige l'horloge.
-    await page.clock.setFixedTime(new Date('2026-08-21T12:00:00'));
+    await page.clock.setFixedTime(LIVE_TRIP_NOW);
     await page.route('**/api/me', (route) =>
       route.fulfill({
         status: 200,
