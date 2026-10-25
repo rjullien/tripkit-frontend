@@ -36,9 +36,8 @@ test('Google Docs anchor remains clickable and balanced', () => {
 
 test('fragment href remains clickable', () => {
   const desc = renderDescription('<a href="#plus/listes/x">Listes</a>');
-  assert.ok(desc.includes(
-    '<a href="#plus/listes/x" target="_blank" rel="noopener">Listes</a>'
-  ));
+  assert.strictEqual(desc, '<a href="#plus/listes/x">Listes</a>');
+  assert.ok(!desc.includes('target='));
 });
 
 test('javascript href is removed but its label remains', () => {

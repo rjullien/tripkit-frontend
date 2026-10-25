@@ -150,6 +150,7 @@ var Timeline = (() => {
       if (href === undefined) return '';
       if (!/^(https?:|#|mailto:|tel:)/i.test(href)) return escapeHtml(label);
       const safeHref = href.replace(/"/g, '&quot;');
+      if (href.startsWith('#')) return `<a href="${safeHref}">${escapeHtml(label)}</a>`;
       return `<a href="${safeHref}" target="_blank" rel="noopener">${escapeHtml(label)}</a>`;
     });
   }
