@@ -52,7 +52,8 @@ test('deux to_book d\'une même étape = rail + peek + hint à droite', () => {
   assert.ok(root.innerHTML.includes('hotel-choice-rail'), 'rail présent');
   assert.ok(root.innerHTML.includes('hotel-choice-slide'), 'cartes en slides');
   assert.ok((root.innerHTML.match(/hotel-choice-slide/g) || []).length === 2, '2 slides');
-  assert.ok(root.innerHTML.includes('2 à réserver'), 'compte visible');
+  assert.ok(root.innerHTML.includes('1 seul à réserver · 2 options'), 'exclusif : un seul à réserver');
+  assert.ok(root.innerHTML.includes('Plan A') && root.innerHTML.includes('Plan B'), 'plans A / B nommés');
   assert.ok(root.innerHTML.includes('1 / 2'), 'position 1/n');
   assert.ok(root.innerHTML.includes('à droite'), 'hint qu\'il y a quelque chose à droite');
   assert.ok(root.innerHTML.includes('Hôtel A') && root.innerHTML.includes('Hôtel B'), 'les deux noms');
@@ -71,18 +72,57 @@ test('un seul hôtel booked = pas de rail', () => {
   assert.ok(!root.innerHTML.includes('hotel-search-links'), 'booked sans recherche');
 });
 
-test('un booked + deux to_book : le booked reste seul, les to_book swipent', () => {
+test('un booked + deux to_book : les autres sont « non retenu », sans aucun lien de réservation', () => {
   BookingsView.render('hotels-content', {
     days: [{ day: 2, hotelId: 'booked', locationId: 'toulouse', to: 'Toulouse' }],
     hotels: {
       booked: { name: 'Choisi', addr: '1 rue', bookingStatus: 'booked', locationId: 'toulouse' },
-      x: { name: 'Option X', addr: '2 rue', bookingStatus: 'to_book', locationId: 'toulouse' },
-      y: { name: 'Option Y', addr: '3 rue', bookingStatus: 'candidate', locationId: 'toulouse' },
+      x: { name: 'Option X', addr: '2 rue', bookingStatus: 'to_book', locationId: 'toulouse',
+           searchLinks: { booking: 'https://www.booking.com/searchresults.html?ss=X' },
+           links: [{ label: 'Booking X', url: 'https://www.booking.com/hotel/x' }] },
+      y: { name: 'Option Y', addr: '3 rue', bookingStatus: 'candidate', locationId: 'toulouse',
+           bookingUrl: 'https://www.booking.com/hotel/y' },
     },
   });
-  assert.ok(root.innerHTML.includes('Choisi'), 'le booked est là');
-  assert.ok(root.innerHTML.includes('2 à réserver'), 'les deux ouverts en rail');
-  assert.ok(root.innerHTML.includes('Option X') && root.innerHTML.includes('Option Y'));
+  const html = root.innerHTML;
+  assert.ok(html.includes('Choisi'), 'le booked est là');
+  assert.ok(!html.includes('hotel-choice-rail'), 'pas de rail « à réserver »');
+  assert.ok(!html.includes('à réserver'), 'aucun « à réserver » pour cette nuit');
+  assert.ok(html.includes('hotel-not-retained'), 'bloc non retenu');
+  assert.ok(html.includes('déjà réservée : <b>Choisi</b>'), 'nomme l\'hôtel réservé');
+  assert.ok(html.includes('Option X') && html.includes('Option Y'), 'les options restent nommées');
+  assert.ok(!html.includes('hotel-search-links'), 'pas de recherche');
+  assert.ok(!/booking\.com/.test(html), 'aucun lien Booking');
+});
+
+test('un booked + un candidate (plan B) : le plan B perd ses liens', () => {
+  BookingsView.render('hotels-content', {
+    days: [{ day: 15, hotelId: 'a', locationId: 'idaho-falls', to: 'Idaho Falls' }],
+    hotels: {
+      a: { name: 'Plan A', addr: '1 rue', bookingStatus: 'booked' },
+      b: { name: 'Plan B', bookingStatus: 'candidate', dayNums: [15],
+           searchLinks: { booking: 'https://www.booking.com/searchresults.html?ss=B' } },
+    },
+  });
+  const html = root.innerHTML;
+  assert.ok(html.includes('hotel-not-retained') && html.includes('Plan B'));
+  assert.ok(!/booking\.com/.test(html), 'aucun lien Booking');
+});
+
+test('deux candidate sans booked : rail plan A / plan B avec liens', () => {
+  BookingsView.render('hotels-content', {
+    days: [{ day: 15, hotelId: 'a', locationId: 'idaho-falls', to: 'Idaho Falls' }],
+    hotels: {
+      a: { name: 'Plan A', addr: '1 rue', bookingStatus: 'candidate' },
+      b: { name: 'Plan B', bookingStatus: 'candidate', dayNums: [15],
+           searchLinks: { booking: 'https://www.booking.com/searchresults.html?ss=B' } },
+    },
+  });
+  const html = root.innerHTML;
+  assert.ok(html.includes('1 seul à réserver · 2 options'), 'rail exclusif');
+  assert.ok(html.indexOf('>Plan A<') < html.indexOf('>Plan B<'), 'hotelId du jour = plan A');
+  assert.ok(!html.includes('hotel-not-retained'));
+  assert.ok(/booking\.com/.test(html), 'liens gardés tant que rien n\'est réservé');
 });
 
 console.log(`\n${pass} tests passed${fail ? `, ${fail} failed` : ''}\n`);

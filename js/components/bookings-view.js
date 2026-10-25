@@ -533,7 +533,8 @@ var BookingsView = (() => {
       body += cardWithNuisance(day, hotelId, hotelData);
     }
 
-    // 2+ to_book/candidate: horizontal list. The next card peeks so it is
+    // 2+ to_book/candidate on one night are exclusive (plan A / plan B):
+    // only one gets booked. Horizontal list. The next card peeks so it is
     // obvious there is more to the right — not a single full-width card.
     function appendChoiceRail(day, group) {
       if (typeof HotelCard === 'undefined') return;
@@ -541,13 +542,14 @@ var BookingsView = (() => {
       body += stayHeader(day, group[0].data);
       body += `<div class="hotel-choice-rail">`;
       body += `<div class="hotel-choice-head">
-        <span class="hotel-choice-count">${n} à réserver</span>
+        <span class="hotel-choice-count">1 seul à réserver · ${n} options</span>
         <span class="hotel-choice-pos">1 / ${n}</span>
       </div>`;
       body += `<div class="hotel-choice-hint">Swipe → encore ${n - 1} à droite</div>`;
       body += `<div class="hotel-choice-scroller" tabindex="0">`;
-      group.forEach(({ id, data }) => {
-        body += `<div class="hotel-choice-slide">${cardWithNuisance(day, id, data)}</div>`;
+      group.forEach(({ id, data }, i) => {
+        const plan = i < 26 ? `Plan ${String.fromCharCode(65 + i)}` : `Option ${i + 1}`;
+        body += `<div class="hotel-choice-slide"><div class="hotel-choice-plan">${plan}</div>${cardWithNuisance(day, id, data)}</div>`;
       });
       body += `</div>`;
       body += `<div class="hotel-choice-dots" role="tablist">`;
@@ -566,8 +568,22 @@ var BookingsView = (() => {
         else open.push(h);
       });
       booked.forEach(h => appendHotelCard(day, h.id, h.data));
-      if (open.length >= 2) appendChoiceRail(day, open);
+      if (booked.length && open.length) appendNotRetained(booked, open);
+      else if (open.length >= 2) appendChoiceRail(day, open);
       else open.forEach(h => appendHotelCard(day, h.id, h.data));
+    }
+
+    // Night already booked: the other options lose every booking link so a
+    // plan B cannot be booked on top of plan A by mistake.
+    function appendNotRetained(booked, open) {
+      const bookedNames = booked.map(h => esc(h.data.name)).join(', ');
+      body += `<div class="hotel-not-retained">`;
+      body += `<div class="hotel-not-retained-head">🚫 Non retenu — nuit déjà réservée : <b>${bookedNames}</b></div>`;
+      body += `<ul>`;
+      open.forEach(({ data }) => {
+        body += `<li>${esc(data.name)}${data.addr ? ` <span class="hotel-not-retained-addr">· ${esc(data.addr)}</span>` : ''}</li>`;
+      });
+      body += `</ul></div>`;
     }
 
     days.forEach(day => {

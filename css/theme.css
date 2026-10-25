@@ -752,6 +752,18 @@ a:visited { color: var(--accent); }
 
 .hotel-card .hotel-meta strong { color: var(--text); }
 
+/* Night already booked: other options listed without any booking link. */
+.hotel-not-retained {
+  margin: -4px 0 18px;
+  padding: 8px 12px;
+  border: 1px dashed var(--border, rgba(255,255,255,.15));
+  border-radius: 10px;
+  color: var(--muted);
+  font-size: .82em;
+}
+.hotel-not-retained ul { margin: 4px 0 0; padding-left: 18px; }
+.hotel-not-retained-addr { opacity: .8; }
+
 /* Construction: several to_book on one stay — peek the next card. */
 .hotel-choice-rail {
   position: relative;
@@ -791,6 +803,7 @@ a:visited { color: var(--accent); }
   min-width: 0;
 }
 .hotel-choice-slide .hotel-card { margin-bottom: 0; }
+.hotel-choice-plan { font-size: .78em; font-weight: 700; color: #ffc107; margin: 0 0 4px 2px; }
 .hotel-choice-rail:not(.at-end)::after {
   content: '›';
   position: absolute;
