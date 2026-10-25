@@ -38,7 +38,8 @@
     "js/components/culture-view.js",
     "js/components/trip-selector.js",
     "js/components/publish-panel.js",
-    "js/components/polarsteps-panel.js"
+    "js/components/polarsteps-panel.js",
+    "js/components/viewport-diag.js"
   ],
   "bundle-edge": [
     "js/edge-model/config.js",

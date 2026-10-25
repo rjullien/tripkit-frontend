@@ -21,6 +21,8 @@ test.describe('Discovery panel', () => {
   });
 
   test('collapsed on a live day, expands to themes, search lists results', async ({ page }) => {
+    // Les dates du seed rendent ce voyage « en cours » au 21 août 2026 : on y fige l'horloge.
+    await page.clock.setFixedTime(new Date('2026-08-21T12:00:00'));
     await page.route(`**/api/trips/${TRIP_ID}/seed`, (route) => {
       const seed = JSON.parse(JSON.stringify(SEED));
       seed.trip.startDate = '2026-08-20';
@@ -99,6 +101,8 @@ test.describe('Discovery panel', () => {
   });
 
   test('festivals search lists date, note and Lien without 0 km', async ({ page }) => {
+    // Les dates du seed rendent ce voyage « en cours » au 21 août 2026 : on y fige l'horloge.
+    await page.clock.setFixedTime(new Date('2026-08-21T12:00:00'));
     await page.route(`**/api/trips/${TRIP_ID}/seed`, (route) => {
       const seed = JSON.parse(JSON.stringify(SEED));
       seed.trip.startDate = '2026-08-20';
@@ -179,6 +183,8 @@ test.describe('Discovery panel', () => {
   });
 
   test('« Retenir » sur un 200 peint « Retenu ✓ »', async ({ page }) => {
+    // Les dates du seed rendent ce voyage « en cours » au 21 août 2026 : on y fige l'horloge.
+    await page.clock.setFixedTime(new Date('2026-08-21T12:00:00'));
     await page.route(`**/api/trips/${TRIP_ID}/seed`, (route) => {
       const seed = JSON.parse(JSON.stringify(SEED));
       seed.trip.startDate = '2026-08-20';
@@ -260,6 +266,8 @@ test.describe('Discovery panel', () => {
   });
 
   test('travel day : Sur le trajet cherche le corridor et affiche le détour estimé', async ({ page }) => {
+    // Les dates du seed rendent ce voyage « en cours » au 21 août 2026 : on y fige l'horloge.
+    await page.clock.setFixedTime(new Date('2026-08-21T12:00:00'));
     const themes = {
       themes: [
         { id: 'outlets', label: 'Outlets & bons plans', emoji: '🏷️', engine: 'geo', corridor: true },

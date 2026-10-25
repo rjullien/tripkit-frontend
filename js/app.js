@@ -831,7 +831,7 @@ var App = (() => {
     html += `<div class="section-title" style="margin-top:24px">ℹ️ Infos app</div>
       <div class="card"><div style="font-size:.84em;color:var(--muted);line-height:2">
         <div>📱 <strong style="color:var(--text)">Juju's Adventures</strong> — PWA offline-first</div>
-        <div id="tripkit-version-info">🏷️ Soft: <code style="font-size:.82em;color:var(--sec);font-weight:600">v${esc(ver.soft)}</code> · Data: <code style="font-size:.82em;color:var(--sec);font-weight:600">${esc(ver.data)}</code> · Cache: <code style="font-size:.82em;color:var(--sec)">${ver.cache || '?'}</code></div>
+        <div id="tripkit-version-info" onclick="ViewportDiag.toggle()">🏷️ Soft: <code style="font-size:.82em;color:var(--sec);font-weight:600">v${esc(ver.soft)}</code> · Data: <code style="font-size:.82em;color:var(--sec);font-weight:600">${esc(ver.data)}</code> · Cache: <code style="font-size:.82em;color:var(--sec)">${ver.cache || '?'}</code></div>
         <div id="tripkit-backend-info">${beLabel}</div>
         <div>💾 Device: <code style="font-size:.78em;color:var(--sec)">${Store.getDeviceId()}</code></div>
         <div id="tripkit-connectivity">🌐 …</div>
