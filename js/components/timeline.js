@@ -146,10 +146,13 @@ var Timeline = (() => {
 
   function escapeAndLink(s) {
     if (!s) return '';
-    return s.replace(/<a\s+href="([^"]*)"[^>]*>([^<]*)<\/a>/g, (match, href, label) => {
+    return s.replace(/<a\s+href="([^"]*)"[^>]*>([^<]*)<\/a>|<[^>]+>/g, (match, href, label) => {
+      if (href === undefined) return '';
+      if (!/^(https?:|#|mailto:|tel:)/i.test(href)) return escapeHtml(label);
       const safeHref = href.replace(/"/g, '&quot;');
-      return `<a href="${safeHref}" target="_blank">${escapeHtml(label)}</a>`;
-    }).replace(/<(?!\/a>)[^>]+>/g, '');
+      if (href.startsWith('#')) return `<a href="${safeHref}">${escapeHtml(label)}</a>`;
+      return `<a href="${safeHref}" target="_blank" rel="noopener">${escapeHtml(label)}</a>`;
+    });
   }
 
   function mapsHrefFor(ev) {
